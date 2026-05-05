@@ -3,10 +3,13 @@ udp:
   port: 5001
 
 payload:
-  mode: TEXT
-  text: "hello from traffic-tester-app over UDP"
+  mode: FRUIT_ORANGE
+  text: ""
   base64: ""
   hex: ""
+  fruit:
+    sourceFarm: "north-farm-17"
+    freshness: "very_fresh"
 
-repeat: 1
+repeat: 10000
 intervalMillis: 1000

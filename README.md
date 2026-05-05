@@ -1,12 +1,38 @@
 # Traffic Interface Tool
 
-Initial runnable version.
+Initial runnable version with demo `Fruit Interface` protocol support.
 
-## Modules
+## Demo Fruit protocol
 
-- `shared-schemas` - shared contracts/SPI
-- `traffic-monitor-app` - Spring Boot monitor app
-- `traffic-tester-app` - UDP tester app
+Header:
+
+```text
+opcode:int32
+sendTimeEpochMillis:int64
+bodyLength:int32
+```
+
+Orange body:
+
+```text
+sourceFarmLength:int32
+sourceFarm:utf8
+freshness:byte
+```
+
+Freshness values:
+
+```text
+1 -> very_fresh
+2 -> not_fresh
+3 -> unknown
+```
+
+Orange opcode:
+
+```text
+1001
+```
 
 ## Run monitor
 
@@ -20,7 +46,7 @@ Open:
 http://localhost:8080
 ```
 
-## Send UDP message from tester
+## Send Orange message from tester
 
 In another terminal:
 
@@ -28,25 +54,7 @@ In another terminal:
 docker compose --profile tester up --build traffic-tester-app
 ```
 
-## Check monitor logs
-
-```bash
-docker logs -f traffic-monitor-app
-```
-
-Expected log:
-
-```text
-Received UDP packet ...
-```
-
-## Check recent messages API
-
-```bash
-curl http://localhost:8080/api/messages/recent
-```
-
-## Tester payload config
+## Change Orange message fields
 
 Edit:
 
@@ -57,14 +65,44 @@ config/tester-scenario.yml
 Example:
 
 ```yaml
-udp:
-  host: traffic-monitor-app
-  port: 5001
-
 payload:
-  mode: TEXT
-  text: "hello from traffic-tester-app over UDP"
-
-repeat: 1
-intervalMillis: 1000
+  mode: FRUIT_ORANGE
+  fruit:
+    sourceFarm: "north-farm-17"
+    freshness: "very_fresh"
 ```
+
+Supported freshness values:
+
+```text
+very_fresh
+not_fresh
+unknown
+```
+
+## Recent messages API
+
+```bash
+curl http://localhost:8080/api/messages/recent
+```
+
+
+## UI change
+
+The live monitoring table now shows:
+
+```text
+Observed At | Protocol | Port | Interface | Message Name | Message Body | Parse Error
+```
+
+Raw Base64 was removed from the UI.
+
+
+## Design system UI
+
+The monitor UI now uses the dark System Flow Investigator style:
+- sidebar
+- topbar stats
+- dark table layout
+- message inspector panel
+- filter input

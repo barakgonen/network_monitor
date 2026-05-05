@@ -2,115 +2,216 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Traffic Monitor</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 24px;
-      background: #f8fafc;
-      color: #0f172a;
-    }
-
-    h1 {
-      margin-bottom: 4px;
-    }
-
-    .subtitle {
-      color: #64748b;
-      margin-bottom: 24px;
-    }
-
-    button {
-      padding: 8px 12px;
-      border: 1px solid #cbd5e1;
-      background: white;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-bottom: 16px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
-    }
-
-    th, td {
-      border-bottom: 1px solid #e2e8f0;
-      padding: 10px;
-      text-align: left;
-      vertical-align: top;
-      font-size: 14px;
-    }
-
-    th {
-      background: #f1f5f9;
-    }
-
-    code {
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traffic Interface Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>Traffic Monitor</h1>
-  <div class="subtitle">Initial UDP monitoring view</div>
+<div class="app-shell">
 
-  <button onclick="loadMessages()">Refresh</button>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h16"/>
+          <path d="M4 12h16"/>
+          <path d="M4 17h16"/>
+          <circle cx="8" cy="7" r="1"/>
+          <circle cx="14" cy="12" r="1"/>
+          <circle cx="10" cy="17" r="1"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Traffic Interface</h1>
+        <p>Monitor</p>
+      </div>
+    </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Protocol</th>
-        <th>Local Port</th>
-        <th>Remote Address</th>
-        <th>Size</th>
-        <th>Payload Text</th>
-        <th>Payload Base64</th>
-      </tr>
-    </thead>
-    <tbody id="messages"></tbody>
-  </table>
+    <div class="sidebar-block">
+      <div class="block-label">Ingestion</div>
+      <span class="status-badge">UDP Active</span>
+    </div>
 
-  <script>
-    async function loadMessages() {
-      const response = await fetch('/api/messages/recent');
-      const messages = await response.json();
+    <section class="sidebar-panel">
+      <div class="sidebar-panel-header">
+        <span class="sidebar-panel-title">Interfaces</span>
+      </div>
+      <div class="topic-chip">Fruit Interface</div>
+      <div class="sidebar-note">Port 5001 / UDP</div>
+    </section>
 
-      const tbody = document.getElementById('messages');
-      tbody.innerHTML = '';
+    <section class="sidebar-panel">
+      <div class="sidebar-panel-header">
+        <span class="sidebar-panel-title">Supported Messages</span>
+      </div>
+      <div class="topic-chip">Orange</div>
+      <div class="sidebar-note">sourceFarm, freshness</div>
+    </section>
+  </aside>
 
-      for (const msg of messages) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${msg.timestamp}</td>
-          <td>${msg.transportProtocol}</td>
-          <td>${msg.localPort}</td>
-          <td>${msg.remoteAddress}</td>
-          <td>${msg.payloadSizeBytes}</td>
-          <td><code>${escapeHtml(msg.payloadText || '')}</code></td>
-          <td><code>${escapeHtml(msg.payloadBase64 || '')}</code></td>
-        `;
-        tbody.appendChild(row);
+  <main class="main-content">
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-heading">
+          <h2>Live Protocol Monitor</h2>
+          <p>Developer tool for TCP / UDP interface traffic</p>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-pill">
+            <strong>UDP</strong>
+            <span>transport</span>
+          </div>
+          <div class="stat-pill highlight">
+            <strong id="eventsCount">0</strong>
+            <span>messages</span>
+          </div>
+          <div class="stat-pill">
+            <strong id="selectedInterfaceLabel">Fruit</strong>
+            <span>interface</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <input id="textFilter" type="text" class="filter-input" placeholder="Filter body…">
+        <button id="loadRecentBtn" class="secondary-btn">Load recent</button>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true">Live Messages</button>
+    </nav>
+
+    <section class="panel table-panel">
+      <div class="panel-header">
+        <h2>Fruit Interface Messages</h2>
+      </div>
+
+      <div class="live-events-layout">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+            <tr>
+              <th>Observed At</th>
+              <th>Protocol</th>
+              <th>Port</th>
+              <th>Interface</th>
+              <th>Message Name</th>
+              <th>Message Body</th>
+              <th>Parse Error</th>
+            </tr>
+            </thead>
+            <tbody id="messagesTableBody"></tbody>
+          </table>
+          <div id="emptyState" class="empty-state">No messages yet. Run the tester app to send an Orange message.</div>
+        </div>
+
+        <aside class="event-details-side">
+          <div class="event-details-header">
+            <h3>Message Inspector</h3>
+          </div>
+          <pre id="eventDetails">Select a message to inspect details.</pre>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  let allMessages = [];
+  let selectedMessageId = null;
+
+  document.getElementById('loadRecentBtn').addEventListener('click', loadMessages);
+  document.getElementById('textFilter').addEventListener('input', renderMessages);
+
+  async function loadMessages() {
+    const response = await fetch('/api/messages/recent');
+    allMessages = await response.json();
+    document.getElementById('eventsCount').innerText = allMessages.length;
+    renderMessages();
+  }
+
+  function renderMessages() {
+    const filterValue = document.getElementById('textFilter').value.toLowerCase();
+    const tbody = document.getElementById('messagesTableBody');
+    const emptyState = document.getElementById('emptyState');
+
+    tbody.innerHTML = '';
+
+    const filtered = allMessages.filter(msg => {
+      const body = JSON.stringify(msg.body || {}).toLowerCase();
+      const messageName = String(msg.messageType || '').toLowerCase();
+      const interfaceName = String(msg.interfaceName || '').toLowerCase();
+      return body.includes(filterValue) || messageName.includes(filterValue) || interfaceName.includes(filterValue);
+    });
+
+    emptyState.style.display = filtered.length === 0 ? 'block' : 'none';
+
+    for (const msg of filtered) {
+      const row = document.createElement('tr');
+      row.dataset.id = msg.id;
+
+      if (msg.id === selectedMessageId) {
+        row.classList.add('selected-row');
       }
+
+      row.innerHTML = `
+        <td>${escapeHtml(formatTime(msg.observedAt))}</td>
+        <td><span class="protocol-pill">${escapeHtml(msg.transportProtocol || '')}</span></td>
+        <td>${escapeHtml(msg.localPort)}</td>
+        <td>${escapeHtml(msg.interfaceName || '')}</td>
+        <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
+        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
+        <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
+      `;
+
+      row.addEventListener('click', () => selectMessage(msg));
+      tbody.appendChild(row);
+    }
+  }
+
+  function selectMessage(msg) {
+    selectedMessageId = msg.id;
+    document.getElementById('eventDetails').innerText = JSON.stringify({
+      observedAt: msg.observedAt,
+      protocol: msg.transportProtocol,
+      port: msg.localPort,
+      interfaceName: msg.interfaceName,
+      messageName: msg.messageType,
+      body: msg.body,
+      parseError: msg.parseError
+    }, null, 2);
+
+    renderMessages();
+  }
+
+  function formatTime(value) {
+    if (!value) {
+      return '';
     }
 
-    function escapeHtml(value) {
-      return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+    try {
+      return new Date(value).toLocaleTimeString();
+    } catch {
+      return value;
     }
+  }
 
-    loadMessages();
-    setInterval(loadMessages, 2000);
-  </script>
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  loadMessages();
+  setInterval(loadMessages, 2000);
+</script>
 </body>
 </html>

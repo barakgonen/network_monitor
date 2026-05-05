@@ -3,5 +3,6 @@ package com.example.tester.config;
 public enum PayloadMode {
     TEXT,
     BASE64,
-    HEX
+    HEX,
+    FRUIT_ORANGE
 }

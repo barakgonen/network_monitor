@@ -5,6 +5,7 @@ public class PayloadConfig {
     private String text = "";
     private String base64 = "";
     private String hex = "";
+    private FruitPayloadConfig fruit = new FruitPayloadConfig();
 
     public PayloadMode getMode() {
         return mode;
@@ -36,5 +37,13 @@ public class PayloadConfig {
 
     public void setHex(String hex) {
         this.hex = hex;
+    }
+
+    public FruitPayloadConfig getFruit() {
+        return fruit;
+    }
+
+    public void setFruit(FruitPayloadConfig fruit) {
+        this.fruit = fruit;
     }
 }
