@@ -44,6 +44,20 @@ public class ScenarioLoader {
             throw new IllegalArgumentException("Invalid UDP port: " + scenario.getUdp().getPort());
         }
 
+        if (scenario.getListener() != null && scenario.getListener().isEnabled()) {
+            if (scenario.getListener().getPort() <= 0 || scenario.getListener().getPort() > 65535) {
+                throw new IllegalArgumentException("Invalid listener.port: " + scenario.getListener().getPort());
+            }
+
+            if (scenario.getListener().getDurationSeconds() <= 0) {
+                throw new IllegalArgumentException("listener.durationSeconds must be greater than 0");
+            }
+
+            if (scenario.getListener().getBufferSizeBytes() <= 0) {
+                throw new IllegalArgumentException("listener.bufferSizeBytes must be greater than 0");
+            }
+        }
+
         if (scenario.effectiveMessages().isEmpty()) {
             throw new IllegalArgumentException("Scenario must define either 'messages' with at least one entry or legacy 'payload'");
         }
@@ -62,6 +76,10 @@ public class ScenarioLoader {
             if ((message.getMode() == PayloadMode.FRUIT_ORANGE || message.getMode() == PayloadMode.FRUIT_BANANA)
                     && message.getFruit() == null) {
                 throw new IllegalArgumentException("messages[" + i + "].fruit is required for " + message.getMode());
+            }
+
+            if (message.getMode() == PayloadMode.WEATHER_TEMPERATURE_READING && message.getWeather() == null) {
+                throw new IllegalArgumentException("messages[" + i + "].weather is required for " + message.getMode());
             }
         }
 

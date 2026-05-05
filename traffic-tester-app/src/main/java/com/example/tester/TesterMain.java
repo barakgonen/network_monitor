@@ -3,16 +3,19 @@ package com.example.tester;
 import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
+import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
+import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 
 public class TesterMain {
     public static void main(String[] args) throws Exception {
-        String configPath = System.getenv().getOrDefault("TRAFFIC_TESTER_CONFIG", "/app/config/tester-scenario.yml");
+        String configPath = System.getenv().getOrDefault("TRAFFIC_TESTER_CONFIG", "./config/tester-scenario.yml");
 
         TesterScenario scenario = new ScenarioLoader().load(Path.of(configPath));
         List<PayloadConfig> messages = scenario.effectiveMessages();
@@ -20,11 +23,26 @@ public class TesterMain {
         PayloadFactory payloadFactory = new PayloadFactory();
         UdpPublisher udpPublisher = new UdpPublisher();
 
+        UdpListener listener = null;
+
         System.out.println("Traffic Tester App started");
         System.out.println("Scenario: " + configPath);
         System.out.println("Default UDP target: " + scenario.getUdp().getHost() + ":" + scenario.getUdp().getPort());
         System.out.println("Messages per iteration: " + messages.size());
         System.out.println("Repeat: " + scenario.getRepeat());
+
+        UdpListenerConfig listenerConfig = scenario.getListener();
+
+        if (listenerConfig != null && listenerConfig.isEnabled()) {
+            listener = new UdpListener(listenerConfig.getPort(), listenerConfig.getBufferSizeBytes());
+            listener.start();
+
+            System.out.println("Tester will listen for UDP responses on port "
+                    + listenerConfig.getPort()
+                    + " for "
+                    + listenerConfig.getDurationSeconds()
+                    + " seconds");
+        }
 
         int totalSent = 0;
 
@@ -63,7 +81,13 @@ public class TesterMain {
             }
         }
 
-        System.out.println("Traffic Tester App finished. Total messages sent: " + totalSent);
+        System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent);
+
+        if (listener != null) {
+            listener.await(Duration.ofSeconds(listenerConfig.getDurationSeconds()));
+        }
+
+        System.out.println("Traffic Tester App finished");
     }
 
     private static String resolveHost(TesterScenario scenario, PayloadConfig messageConfig) {

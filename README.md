@@ -268,3 +268,40 @@ Example:
   }
 }
 ```
+
+
+## Tester UDP Listener
+
+The tester app can now listen for UDP messages sent back from the monitor app.
+
+Scenario config:
+
+```yaml
+listener:
+  enabled: true
+  port: 7001
+  durationSeconds: 120
+  bufferSizeBytes: 65507
+```
+
+Run tester:
+
+```bash
+docker compose --profile tester up --build traffic-tester-app
+```
+
+Then from the monitor UI, use Sample Publisher and send to:
+
+```text
+Host: traffic-tester-app
+Port: 7001
+```
+
+If running monitor locally outside Docker and tester locally too, use:
+
+```text
+Host: localhost
+Port: 7001
+```
+
+The tester logs incoming raw bytes and tries to decode them as Fruit or Weather messages.
