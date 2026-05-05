@@ -1,0 +1,34 @@
+services:
+  traffic-monitor-app:
+    build:
+      context: .
+      dockerfile: traffic-monitor-app/Dockerfile
+    container_name: traffic-monitor-app
+    ports:
+      - "8080:8080"
+      - "5001:5001/udp"
+      - "5002:5002"
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
+    networks:
+      - traffic-tool-net
+
+  traffic-tester-app:
+    build:
+      context: .
+      dockerfile: traffic-tester-app/Dockerfile
+    container_name: traffic-tester-app
+    depends_on:
+      - traffic-monitor-app
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      TRAFFIC_TESTER_CONFIG: /app/config/tester-scenario.yml
+    networks:
+      - traffic-tool-net
+
+networks:
+  traffic-tool-net:
+    driver: bridge

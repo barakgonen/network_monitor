@@ -1,0 +1,28 @@
+interfaces:
+  - key: fruits
+    name: Fruits Interface
+    messages:
+      - type: Banana
+        parserClass: com.example.schemas.demo.BananaParser
+        serializerClass: com.example.schemas.demo.BananaSerializer
+      - type: Mango
+        parserClass: com.example.schemas.demo.MangoParser
+        serializerClass: com.example.schemas.demo.MangoSerializer
+
+connections:
+  - name: fruits-udp-in
+    protocol: UDP
+    port: 5001
+    interfaceKey: fruits
+
+  - name: fruits-tcp-in
+    protocol: TCP
+    port: 5002
+    interfaceKey: fruits
+
+publishTargets:
+  - name: fruits-monitor-udp
+    protocol: UDP
+    host: traffic-monitor-app
+    port: 5001
+    interfaceKey: fruits

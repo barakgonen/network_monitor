@@ -1,0 +1,12 @@
+udp:
+  host: traffic-monitor-app
+  port: 5001
+
+payload:
+  mode: TEXT
+  text: "hello from traffic-tester-app over UDP"
+  base64: ""
+  hex: ""
+
+repeat: 1
+intervalMillis: 1000
