@@ -1,51 +1,70 @@
 # Traffic Interface Tool
 
-Multi-module Java skeleton:
+Initial runnable version.
 
-- `shared-schemas` - shared SPI/contracts
-- `traffic-monitor-app` - monitor application
-- `traffic-tester-app` - tester/publisher application
+## Modules
 
-## Build locally
+- `shared-schemas` - shared contracts/SPI
+- `traffic-monitor-app` - Spring Boot monitor app
+- `traffic-tester-app` - UDP tester app
 
-```bash
-mvn clean package
-```
-
-## Run monitor with Docker Compose
+## Run monitor
 
 ```bash
 docker compose up --build traffic-monitor-app
 ```
 
-Monitor UI:
+Open:
 
 ```text
 http://localhost:8080
 ```
 
-UDP listener example:
+## Send UDP message from tester
 
-```text
-localhost:5001/udp
-```
-
-TCP listener example:
-
-```text
-localhost:5002
-```
-
-## Run tester profile
+In another terminal:
 
 ```bash
-docker compose --profile tester up --build
+docker compose --profile tester up --build traffic-tester-app
 ```
 
-## Configuration files
+## Check monitor logs
 
-Runtime config is mounted from:
+```bash
+docker logs -f traffic-monitor-app
+```
+
+Expected log:
 
 ```text
-./config
+Received UDP packet ...
+```
+
+## Check recent messages API
+
+```bash
+curl http://localhost:8080/api/messages/recent
+```
+
+## Tester payload config
+
+Edit:
+
+```text
+config/tester-scenario.yml
+```
+
+Example:
+
+```yaml
+udp:
+  host: traffic-monitor-app
+  port: 5001
+
+payload:
+  mode: TEXT
+  text: "hello from traffic-tester-app over UDP"
+
+repeat: 1
+intervalMillis: 1000
 ```

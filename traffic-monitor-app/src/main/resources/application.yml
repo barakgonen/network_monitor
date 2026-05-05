@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+traffic:
+  udp:
+    enabled: true
+    port: 5001
+    buffer-size-bytes: 65507
+  store:
+    max-size: 500

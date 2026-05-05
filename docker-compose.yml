@@ -7,9 +7,6 @@ services:
     ports:
       - "8080:8080"
       - "5001:5001/udp"
-      - "5002:5002"
-    volumes:
-      - ./config:/app/config:ro
     environment:
       TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
     networks:
@@ -28,6 +25,9 @@ services:
       TRAFFIC_TESTER_CONFIG: /app/config/tester-scenario.yml
     networks:
       - traffic-tool-net
+    profiles:
+      - tester
+    restart: "no"
 
 networks:
   traffic-tool-net:
