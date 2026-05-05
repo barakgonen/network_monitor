@@ -305,3 +305,45 @@ Port: 7001
 ```
 
 The tester logs incoming raw bytes and tries to decode them as Fruit or Weather messages.
+
+
+## Periodic Publisher
+
+The monitor UI now supports repeat/periodic publication.
+
+UI controls:
+
+```text
+Events / Time Unit
+Time Unit: SECOND / MINUTE / HOUR
+Start Periodic
+Stop Periodic
+Refresh Status
+```
+
+Backend APIs:
+
+```http
+POST /api/publish/udp/periodic/start
+POST /api/publish/udp/periodic/stop
+GET  /api/publish/udp/periodic/status
+```
+
+Example start request:
+
+```json
+{
+  "publishRequest": {
+    "interfaceName": "Fruit Interface",
+    "messageType": "Banana",
+    "host": "traffic-tester-app",
+    "port": 7001,
+    "fields": {
+      "color": "yellow",
+      "weight": 142.75
+    }
+  },
+  "eventsPerTimeUnit": 5,
+  "timeUnit": "SECOND"
+}
+```

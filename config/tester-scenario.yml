@@ -34,5 +34,5 @@ messages:
       temperatureCelsius: 28.4
       condition: "sunny"
 
-repeat: 10000
+repeat: 1231
 intervalMillis: 1000
