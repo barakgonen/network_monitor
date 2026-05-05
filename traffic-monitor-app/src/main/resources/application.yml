@@ -4,7 +4,8 @@ server:
 traffic:
   udp:
     enabled: true
-    port: 5001
+    fruit-port: 5001
+    weather-port: 5003
     buffer-size-bytes: 65507
   store:
     max-size: 500

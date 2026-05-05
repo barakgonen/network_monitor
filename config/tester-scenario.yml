@@ -1,15 +1,32 @@
 udp:
-  host: 127.0.0.1
+  host: traffic-monitor-app
   port: 5001
 
-payload:
-  mode: FRUIT_ORANGE
-  text: ""
-  base64: ""
-  hex: ""
-  fruit:
-    sourceFarm: "north-farm-17"
-    freshness: "very_fresh"
+messages:
+  - mode: FRUIT_ORANGE
+    target:
+      host: traffic-monitor-app
+      port: 5001
+    fruit:
+      sourceFarm: "north-farm-17"
+      freshness: "very_fresh"
 
-repeat: 10000
+  - mode: FRUIT_BANANA
+    target:
+      host: traffic-monitor-app
+      port: 5001
+    fruit:
+      color: "yellow"
+      weight: 142.75
+
+  - mode: WEATHER_TEMPERATURE_READING
+    target:
+      host: traffic-monitor-app
+      port: 5003
+    weather:
+      stationId: "station-tlv-01"
+      temperatureCelsius: 28.4
+      condition: "sunny"
+
+repeat: 1
 intervalMillis: 1000

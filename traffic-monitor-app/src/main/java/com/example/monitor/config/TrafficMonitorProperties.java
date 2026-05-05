@@ -25,7 +25,8 @@ public class TrafficMonitorProperties {
 
     public static class Udp {
         private boolean enabled = true;
-        private int port = 5001;
+        private int fruitPort = 5001;
+        private int weatherPort = 5003;
         private int bufferSizeBytes = 65507;
 
         public boolean isEnabled() {
@@ -36,12 +37,20 @@ public class TrafficMonitorProperties {
             this.enabled = enabled;
         }
 
-        public int getPort() {
-            return port;
+        public int getFruitPort() {
+            return fruitPort;
         }
 
-        public void setPort(int port) {
-            this.port = port;
+        public void setFruitPort(int fruitPort) {
+            this.fruitPort = fruitPort;
+        }
+
+        public int getWeatherPort() {
+            return weatherPort;
+        }
+
+        public void setWeatherPort(int weatherPort) {
+            this.weatherPort = weatherPort;
         }
 
         public int getBufferSizeBytes() {

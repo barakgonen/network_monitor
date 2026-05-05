@@ -40,6 +40,8 @@
       </div>
       <div class="topic-chip">Fruit Interface</div>
       <div class="sidebar-note">Port 5001 / UDP</div>
+      <div class="topic-chip">Weather Interface</div>
+      <div class="sidebar-note">Port 5003 / UDP</div>
     </section>
 
     <section class="sidebar-panel">
@@ -48,6 +50,10 @@
       </div>
       <div class="topic-chip">Orange</div>
       <div class="sidebar-note">sourceFarm, freshness</div>
+      <div class="topic-chip">Banana</div>
+      <div class="sidebar-note">color, weight</div>
+      <div class="topic-chip">TemperatureReading</div>
+      <div class="sidebar-note">stationId, temperatureCelsius, condition</div>
     </section>
   </aside>
 
@@ -70,7 +76,7 @@
             <span>messages</span>
           </div>
           <div class="stat-pill">
-            <strong id="selectedInterfaceLabel">Fruit</strong>
+            <strong id="selectedInterfaceLabel">All</strong>
             <span>interface</span>
           </div>
         </div>
@@ -83,12 +89,13 @@
     </header>
 
     <nav class="tabs" role="tablist">
-      <button class="tab active" role="tab" aria-selected="true">Live Messages</button>
+      <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
+      <button class="tab" id="publisherTab" onclick="showTab('publisher')">Sample Publisher</button>
     </nav>
 
-    <section class="panel table-panel">
+    <section id="livePanel" class="panel table-panel">
       <div class="panel-header">
-        <h2>Fruit Interface Messages</h2>
+        <h2>Interface Messages</h2>
       </div>
 
       <div class="live-events-layout">
@@ -107,7 +114,7 @@
             </thead>
             <tbody id="messagesTableBody"></tbody>
           </table>
-          <div id="emptyState" class="empty-state">No messages yet. Run the tester app to send an Orange message.</div>
+          <div id="emptyState" class="empty-state">No messages yet. Use the tester app or Sample Publisher.</div>
         </div>
 
         <aside class="event-details-side">
@@ -118,12 +125,98 @@
         </aside>
       </div>
     </section>
+
+    <section id="publisherPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>Sample Publisher</h2>
+      </div>
+
+      <div class="publisher-layout">
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Build and send UDP message</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row">
+              <label for="publisherInterface">Interface</label>
+              <select id="publisherInterface" onchange="onPublisherInterfaceChanged()">
+                <option value="Fruit Interface">Fruit Interface</option>
+                <option value="Weather Interface">Weather Interface</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label for="publisherMessage">Message</label>
+              <select id="publisherMessage" onchange="renderPublisherFields()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="publisherHost">Target Host</label>
+              <input id="publisherHost" value="localhost">
+            </div>
+
+            <div class="form-row">
+              <label for="publisherPort">Target UDP Port</label>
+              <input id="publisherPort" type="number" min="1" max="65535" value="5001">
+            </div>
+
+            <div id="publisherFields"></div>
+
+            <button class="primary-btn" onclick="publishMessage()">Send Message</button>
+          </div>
+
+          <div id="publisherResult" class="publisher-result">Ready.</div>
+        </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Publisher Notes</h3>
+          </div>
+          <div class="publisher-help">
+            The backend creates the real protocol byte[] using the same codecs as the tester app.<br><br>
+            Enum fields are rendered as dropdowns:<br>
+            - Orange freshness: very_fresh / not_fresh / unknown<br>
+            - Weather condition: sunny / cloudy / rainy / unknown<br><br>
+            Default targets:<br>
+            - Fruit Interface → localhost:5001<br>
+            - Weather Interface → localhost:5003
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
 <script>
   let allMessages = [];
   let selectedMessageId = null;
+
+  const messageDefinitions = {
+    "Fruit Interface": {
+      defaultPort: 5001,
+      messages: {
+        "Orange": [
+          { name: "sourceFarm", type: "string", defaultValue: "north-farm-17" },
+          { name: "freshness", type: "enum", defaultValue: "very_fresh", options: ["very_fresh", "not_fresh", "unknown"] }
+        ],
+        "Banana": [
+          { name: "color", type: "string", defaultValue: "yellow" },
+          { name: "weight", type: "number", defaultValue: 142.75 }
+        ]
+      }
+    },
+    "Weather Interface": {
+      defaultPort: 5003,
+      messages: {
+        "TemperatureReading": [
+          { name: "stationId", type: "string", defaultValue: "station-tlv-01" },
+          { name: "temperatureCelsius", type: "number", defaultValue: 28.4 },
+          { name: "condition", type: "enum", defaultValue: "sunny", options: ["sunny", "cloudy", "rainy", "unknown"] }
+        ]
+      }
+    }
+  };
 
   document.getElementById('loadRecentBtn').addEventListener('click', loadMessages);
   document.getElementById('textFilter').addEventListener('input', renderMessages);
@@ -182,11 +275,108 @@
       port: msg.localPort,
       interfaceName: msg.interfaceName,
       messageName: msg.messageType,
+      header: msg.header,
       body: msg.body,
       parseError: msg.parseError
     }, null, 2);
 
     renderMessages();
+  }
+
+  function showTab(tab) {
+    document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
+    document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
+
+    document.getElementById('liveTab').classList.toggle('active', tab === 'live');
+    document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
+  }
+
+  function onPublisherInterfaceChanged() {
+    const interfaceName = document.getElementById('publisherInterface').value;
+    const messageSelect = document.getElementById('publisherMessage');
+    const definition = messageDefinitions[interfaceName];
+
+    messageSelect.innerHTML = '';
+    Object.keys(definition.messages).forEach(messageType => {
+      const option = document.createElement('option');
+      option.value = messageType;
+      option.innerText = messageType;
+      messageSelect.appendChild(option);
+    });
+
+    document.getElementById('publisherPort').value = definition.defaultPort;
+    renderPublisherFields();
+  }
+
+  function renderPublisherFields() {
+    const interfaceName = document.getElementById('publisherInterface').value;
+    const messageType = document.getElementById('publisherMessage').value;
+    const fieldsContainer = document.getElementById('publisherFields');
+    const fields = messageDefinitions[interfaceName].messages[messageType];
+
+    fieldsContainer.innerHTML = '';
+
+    for (const field of fields) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+
+      let inputHtml;
+
+      if (field.type === 'enum') {
+        inputHtml = `
+          <select id="field-${field.name}">
+            ${field.options.map(option => `
+              <option value="${escapeHtml(option)}" ${option === field.defaultValue ? 'selected' : ''}>${escapeHtml(option)}</option>
+            `).join('')}
+          </select>
+        `;
+      } else {
+        inputHtml = `<input id="field-${field.name}" type="${field.type === 'number' ? 'number' : 'text'}" value="${escapeHtml(field.defaultValue)}" ${field.type === 'number' ? 'step="any"' : ''}>`;
+      }
+
+      row.innerHTML = `
+        <label for="field-${field.name}">${escapeHtml(field.name)}</label>
+        ${inputHtml}
+      `;
+
+      fieldsContainer.appendChild(row);
+    }
+  }
+
+  async function publishMessage() {
+    const interfaceName = document.getElementById('publisherInterface').value;
+    const messageType = document.getElementById('publisherMessage').value;
+    const host = document.getElementById('publisherHost').value;
+    const port = Number(document.getElementById('publisherPort').value);
+    const fields = {};
+
+    const definitions = messageDefinitions[interfaceName].messages[messageType];
+
+    for (const field of definitions) {
+      const input = document.getElementById(`field-${field.name}`);
+      fields[field.name] = field.type === 'number' ? Number(input.value) : input.value;
+    }
+
+    const result = document.getElementById('publisherResult');
+    result.className = 'publisher-result';
+    result.innerText = 'Sending...';
+
+    const response = await fetch('/api/publish/udp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interfaceName, messageType, host, port, fields })
+    });
+
+    const responseBody = await response.json();
+
+    if (responseBody.success) {
+      result.className = 'publisher-result ok';
+      result.innerText = `Sent ${responseBody.messageType} to ${responseBody.host}:${responseBody.port} (${responseBody.bytesSent} bytes)`;
+      setTimeout(loadMessages, 300);
+    } else {
+      result.className = 'publisher-result error';
+      result.innerText = `Failed: ${responseBody.error}`;
+    }
   }
 
   function formatTime(value) {
@@ -210,6 +400,7 @@
       .replaceAll("'", '&#039;');
   }
 
+  onPublisherInterfaceChanged();
   loadMessages();
   setInterval(loadMessages, 2000);
 </script>
