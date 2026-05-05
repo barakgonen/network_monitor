@@ -10,7 +10,7 @@ import java.util.HexFormat;
 
 public class TesterMain {
     public static void main(String[] args) throws Exception {
-        String configPath = System.getenv().getOrDefault("TRAFFIC_TESTER_CONFIG", "/app/config/tester-scenario.yml");
+        String configPath = System.getenv().getOrDefault("TRAFFIC_TESTER_CONFIG", "./config/tester-scenario.yml");
 
         TesterScenario scenario = new ScenarioLoader().load(Path.of(configPath));
         byte[] payload = new PayloadFactory().create(scenario.getPayload());
