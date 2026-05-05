@@ -6,6 +6,13 @@ public class PayloadConfig {
     private String base64 = "";
     private String hex = "";
     private FruitPayloadConfig fruit = new FruitPayloadConfig();
+    private WeatherPayloadConfig weather = new WeatherPayloadConfig();
+
+    /**
+     * Optional per-message target override.
+     * If not provided, the scenario-level udp target is used.
+     */
+    private PayloadTargetConfig target = new PayloadTargetConfig();
 
     public PayloadMode getMode() {
         return mode;
@@ -45,5 +52,21 @@ public class PayloadConfig {
 
     public void setFruit(FruitPayloadConfig fruit) {
         this.fruit = fruit;
+    }
+
+    public WeatherPayloadConfig getWeather() {
+        return weather;
+    }
+
+    public void setWeather(WeatherPayloadConfig weather) {
+        this.weather = weather;
+    }
+
+    public PayloadTargetConfig getTarget() {
+        return target;
+    }
+
+    public void setTarget(PayloadTargetConfig target) {
+        this.target = target;
     }
 }

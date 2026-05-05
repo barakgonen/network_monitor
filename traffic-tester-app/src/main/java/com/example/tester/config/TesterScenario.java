@@ -1,8 +1,20 @@
 package com.example.tester.config;
 
+import java.util.List;
+
 public class TesterScenario {
     private UdpConfig udp;
+
+    /**
+     * Preferred V2 format: send multiple messages in one tester run.
+     */
+    private List<PayloadConfig> messages;
+
+    /**
+     * Backward-compatible V1 format: single payload.
+     */
     private PayloadConfig payload;
+
     private int repeat = 1;
     private long intervalMillis = 1000;
 
@@ -12,6 +24,14 @@ public class TesterScenario {
 
     public void setUdp(UdpConfig udp) {
         this.udp = udp;
+    }
+
+    public List<PayloadConfig> getMessages() {
+        return messages;
+    }
+
+    public void setMessages(List<PayloadConfig> messages) {
+        this.messages = messages;
     }
 
     public PayloadConfig getPayload() {
@@ -36,5 +56,17 @@ public class TesterScenario {
 
     public void setIntervalMillis(long intervalMillis) {
         this.intervalMillis = intervalMillis;
+    }
+
+    public List<PayloadConfig> effectiveMessages() {
+        if (messages != null && !messages.isEmpty()) {
+            return messages;
+        }
+
+        if (payload != null) {
+            return List.of(payload);
+        }
+
+        return List.of();
     }
 }
