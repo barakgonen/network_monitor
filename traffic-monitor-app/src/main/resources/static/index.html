@@ -163,7 +163,31 @@
 
             <div id="publisherFields"></div>
 
-            <button class="primary-btn" onclick="publishMessage()">Send Message</button>
+            <button class="primary-btn" onclick="publishMessage()">Send Once</button>
+
+            <div class="periodic-box">
+              <div class="form-row">
+                <label for="eventsPerTimeUnit">Events / Time Unit</label>
+                <input id="eventsPerTimeUnit" type="number" min="1" value="1">
+              </div>
+
+              <div class="form-row">
+                <label for="periodicTimeUnit">Time Unit</label>
+                <select id="periodicTimeUnit">
+                  <option value="SECOND">Second</option>
+                  <option value="MINUTE">Minute</option>
+                  <option value="HOUR">Hour</option>
+                </select>
+              </div>
+
+              <div class="periodic-actions">
+                <button class="primary-btn" onclick="startPeriodicPublishing()">Start Periodic</button>
+                <button class="stop-btn" onclick="stopPeriodicPublishing()">Stop Periodic</button>
+                <button class="secondary-btn" onclick="loadPeriodicStatus()">Refresh Status</button>
+              </div>
+
+              <div id="periodicStatus" class="periodic-status">Periodic publisher is stopped.</div>
+            </div>
           </div>
 
           <div id="publisherResult" class="publisher-result">Ready.</div>
@@ -343,7 +367,7 @@
     }
   }
 
-  async function publishMessage() {
+  function buildPublishRequest() {
     const interfaceName = document.getElementById('publisherInterface').value;
     const messageType = document.getElementById('publisherMessage').value;
     const host = document.getElementById('publisherHost').value;
@@ -357,6 +381,12 @@
       fields[field.name] = field.type === 'number' ? Number(input.value) : input.value;
     }
 
+    return { interfaceName, messageType, host, port, fields };
+  }
+
+  async function publishMessage() {
+    const request = buildPublishRequest();
+
     const result = document.getElementById('publisherResult');
     result.className = 'publisher-result';
     result.innerText = 'Sending...';
@@ -364,7 +394,7 @@
     const response = await fetch('/api/publish/udp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interfaceName, messageType, host, port, fields })
+      body: JSON.stringify(request)
     });
 
     const responseBody = await response.json();
@@ -377,6 +407,53 @@
       result.className = 'publisher-result error';
       result.innerText = `Failed: ${responseBody.error}`;
     }
+  }
+
+  async function startPeriodicPublishing() {
+    const publishRequest = buildPublishRequest();
+    const eventsPerTimeUnit = Number(document.getElementById('eventsPerTimeUnit').value);
+    const timeUnit = document.getElementById('periodicTimeUnit').value;
+
+    const response = await fetch('/api/publish/udp/periodic/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publishRequest, eventsPerTimeUnit, timeUnit })
+    });
+
+    const responseBody = await response.json();
+    renderPeriodicStatus(responseBody);
+  }
+
+  async function stopPeriodicPublishing() {
+    const response = await fetch('/api/publish/udp/periodic/stop', {
+      method: 'POST'
+    });
+
+    const responseBody = await response.json();
+    renderPeriodicStatus(responseBody);
+  }
+
+  async function loadPeriodicStatus() {
+    const response = await fetch('/api/publish/udp/periodic/status');
+    const responseBody = await response.json();
+    renderPeriodicStatus(responseBody);
+  }
+
+  function renderPeriodicStatus(status) {
+    const el = document.getElementById('periodicStatus');
+
+    if (!status.running) {
+      el.innerText = `Periodic publisher is stopped. Sent count: ${status.sentCount || 0}`;
+      return;
+    }
+
+    el.innerText =
+      `Running: ${status.interfaceName} / ${status.messageType}\n` +
+      `Target: ${status.host}:${status.port}\n` +
+      `Rate: ${status.eventsPerTimeUnit} per ${String(status.timeUnit).toLowerCase()}\n` +
+      `Interval: ${status.intervalMillis} ms\n` +
+      `Sent: ${status.sentCount}\n` +
+      `Last error: ${status.lastError || 'none'}`;
   }
 
   function formatTime(value) {
@@ -401,6 +478,7 @@
   }
 
   onPublisherInterfaceChanged();
+  loadPeriodicStatus();
   loadMessages();
   setInterval(loadMessages, 2000);
 </script>

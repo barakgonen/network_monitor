@@ -601,3 +601,35 @@ tbody tr.selected-row {
         grid-template-columns: 1fr;
     }
 }
+
+
+.periodic-box {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    margin-top: 4px;
+}
+
+.periodic-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.stop-btn {
+    background: var(--red-dim);
+    border-color: rgba(255, 92, 106, 0.35);
+    color: var(--red);
+    font-weight: 700;
+}
+
+.periodic-status {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
