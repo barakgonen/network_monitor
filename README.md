@@ -347,3 +347,21 @@ Example start request:
   "timeUnit": "SECOND"
 }
 ```
+
+
+## Java version
+
+Project downgraded to Java 17.
+
+Docker images:
+
+```text
+maven:3.9.9-eclipse-temurin-17
+eclipse-temurin:17-jre
+```
+
+Maven compiler release:
+
+```xml
+<java.version>17</java.version>
+```

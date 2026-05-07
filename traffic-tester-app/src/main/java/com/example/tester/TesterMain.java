@@ -1,5 +1,7 @@
 package com.example.tester;
 
+import com.example.schemas.rada.messages.RadaExtendedStatus;
+import com.example.schemas.rada.struct.RadaHeader;
 import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
@@ -7,7 +9,10 @@ import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
+import org.instancio.Instancio;
 
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HexFormat;
@@ -48,10 +53,15 @@ public class TesterMain {
 
         for (int iteration = 1; iteration <= scenario.getRepeat(); iteration++) {
             System.out.println("Starting iteration " + iteration + "/" + scenario.getRepeat());
-
             for (int messageIndex = 0; messageIndex < messages.size(); messageIndex++) {
                 PayloadConfig messageConfig = messages.get(messageIndex);
-                byte[] payload = payloadFactory.create(messageConfig);
+//                byte[] payload = payloadFactory.create(messageConfig);
+                var radaExtendedStatusMsg = Instancio.create(RadaExtendedStatus.class);
+                int size = calculateSize(radaExtendedStatusMsg);
+                ByteBuffer buffer = ByteBuffer.allocate(size);
+                byte[] payload = buffer.array();
+                radaExtendedStatusMsg.toByteArray(buffer);
+
 
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
@@ -106,5 +116,48 @@ public class TesterMain {
         }
 
         return scenario.getUdp().getPort();
+    }
+
+    public static int calculateSize(Object obj) throws IllegalAccessException {
+        if (obj == null) {
+            return 0;
+        }
+
+        int size = 0;
+
+        for (Field field : obj.getClass().getDeclaredFields()) {
+            field.setAccessible(true);
+
+            Class<?> type = field.getType();
+            Object value = field.get(obj);
+
+            if (type == int.class) {
+                size += Integer.BYTES;
+
+            } else if (type == float.class) {
+                size += Float.BYTES;
+
+            } else if (type == long.class) {
+                size += Long.BYTES;
+
+            } else if (type == byte.class) {
+                size += Byte.BYTES;
+
+            } else if (type == short.class) {
+                size += Short.BYTES;
+
+            } else if (type == double.class) {
+                size += Double.BYTES;
+
+            } else if (type == boolean.class) {
+                size += Byte.BYTES; // common binary representation
+
+            } else {
+                // complex/nested object
+                size += calculateSize(value);
+            }
+        }
+
+        return size;
     }
 }
