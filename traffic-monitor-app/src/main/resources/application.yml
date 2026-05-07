@@ -7,5 +7,19 @@ traffic:
     fruit-port: 5001
     weather-port: 5003
     buffer-size-bytes: 65507
+
+  reflection-interfaces:
+    - name: Reflection Fruit Interface
+      enabled: true
+      port: 5050
+      potential-messages:
+        - com.example.schemas.rada.messages.RadaExtendedStatus
+
+    - name: Reflection Weather Interface
+      enabled: true
+      port: 5051
+      potential-messages:
+        - com.example.schemas.reflectiondemo.ReflectionTemperatureReadingMessage
+
   store:
     max-size: 500

@@ -365,3 +365,44 @@ Maven compiler release:
 ```xml
 <java.version>17</java.version>
 ```
+
+
+## Reflection-based receiving
+
+The monitor now supports interface-level reflection parsing.
+
+Example config:
+
+```yaml
+traffic:
+  reflection-interfaces:
+    - name: Reflection Fruit Interface
+      enabled: true
+      port: 5050
+      potential-messages:
+        - com.example.schemas.reflectiondemo.ReflectionOrangeMessage
+        - com.example.schemas.reflectiondemo.ReflectionBananaMessage
+```
+
+Runtime behavior:
+
+```text
+UDP packet arrives on configured port
+→ monitor tries each class in potential-messages
+→ supported parser shape:
+   1. constructor(byte[])
+   2. static parse(byte[])
+   3. static fromBytes(byte[])
+   4. static fromByteArray(byte[])
+→ if a class succeeds, fields are extracted by reflection
+→ if no class succeeds, ObservedMessage is tagged as Unparsable
+```
+
+Extracted fields are sent to the UI in `ObservedMessage.body`.
+
+Demo reflection ports:
+
+```text
+5050/udp -> Reflection Fruit Interface
+5051/udp -> Reflection Weather Interface
+```

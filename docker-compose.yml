@@ -8,6 +8,8 @@ services:
       - "8080:8080"
       - "5001:5001/udp"
       - "5003:5003/udp"
+      - "5050:5050/udp"
+      - "5051:5051/udp"
     environment:
       TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
     networks:
