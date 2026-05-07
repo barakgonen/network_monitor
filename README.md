@@ -406,3 +406,37 @@ Demo reflection ports:
 5050/udp -> Reflection Fruit Interface
 5051/udp -> Reflection Weather Interface
 ```
+
+
+## Recursive complex-field extraction
+
+Reflection parsing now treats complex fields as nested structured objects.
+
+Example:
+
+```json
+{
+  "header": {
+    "_type": "com.example.schemas.rada.struct.RadaHeader",
+    "opcode": 12,
+    "sendTime": 123456789,
+    "length": 64
+  }
+}
+```
+
+Rules:
+
+```text
+simple values -> rendered directly
+byte[]        -> base64 object with size metadata
+arrays        -> JSON arrays
+collections   -> JSON arrays
+maps          -> JSON objects
+complex POJOs -> recursively extracted by getters, then fields fallback
+records       -> record components
+cycles        -> marked with _cycle=true
+too deep      -> marked with _truncated=true
+```
+
+Default max depth: 6.
