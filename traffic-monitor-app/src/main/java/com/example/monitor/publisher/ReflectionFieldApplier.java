@@ -16,6 +16,7 @@ public class ReflectionFieldApplier {
         try {
             Object instance = instantiate(Class.forName(className));
             apply(instance, fields);
+            initializeNullArrayElements(instance);
             return instance;
         } catch (RuntimeException e) {
             throw e;
@@ -128,6 +129,7 @@ public class ReflectionFieldApplier {
         if (rawValue instanceof Map<?, ?> mapValue) {
             Object nested = currentValue != null ? currentValue : instantiate(targetType);
             apply(nested, castMap(mapValue));
+            initializeNullArrayElements(nested);
             return nested;
         }
 
@@ -140,12 +142,30 @@ public class ReflectionFieldApplier {
         }
 
         Class<?> componentType = targetType.getComponentType();
+
         Object array = currentValue;
 
-        if (array == null || Array.getLength(array) != listValue.size()) {
+        if (array == null) {
             array = Array.newInstance(componentType, listValue.size());
         }
 
+        int existingLength = Array.getLength(array);
+
+        if (listValue.size() > existingLength) {
+            throw new IllegalArgumentException(
+                    "Array input has "
+                            + listValue.size()
+                            + " rows but max size is "
+                            + existingLength
+                            + " for "
+                            + targetType.getName()
+            );
+        }
+
+        // Fill all null complex elements with defaults so fixed-length serializers do not hit NPE.
+        initializeNullElementsInArray(array, componentType);
+
+        // Apply only user-provided rows; unprovided rows remain default instances/values.
         for (int i = 0; i < listValue.size(); i++) {
             Object existing = Array.get(array, i);
             Object rawItem = listValue.get(i);
@@ -153,6 +173,7 @@ public class ReflectionFieldApplier {
             if (rawItem instanceof Map<?, ?> rawMap && !isSimpleType(componentType)) {
                 Object nested = existing != null ? existing : instantiate(componentType);
                 apply(nested, castMap(rawMap));
+                initializeNullArrayElements(nested);
                 Array.set(array, i, nested);
             } else {
                 Object converted = convertValue(componentType, existing, rawItem);
@@ -161,6 +182,55 @@ public class ReflectionFieldApplier {
         }
 
         return array;
+    }
+
+    private void initializeNullArrayElements(Object target) {
+        if (target == null) {
+            return;
+        }
+
+        Class<?> current = target.getClass();
+
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+
+                if (!field.getType().isArray()) {
+                    continue;
+                }
+
+                try {
+                    field.setAccessible(true);
+                    Object array = field.get(target);
+
+                    if (array == null) {
+                        continue;
+                    }
+
+                    initializeNullElementsInArray(array, field.getType().getComponentType());
+                } catch (Exception ignored) {
+                    // Best-effort default initialization only.
+                }
+            }
+
+            current = current.getSuperclass();
+        }
+    }
+
+    private void initializeNullElementsInArray(Object array, Class<?> componentType) {
+        if (array == null || isSimpleType(componentType)) {
+            return;
+        }
+
+        int length = Array.getLength(array);
+
+        for (int i = 0; i < length; i++) {
+            if (Array.get(array, i) == null) {
+                Array.set(array, i, instantiate(componentType));
+            }
+        }
     }
 
     private boolean isSimpleType(Class<?> type) {

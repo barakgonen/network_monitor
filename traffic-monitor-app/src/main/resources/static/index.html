@@ -223,6 +223,56 @@
     }
   </style>
 
+
+  <style>
+    .publisher-array-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .publisher-array-toolbar-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .publisher-array-add-row,
+    .publisher-array-remove-row {
+      padding: 4px 8px;
+      font-size: 10px;
+      font-family: var(--mono);
+    }
+
+    .publisher-array-remove-row {
+      color: var(--red);
+      border-color: rgba(255, 92, 106, 0.35);
+      background: var(--red-dim);
+    }
+
+    .publisher-array-collapsed-note {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 8px 0;
+    }
+
+    .publisher-array-elements.collapsed {
+      display: none;
+    }
+
+    .publisher-array-toggle {
+      padding: 4px 8px;
+      font-size: 10px;
+      font-family: var(--mono);
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -937,12 +987,13 @@
   function renderPublisherArrayField(field) {
     const group = document.createElement('div');
     group.className = 'publisher-field-group';
+    group.dataset.arrayPath = field.path;
 
     const length = field.arrayLength;
     const hasKnownLength = Number.isInteger(length) && length >= 0;
 
     group.innerHTML = `
-      <div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">array${hasKnownLength ? ` [${length}]` : ''}</span></div>
+      <div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">array${hasKnownLength ? ` [max ${length}]` : ''}</span></div>
     `;
 
     if (!hasKnownLength) {
@@ -953,43 +1004,173 @@
       return group;
     }
 
-    if (length === 0) {
-      const note = document.createElement('div');
-      note.className = 'publisher-array-note';
-      note.innerText = 'Array length is 0.';
-      group.appendChild(note);
-      return group;
-    }
+    const toolbar = document.createElement('div');
+    toolbar.className = 'publisher-array-toolbar';
+
+    const counter = document.createElement('span');
+    counter.dataset.arrayCounter = field.path;
+    counter.innerText = `0 / ${length} rows`;
+
+    const actions = document.createElement('div');
+    actions.className = 'publisher-array-toolbar-actions';
+
+    const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
+    toggleButton.className = 'secondary-btn publisher-array-toggle';
+    toggleButton.innerText = 'Expand';
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'secondary-btn publisher-array-add-row';
+    addButton.innerText = '+ Add row';
+
+    actions.appendChild(toggleButton);
+    actions.appendChild(addButton);
+    toolbar.appendChild(counter);
+    toolbar.appendChild(actions);
+    group.appendChild(toolbar);
+
+    const collapsedNote = document.createElement('div');
+    collapsedNote.className = 'publisher-array-collapsed-note';
+    collapsedNote.innerText = 'No rows added. Click + Add row to set array values.';
+    group.appendChild(collapsedNote);
 
     const elements = document.createElement('div');
-    elements.className = 'publisher-array-elements';
+    elements.className = 'publisher-array-elements collapsed';
+    elements.dataset.arrayElements = field.path;
+    group.appendChild(elements);
+
+    toggleButton.addEventListener('click', () => {
+      const collapsed = elements.classList.toggle('collapsed');
+      toggleButton.innerText = collapsed ? 'Expand' : 'Collapse';
+    });
+
+    addButton.addEventListener('click', () => {
+      const currentRows = elements.querySelectorAll(':scope > .publisher-array-element').length;
+
+      if (currentRows >= length) {
+        addButton.disabled = true;
+        return;
+      }
+
+      const row = createPublisherArrayRow(field, currentRows);
+      elements.appendChild(row);
+      elements.classList.remove('collapsed');
+      toggleButton.innerText = 'Collapse';
+
+      updateArrayCounter(field.path, length);
+      syncGeneratedFieldsToJson();
+
+      if (currentRows + 1 >= length) {
+        addButton.disabled = true;
+      }
+    });
+
+    updateArrayCounterDeferred(field.path, length);
+
+    return group;
+  }
+
+  function createPublisherArrayRow(field, index) {
+    const element = document.createElement('div');
+    element.className = 'publisher-array-element';
+    element.dataset.arrayIndex = String(index);
+
+    const title = document.createElement('div');
+    title.className = 'publisher-array-element-title';
+    title.innerHTML = `
+      ${escapeHtml(field.name)}[${index}]
+      <button type="button" class="publisher-array-remove-row" style="float:right;">Remove</button>
+    `;
+
+    element.appendChild(title);
+
+    const removeButton = title.querySelector('button');
+    removeButton.addEventListener('click', () => {
+      element.remove();
+      reindexArrayRows(field);
+      updateArrayCounter(field.path, field.arrayLength);
+      syncGeneratedFieldsToJson();
+
+      const group = document.querySelector(`[data-array-path="${cssEscape(field.path)}"]`);
+      const addButton = group?.querySelector('.publisher-array-add-row');
+      if (addButton) {
+        addButton.disabled = false;
+      }
+    });
 
     const children = field.children || [];
 
-    for (let index = 0; index < length; index++) {
-      const element = document.createElement('div');
-      element.className = 'publisher-array-element';
-      element.innerHTML = `<div class="publisher-array-element-title">${escapeHtml(field.name)}[${index}]</div>`;
-
-      if (children.length === 0) {
-        const scalarKind = arrayComponentKind(field);
-        const scalarPath = `${field.path}.${index}`;
-        element.appendChild(renderPublisherScalarField(scalarPath, `${field.name}[${index}]`, scalarKind, field.javaType, field.enumValues || []));
-      } else {
-        for (const child of children) {
-          const childCopy = {
-            ...child,
-            path: child.path.replace(field.path + '[]', `${field.path}.${index}`)
-          };
-          element.appendChild(renderPublisherField(childCopy));
-        }
+    if (children.length === 0) {
+      const scalarKind = arrayComponentKind(field);
+      const scalarPath = `${field.path}.${index}`;
+      element.appendChild(renderPublisherScalarField(scalarPath, `${field.name}[${index}]`, scalarKind, field.javaType, field.enumValues || []));
+    } else {
+      for (const child of children) {
+        const childCopy = {
+          ...child,
+          path: child.path.replace(field.path + '[]', `${field.path}.${index}`)
+        };
+        element.appendChild(renderPublisherField(childCopy));
       }
-
-      elements.appendChild(element);
     }
 
-    group.appendChild(elements);
-    return group;
+    return element;
+  }
+
+  function reindexArrayRows(field) {
+    const group = document.querySelector(`[data-array-path="${cssEscape(field.path)}"]`);
+    const rows = group?.querySelectorAll('.publisher-array-element') || [];
+
+    rows.forEach((row, newIndex) => {
+      const oldIndex = row.dataset.arrayIndex;
+      row.dataset.arrayIndex = String(newIndex);
+
+      const title = row.querySelector('.publisher-array-element-title');
+      if (title) {
+        const button = title.querySelector('button');
+        title.innerHTML = `${escapeHtml(field.name)}[${newIndex}] `;
+        title.appendChild(button);
+      }
+
+      row.querySelectorAll('[data-field-path]').forEach(input => {
+        input.dataset.fieldPath = input.dataset.fieldPath.replace(`${field.path}.${oldIndex}`, `${field.path}.${newIndex}`);
+
+        const label = input.closest('.publisher-field-row')?.querySelector('label');
+        if (label) {
+          label.innerText = input.dataset.fieldPath;
+        }
+      });
+    });
+  }
+
+  function updateArrayCounterDeferred(path, max) {
+    setTimeout(() => updateArrayCounter(path, max), 0);
+  }
+
+  function updateArrayCounter(path, max) {
+    const counter = document.querySelector(`[data-array-counter="${cssEscape(path)}"]`);
+    const elements = document.querySelector(`[data-array-elements="${cssEscape(path)}"]`);
+    const count = elements ? elements.querySelectorAll(':scope > .publisher-array-element').length : 0;
+
+    if (counter) {
+      counter.innerText = `${count} / ${max} rows`;
+    }
+
+    const group = document.querySelector(`[data-array-path="${cssEscape(path)}"]`);
+    const note = group?.querySelector('.publisher-array-collapsed-note');
+
+    if (note) {
+      note.style.display = count === 0 ? '' : 'none';
+    }
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && CSS.escape) {
+      return CSS.escape(value);
+    }
+
+    return String(value).replaceAll('.', '\\\\.');
   }
 
   function arrayComponentKind(field) {
