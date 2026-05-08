@@ -7,6 +7,52 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
+
+  <style>
+    /* Review note: keep Payload Inspector fixed-size and scroll internally */
+    .event-details-side {
+      min-height: 0;
+      max-height: calc(100vh - 150px);
+      overflow: hidden;
+    }
+
+    #eventDetails {
+      height: calc(100vh - 205px);
+      min-height: 320px;
+      max-height: calc(100vh - 205px);
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .live-events-layout {
+      min-height: 0;
+      height: calc(100vh - 150px);
+      overflow: hidden;
+    }
+
+    .table-wrapper {
+      min-height: 0;
+      height: 100%;
+      overflow: auto;
+    }
+
+    @media (max-width: 1100px) {
+      .live-events-layout {
+        height: auto;
+        overflow: visible;
+      }
+
+      .event-details-side {
+        max-height: 520px;
+      }
+
+      #eventDetails {
+        height: 420px;
+        max-height: 420px;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
