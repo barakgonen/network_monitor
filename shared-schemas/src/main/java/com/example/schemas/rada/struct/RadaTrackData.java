@@ -1,6 +1,7 @@
 package com.example.schemas.rada.struct;
 
 import com.example.schemas.BaseStruct;
+import com.example.schemas.rada.FixedArrayLength;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -9,14 +10,17 @@ public class RadaTrackData implements BaseStruct {
 
     private int id = 0;
     private int type = 0;
+    @FixedArrayLength(40)
     private byte[] reserved = new byte[40];
     private double latitudeRad;
     private double longtitudeRad;
     private float altitudeM;
     private float dopplerVelocity;
     private float radarCrossSection;
+    @FixedArrayLength(44)
     private byte[] reserved2 = new byte[44];
     private short statusFlags; //Unsigned16
+    @FixedArrayLength(10)
     private byte[] reserved3 = new byte[10];
     private int associatedPlots;
     private float timeSinceLastAssociation;

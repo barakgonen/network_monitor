@@ -1,6 +1,7 @@
 package com.example.schemas.rada.messages;
 
 import com.example.schemas.BaseStruct;
+import com.example.schemas.rada.FixedArrayLength;
 import com.example.schemas.rada.struct.RadaHeader;
 import com.example.schemas.rada.struct.RadaPlotData;
 import com.example.schemas.rada.struct.RadaTrackData;
@@ -24,7 +25,9 @@ public class RadaTracksExtended implements BaseStruct {
     private short tracksTagSecond;
     private short tracksTagMillisecond;
     private short reserved1;
+    @FixedArrayLength(10)
     private RadaTrackData[] trackData = new RadaTrackData[10];
+    @FixedArrayLength(10)
     private RadaPlotData[] plotData = new RadaPlotData[10];
 
     public RadaTracksExtended() {
