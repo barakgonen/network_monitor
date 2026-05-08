@@ -4,37 +4,57 @@ server:
 traffic:
   udp:
     enabled: true
-    fruit-port: 5001
+    fruit-port: 5006
     weather-port: 5003
     buffer-size-bytes: 65507
 
   reflection-interfaces:
-    - name: Reflection Fruit Interface
+#    - name: Reflection Fruit Interface
+#      enabled: true
+#      protocol: UDP
+#      port: 5050
+#      byte-order: BIG_ENDIAN
+#      header-type: com.example.schemas.fruit.FruitProtocolHeader
+#      opcode-field-name: opcode
+#      supported-messages:
+#        "1001":
+#          message-class: com.example.schemas.reflectiondemo.ReflectionOrangeMessage
+#          display-name: Orange
+#        "1002":
+#          message-class: com.example.schemas.reflectiondemo.ReflectionBananaMessage
+#          display-name: Banana
+#
+#    - name: Reflection Weather Interface
+#      enabled: true
+#      protocol: UDP
+#      port: 5051
+#      byte-order: BIG_ENDIAN
+#      header-type: com.example.schemas.weather.WeatherProtocolHeader
+#      opcode-field-name: opcode
+#      supported-messages:
+#        "2001":
+#          message-class: com.example.schemas.reflectiondemo.ReflectionTemperatureReadingMessage
+#          display-name: TemperatureReading
+    - name: BG Reflection Weather Service
       enabled: true
       protocol: UDP
-      port: 5050
+      port: 5001
       byte-order: BIG_ENDIAN
-      header-type: com.example.schemas.fruit.FruitProtocolHeader
-      opcode-field-name: opcode
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
       supported-messages:
-        "1001":
-          message-class: com.example.schemas.reflectiondemo.ReflectionOrangeMessage
-          display-name: Orange
-        "1002":
-          message-class: com.example.schemas.reflectiondemo.ReflectionBananaMessage
-          display-name: Banana
-
-    - name: Reflection Weather Interface
-      enabled: true
-      protocol: UDP
-      port: 5051
-      byte-order: BIG_ENDIAN
-      header-type: com.example.schemas.weather.WeatherProtocolHeader
-      opcode-field-name: opcode
-      supported-messages:
-        "2001":
-          message-class: com.example.schemas.reflectiondemo.ReflectionTemperatureReadingMessage
-          display-name: TemperatureReading
+        "1":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+        "2":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          display-name: RadaExtendedStatusMrs
+        "3":
+          message-class: com.example.schemas.rada.messages.RadaStatus
+          display-name: RadaStatus
+        "4":
+          message-class: com.example.schemas.rada.messages.RadaTracksExtended
+          display-name: RadaTracksExtended
 
   store:
     max-size: 500

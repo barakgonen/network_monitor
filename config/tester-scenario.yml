@@ -1,5 +1,5 @@
 udp:
-  host: traffic-monitor-app
+  host: 127.0.0.1
   port: 5001
 
 listener:
@@ -11,53 +11,53 @@ listener:
 messages:
   - mode: FRUIT_ORANGE
     target:
-      host: traffic-monitor-app
+      host: 127.0.0.1
       port: 5001
     fruit:
       sourceFarm: "north-farm-17"
       freshness: "very_fresh"
+#
+#  - mode: FRUIT_BANANA
+#    target:
+#      host: 127.0.0.1
+#      port: 5001
+#    fruit:
+#      color: "yellow"
+#      weight: 142.75
+#
+#  - mode: WEATHER_TEMPERATURE_READING
+#    target:
+#      host: 127.0.0.1
+#      port: 5003
+#    weather:
+#      stationId: "station-tlv-01"
+#      temperatureCelsius: 28.4
+#      condition: "sunny"
+#
+#  - mode: FRUIT_ORANGE
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#    fruit:
+#      sourceFarm: "reflection-farm-01"
+#      freshness: "not_fresh"
+#
+#  - mode: FRUIT_BANANA
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#    fruit:
+#      color: "green"
+#      weight: 99.25
+#
+#  - mode: WEATHER_TEMPERATURE_READING
+#    target:
+#      host: 127.0.0.1
+#      port: 5051
+#    weather:
+#      stationId: "reflection-weather-01"
+#      temperatureCelsius: 18.6
+#      condition: "cloudy"
 
-  - mode: FRUIT_BANANA
-    target:
-      host: traffic-monitor-app
-      port: 5001
-    fruit:
-      color: "yellow"
-      weight: 142.75
-
-  - mode: WEATHER_TEMPERATURE_READING
-    target:
-      host: traffic-monitor-app
-      port: 5003
-    weather:
-      stationId: "station-tlv-01"
-      temperatureCelsius: 28.4
-      condition: "sunny"
-
-  - mode: FRUIT_ORANGE
-    target:
-      host: traffic-monitor-app
-      port: 5050
-    fruit:
-      sourceFarm: "reflection-farm-01"
-      freshness: "not_fresh"
-
-  - mode: FRUIT_BANANA
-    target:
-      host: traffic-monitor-app
-      port: 5050
-    fruit:
-      color: "green"
-      weight: 99.25
-
-  - mode: WEATHER_TEMPERATURE_READING
-    target:
-      host: traffic-monitor-app
-      port: 5051
-    weather:
-      stationId: "reflection-weather-01"
-      temperatureCelsius: 18.6
-      condition: "cloudy"
-
-repeat: 1
+repeat: 1233333
 intervalMillis: 1000

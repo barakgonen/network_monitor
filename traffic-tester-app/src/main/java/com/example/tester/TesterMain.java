@@ -65,33 +65,38 @@ public class TesterMain {
                 PayloadConfig messageConfig = messages.get(messageIndex);
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
-//
+////
                 var radaExtendedStatusMsg = Instancio.create(RadaExtendedStatus.class);
                 radaExtendedStatusMsg.getHeader().setMsgCounter(totalSent);
+                radaExtendedStatusMsg.getHeader().setMsgType(1);
                 int size = calculateSize(radaExtendedStatusMsg);
                 ByteBuffer buffer = ByteBuffer.allocate(size);
                 radaExtendedStatusMsg.toByteArray(buffer);
                 byte[] payload = buffer.array();
-
-                udpPublisher.send(host, port, payload);
-                totalSent++;
-
-                var radaExtendedStatusMrsMsg = Instancio.create(RadaExtendedStatusMrs.class);
-                radaExtendedStatusMrsMsg.getHeader().setMsgCounter(totalSent);
-                int sizeradaExtendedStatusMrsMsg = calculateSize(radaExtendedStatusMrsMsg);
-                ByteBuffer bufferradaExtendedStatusMrsMsg = ByteBuffer.allocate(sizeradaExtendedStatusMrsMsg);
-                radaExtendedStatusMrsMsg.toByteArray(bufferradaExtendedStatusMrsMsg);
-                byte[] payloadradaExtendedStatusMrsMsg = bufferradaExtendedStatusMrsMsg.array();
-
-                udpPublisher.send(host, port, payloadradaExtendedStatusMrsMsg);
-                totalSent++;
+                System.out.println("radaExtendedStatusMsg header size is: " + calculateSize(radaExtendedStatusMsg.getHeader()));
+//
+//                udpPublisher.send(host, port, payload);
+//                totalSent++;
+//
+//                var radaExtendedStatusMrsMsg = Instancio.create(RadaExtendedStatusMrs.class);
+//                radaExtendedStatusMrsMsg.getHeader().setMsgCounter(totalSent);
+//                radaExtendedStatusMrsMsg.getHeader().setMsgType(2);
+//                int sizeradaExtendedStatusMrsMsg = calculateSize(radaExtendedStatusMrsMsg);
+//                ByteBuffer bufferradaExtendedStatusMrsMsg = ByteBuffer.allocate(sizeradaExtendedStatusMrsMsg);
+//                radaExtendedStatusMrsMsg.toByteArray(bufferradaExtendedStatusMrsMsg);
+//                byte[] payloadradaExtendedStatusMrsMsg = bufferradaExtendedStatusMrsMsg.array();
+//
+//                udpPublisher.send(host, port, payloadradaExtendedStatusMrsMsg);
+//                totalSent++;
 
                 var radaTracksExtendedMsg = Instancio.create(RadaTracksExtended.class);
                 radaTracksExtendedMsg.getHeader().setMsgCounter(totalSent);
+                radaTracksExtendedMsg.getHeader().setMsgType(4);
                 int sizeRadaTracksExtended = calculateSize(radaTracksExtendedMsg);
                 ByteBuffer bufferradaTracksExtendedMsg = ByteBuffer.allocate(sizeRadaTracksExtended);
                 radaTracksExtendedMsg.toByteArray(bufferradaTracksExtendedMsg);
                 byte[] payloadRadaTracksExtended = bufferradaTracksExtendedMsg.array();
+                System.out.println("radaTracksExtendedMsg header size is: " + calculateSize(radaTracksExtendedMsg.getHeader()));
 
                 udpPublisher.send(host, port, payloadRadaTracksExtended);
                 totalSent++;
@@ -107,7 +112,7 @@ public class TesterMain {
                         + ":"
                         + port
                         + ", bytes="
-                        + payload.length
+                        + payloadRadaTracksExtended.length
                         + ", hex="
                         + HexFormat.of().formatHex(payload));
             }
