@@ -1033,6 +1033,32 @@
     }
   </style>
 
+
+  <style>
+    /* Strong override for Advanced JSON payload editor */
+    #publisherFieldsJson.json-editor,
+    textarea#publisherFieldsJson,
+    #publisherFieldsJson {
+      background-color: #0f172a !important;
+      color: #e8eaf6 !important;
+      border: 1px solid #333a55 !important;
+      caret-color: #00e5c8 !important;
+      box-shadow: inset 0 0 0 1px rgba(0, 229, 200, 0.04) !important;
+    }
+
+    #publisherFieldsJson:focus {
+      background-color: #111827 !important;
+      border-color: #00e5c8 !important;
+      outline: none !important;
+      box-shadow: 0 0 0 1px rgba(0, 229, 200, 0.35) !important;
+    }
+
+    #publisherFieldsJson::selection {
+      background: rgba(0, 229, 200, 0.30) !important;
+      color: #ffffff !important;
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-root">
@@ -1180,7 +1206,7 @@
 
             <details>
               <summary class="field-label">Advanced JSON payload</summary>
-              <textarea id="publisherFieldsJson" class="json-editor" spellcheck="false">{}</textarea>
+              <textarea id="publisherFieldsJson" class="json-editor" spellcheck="false" style="background-color:#0f172a !important;color:#e8eaf6 !important;border-color:#333a55 !important;caret-color:#00e5c8 !important;">{}</textarea>
               <div id="jsonSyncStatus" class="json-sync-status">JSON and form are synced.</div>
             </details>
 
