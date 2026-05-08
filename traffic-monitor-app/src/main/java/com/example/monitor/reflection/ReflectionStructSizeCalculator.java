@@ -1,5 +1,6 @@
 package com.example.monitor.reflection;
 
+import com.example.schemas.StructSizeCalculator;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
@@ -11,7 +12,10 @@ import java.util.Set;
 public class ReflectionStructSizeCalculator {
     public int calculateStructSize(String className) {
         try {
-            return calculateStructSize(Class.forName(className));
+            var classByName = Class.forName(className);
+            int prevCalc = calculateStructSize(classByName);
+            int newCalc = StructSizeCalculator.calculateStructSize(classByName);
+            return newCalc;
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Class not found: " + className, e);
         }
