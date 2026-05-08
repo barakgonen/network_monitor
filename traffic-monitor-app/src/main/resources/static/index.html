@@ -53,15 +53,6 @@
     }
   </style>
 
-
-  <style>
-    .secondary-btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-  </style>
-
 </head>
 <body>
 <div class="app-shell">
@@ -93,7 +84,7 @@
       <div class="sidebar-panel-header">
         <span class="sidebar-panel-title">Interfaces</span>
       </div>
-      <button id="showAllInterfacesBtn" class="secondary-btn interface-filter-all" onclick="selectAllInterfaces()">Show All</button>
+      <button class="secondary-btn interface-filter-all" onclick="selectAllInterfaces()">Show All</button>
       <div id="interfacesList" class="interfaces-list"></div>
       <div class="sidebar-note">Green = traffic in configured recent window</div>
     </section>
@@ -258,6 +249,7 @@
   let selectedMessageId = null;
   let selectedInterfaceFilters = new Set();
   let interfaceStatuses = [];
+  let publisherInterfaces = [];
 
   const messageDefinitions = {
     "Fruit Interface": {
@@ -390,21 +382,12 @@
 
   function updateSelectedInterfaceLabel() {
     const label = document.getElementById('selectedInterfaceLabel');
-    const showAllButton = document.getElementById('showAllInterfacesBtn');
 
     if (!label) {
       return;
     }
 
-    const allSelected =
-      interfaceStatuses.length > 0
-      && selectedInterfaceFilters.size === interfaceStatuses.length;
-
-    if (showAllButton) {
-      showAllButton.disabled = allSelected;
-    }
-
-    if (allSelected) {
+    if (selectedInterfaceFilters.size === interfaceStatuses.length) {
       label.innerText = 'All';
       return;
     }
@@ -481,11 +464,26 @@
   }
 
   function showTab(tab) {
-    document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
-    document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
+    const livePanel = document.getElementById('livePanel');
+    const publisherPanel = document.getElementById('publisherPanel');
+    const liveTab = document.getElementById('liveTab');
+    const publisherTab = document.getElementById('publisherTab');
 
-    document.getElementById('liveTab').classList.toggle('active', tab === 'live');
-    document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
+    if (livePanel) {
+      livePanel.style.display = tab === 'live' ? '' : 'none';
+    }
+
+    if (publisherPanel) {
+      publisherPanel.style.display = tab === 'publisher' ? '' : 'none';
+    }
+
+    if (liveTab) {
+      liveTab.classList.toggle('active', tab === 'live');
+    }
+
+    if (publisherTab) {
+      publisherTab.classList.toggle('active', tab === 'publisher');
+    }
   }
 
   function onPublisherInterfaceChanged() {
@@ -635,6 +633,176 @@
       .replaceAll("'", "\\'")
       .replaceAll('\n', '\\n')
       .replaceAll('\r', '\\r');
+  }
+
+
+  async function loadPublisherMetadata() {
+    const response = await fetch('/api/publisher/interfaces');
+    publisherInterfaces = await response.json();
+
+    const interfaceSelect = document.getElementById('publisherInterface');
+
+    if (!interfaceSelect) {
+      return;
+    }
+
+    interfaceSelect.innerHTML = '';
+
+    for (const item of publisherInterfaces) {
+      const option = document.createElement('option');
+      option.value = item.name;
+      option.innerText = `${item.name} (${item.protocol}:${item.port})`;
+      interfaceSelect.appendChild(option);
+    }
+
+    onPublisherInterfaceChanged();
+  }
+
+  function onPublisherInterfaceChanged() {
+    const interfaceName = document.getElementById('publisherInterface')?.value;
+    const selectedInterface = publisherInterfaces.find(item => item.name === interfaceName);
+    const messageSelect = document.getElementById('publisherMessage');
+
+    if (!selectedInterface || !messageSelect) {
+      return;
+    }
+
+    messageSelect.innerHTML = '';
+
+    for (const message of selectedInterface.messages) {
+      const option = document.createElement('option');
+      option.value = message.opcode;
+      option.innerText = `${message.displayName} [${message.opcode}]`;
+      messageSelect.appendChild(option);
+    }
+
+    document.getElementById('publisherPort').value = selectedInterface.port;
+    onPublisherMessageChanged();
+  }
+
+  function onPublisherMessageChanged() {
+    const metadata = selectedPublisherMetadata();
+
+    if (!metadata) {
+      return;
+    }
+
+    const { selectedInterface, selectedMessage } = metadata;
+
+    const jsonEditor = document.getElementById('publisherFieldsJson');
+
+    if (jsonEditor && (!jsonEditor.value || jsonEditor.value.trim() === '{}' || jsonEditor.value.trim() === '')) {
+      jsonEditor.value = JSON.stringify(samplePublisherPayload(selectedInterface, selectedMessage), null, 2);
+    }
+
+    renderPublisherHelp(selectedInterface, selectedMessage);
+  }
+
+  function selectedPublisherMetadata() {
+    const interfaceName = document.getElementById('publisherInterface')?.value;
+    const opcode = document.getElementById('publisherMessage')?.value;
+
+    const selectedInterface = publisherInterfaces.find(item => item.name === interfaceName);
+
+    if (!selectedInterface) {
+      return null;
+    }
+
+    const selectedMessage = selectedInterface.messages.find(item => item.opcode === opcode);
+
+    if (!selectedMessage) {
+      return null;
+    }
+
+    return { selectedInterface, selectedMessage };
+  }
+
+  function samplePublisherPayload(selectedInterface, selectedMessage) {
+    return {
+      "_comment": "Replace this JSON with fields matching the message class. Nested objects and arrays are supported.",
+      "header": {
+        [selectedInterface.opcodeFieldName || "opcode"]: Number(selectedMessage.opcode)
+      }
+    };
+  }
+
+  function renderPublisherHelp(selectedInterface, selectedMessage) {
+    const help = document.getElementById('publisherHelp');
+
+    if (!help) {
+      return;
+    }
+
+    help.innerText =
+      `Interface: ${selectedInterface.name}\n` +
+      `Protocol: ${selectedInterface.protocol}\n` +
+      `Default port: ${selectedInterface.port}\n` +
+      `Byte order: ${selectedInterface.byteOrder}\n` +
+      `Header type: ${selectedInterface.headerType}\n` +
+      `Opcode field: ${selectedInterface.opcodeFieldName}\n\n` +
+      `Selected message:\n` +
+      `Opcode: ${selectedMessage.opcode}\n` +
+      `Name: ${selectedMessage.displayName}\n` +
+      `Class: ${selectedMessage.messageClass}\n\n` +
+      `Serialization contract supported by backend:\n` +
+      `- toByteArray(ByteBuffer)\n` +
+      `- serialize(ByteBuffer)\n` +
+      `- writeTo(ByteBuffer)\n` +
+      `- toByteArray() returning byte[]\n` +
+      `- serialize() returning byte[]`;
+  }
+
+  async function sendPublisherMessage() {
+    const metadata = selectedPublisherMetadata();
+    const result = document.getElementById('publisherResult');
+
+    if (!metadata) {
+      result.className = 'publisher-result error';
+      result.innerText = 'No interface/message selected.';
+      return;
+    }
+
+    let fields;
+
+    try {
+      fields = JSON.parse(document.getElementById('publisherFieldsJson').value || '{}');
+      delete fields._comment;
+    } catch (e) {
+      result.className = 'publisher-result error';
+      result.innerText = `Invalid JSON: ${e.message}`;
+      return;
+    }
+
+    const request = {
+      interfaceName: metadata.selectedInterface.name,
+      opcode: metadata.selectedMessage.opcode,
+      host: document.getElementById('publisherHost').value,
+      port: Number(document.getElementById('publisherPort').value),
+      fields
+    };
+
+    result.className = 'publisher-result';
+    result.innerText = 'Sending...';
+
+    const response = await fetch('/api/publisher/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+
+    const responseBody = await response.json();
+
+    if (responseBody.success) {
+      result.className = 'publisher-result ok';
+      result.innerText =
+        `Sent ${metadata.selectedMessage.displayName}\n` +
+        `Target: ${responseBody.host}:${responseBody.port}\n` +
+        `Bytes: ${responseBody.bytesSent}`;
+      setTimeout(loadMessages, 400);
+    } else {
+      result.className = 'publisher-result error';
+      result.innerText = `Failed: ${responseBody.error}`;
+    }
   }
 
   function formatTime(value) {

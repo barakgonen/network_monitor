@@ -1,9 +1,10 @@
-package com.example.monitor.api;
+package com.example.monitor.api.publisher;
 
-public record PublishResponse(
+public record PublisherSendResponse(
         boolean success,
         String interfaceName,
-        String messageType,
+        String opcode,
+        String messageClass,
         String host,
         int port,
         int bytesSent,
