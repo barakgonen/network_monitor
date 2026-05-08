@@ -1,6 +1,7 @@
 package com.example.schemas.rada.messages;
 
 import com.example.schemas.BaseStruct;
+import com.example.schemas.rada.enums.FavoriteColor;
 import com.example.schemas.rada.struct.RadaHeader;
 
 import java.nio.ByteBuffer;
@@ -22,6 +23,7 @@ public class RadaExtendedStatusMrs implements BaseStruct {
     private float coverage2Sector2;
     private float coverage2Radius;
     private float coverage3Sector1;
+    private FavoriteColor favoriteColor;
     private float coverage3Sector2;
     private float coverage3Radius;
     private float coverage4Sector1;
@@ -145,6 +147,14 @@ public class RadaExtendedStatusMrs implements BaseStruct {
         this.coverage3Sector1 = coverage3Sector1;
     }
 
+    public FavoriteColor getFavoriteColor() {
+        return favoriteColor;
+    }
+
+    public void setFavoriteColor(FavoriteColor favoriteColor) {
+        this.favoriteColor = favoriteColor;
+    }
+
     public float getCoverage3Sector2() {
         return coverage3Sector2;
     }
@@ -201,6 +211,7 @@ public class RadaExtendedStatusMrs implements BaseStruct {
         byteBuffer.putFloat(coverage2Sector2);
         byteBuffer.putFloat(coverage2Radius);
         byteBuffer.putFloat(coverage3Sector1);
+        byteBuffer.putInt(favoriteColor.ordinal());
         byteBuffer.putFloat(coverage3Sector2);
         byteBuffer.putFloat(coverage3Radius);
         byteBuffer.putFloat(coverage4Sector1);
@@ -225,6 +236,7 @@ public class RadaExtendedStatusMrs implements BaseStruct {
         coverage2Sector2 = byteBuffer.getFloat();
         coverage2Radius = byteBuffer.getFloat();
         coverage3Sector1 = byteBuffer.getFloat();
+        favoriteColor = FavoriteColor.values()[byteBuffer.getInt()];
         coverage3Sector2 = byteBuffer.getFloat();
         coverage3Radius = byteBuffer.getFloat();
         coverage4Sector1 = byteBuffer.getFloat();
