@@ -273,6 +273,54 @@
     }
   </style>
 
+
+  <style>
+    .publisher-array-counter.max-reached {
+      color: var(--red);
+      font-weight: 700;
+    }
+
+    .publisher-array-remove-last {
+      padding: 4px 8px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--red);
+      border-color: rgba(255, 92, 106, 0.35);
+      background: var(--red-dim);
+    }
+
+    .publisher-array-remove-last:disabled,
+    .publisher-array-add-row:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  </style>
+
+
+  <style>
+    /* UX note: wider Sample Publisher editor, without removing field-form JS */
+    .publisher-layout.publisher-layout-wide {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .publisher-main-card {
+      width: 100%;
+    }
+
+    .publisher-help-hidden {
+      display: none !important;
+    }
+
+    .publisher-layout-wide .publisher-fields-form {
+      max-height: calc(100vh - 420px);
+      min-height: 420px;
+    }
+
+    .publisher-layout-wide .json-editor {
+      min-height: 220px;
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -383,8 +431,8 @@
         <h2>Sample Publisher</h2>
       </div>
 
-      <div class="publisher-layout">
-        <div class="publisher-card">
+      <div class="publisher-layout publisher-layout-wide">
+        <div class="publisher-card publisher-main-card">
           <div class="publisher-card-header">
             <h3>Configured interfaces and messages</h3>
           </div>
@@ -435,12 +483,7 @@
           <div id="publisherResult" class="publisher-result">Ready.</div>
         </div>
 
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Selected message metadata</h3>
-          </div>
-          <div id="publisherHelp" class="publisher-help">Loading publisher metadata...</div>
-        </div>
+        <div class="publisher-card publisher-help-hidden"><div id="publisherHelp" class="publisher-help"></div></div>
       </div>
     </section>
 
@@ -1008,6 +1051,7 @@
     toolbar.className = 'publisher-array-toolbar';
 
     const counter = document.createElement('span');
+    counter.className = 'publisher-array-counter';
     counter.dataset.arrayCounter = field.path;
     counter.innerText = `0 / ${length} rows`;
 
@@ -1024,8 +1068,15 @@
     addButton.className = 'secondary-btn publisher-array-add-row';
     addButton.innerText = '+ Add row';
 
+    const removeLastButton = document.createElement('button');
+    removeLastButton.type = 'button';
+    removeLastButton.className = 'publisher-array-remove-last';
+    removeLastButton.innerText = '− Remove last';
+    removeLastButton.disabled = true;
+
     actions.appendChild(toggleButton);
     actions.appendChild(addButton);
+    actions.appendChild(removeLastButton);
     toolbar.appendChild(counter);
     toolbar.appendChild(actions);
     group.appendChild(toolbar);
@@ -1061,9 +1112,20 @@
       updateArrayCounter(field.path, length);
       syncGeneratedFieldsToJson();
 
-      if (currentRows + 1 >= length) {
-        addButton.disabled = true;
+    });
+
+    removeLastButton.addEventListener('click', () => {
+      const rows = elements.querySelectorAll(':scope > .publisher-array-element');
+
+      if (rows.length === 0) {
+        removeLastButton.disabled = true;
+        return;
       }
+
+      rows[rows.length - 1].remove();
+      reindexArrayRows(field);
+      updateArrayCounter(field.path, length);
+      syncGeneratedFieldsToJson();
     });
 
     updateArrayCounterDeferred(field.path, length);
@@ -1091,12 +1153,6 @@
       reindexArrayRows(field);
       updateArrayCounter(field.path, field.arrayLength);
       syncGeneratedFieldsToJson();
-
-      const group = document.querySelector(`[data-array-path="${cssEscape(field.path)}"]`);
-      const addButton = group?.querySelector('.publisher-array-add-row');
-      if (addButton) {
-        addButton.disabled = false;
-      }
     });
 
     const children = field.children || [];
@@ -1155,13 +1211,24 @@
 
     if (counter) {
       counter.innerText = `${count} / ${max} rows`;
+      counter.classList.toggle('max-reached', count >= max);
     }
 
     const group = document.querySelector(`[data-array-path="${cssEscape(path)}"]`);
     const note = group?.querySelector('.publisher-array-collapsed-note');
+    const addButton = group?.querySelector('.publisher-array-add-row');
+    const removeLastButton = group?.querySelector('.publisher-array-remove-last');
 
     if (note) {
       note.style.display = count === 0 ? '' : 'none';
+    }
+
+    if (addButton) {
+      addButton.disabled = count >= max;
+    }
+
+    if (removeLastButton) {
+      removeLastButton.disabled = count === 0;
     }
   }
 
