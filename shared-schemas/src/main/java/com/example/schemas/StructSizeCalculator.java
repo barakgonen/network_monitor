@@ -68,7 +68,7 @@ public class StructSizeCalculator {
         }
 
         if (fieldType.isEnum()) {
-            throw new IllegalArgumentException("Enum wire size is unknown for field: " + fieldDescription(field));
+            return fixedScalarSize(int.class); // Assuming enums are serialized as ints
         }
 
         if (fieldType == String.class || CharSequence.class.isAssignableFrom(fieldType)) {
