@@ -1008,6 +1008,13 @@
     }
   </style>
 
+
+  <style>
+    .publisher-target-input {
+      text-align: center;
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-root">
@@ -1136,24 +1143,15 @@
 
           <div class="publisher-form">
             <div class="publisher-form-grid">
-              <div class="form-row">
-                <label for="publisherInterface">Interface</label>
-                <select id="publisherInterface"></select>
-              </div>
-
-              <div class="form-row">
-                <label for="publisherMessage">Message</label>
-                <select id="publisherMessage"></select>
-              </div>
 
               <div class="form-row">
                 <label for="publisherHost">Target Host</label>
-                <input id="publisherHost" value="localhost">
+                <input id="publisherHost" class="publisher-target-input" value="localhost" data-default-value="localhost" data-clear-on-first-edit="true">
               </div>
 
               <div class="form-row">
                 <label for="publisherPort">Target UDP Port</label>
-                <input id="publisherPort" type="number" min="1" max="65535" value="5050">
+                <input id="publisherPort" class="publisher-target-input" type="number" min="1" max="65535" value="5050" data-default-value="5050" data-clear-on-first-edit="true">
               </div>
             </div>
 
@@ -1184,6 +1182,8 @@
   let interfaceStatuses = [];
   let selectedInterfaceFilters = new Set();
   let publisherInterfaces = [];
+  let selectedPublisherInterfaceName = null;
+  let selectedPublisherOpcode = null;
 
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('liveTab')?.addEventListener('click', () => showPage('live'));
@@ -1191,14 +1191,13 @@
     document.getElementById('showAllInterfacesBtn')?.addEventListener('click', selectAllInterfaces);
     document.getElementById('loadRecentBtn')?.addEventListener('click', loadMessages);
     document.getElementById('textFilter')?.addEventListener('input', renderMessages);
-    document.getElementById('publisherInterface')?.addEventListener('change', onPublisherInterfaceChanged);
-    document.getElementById('publisherMessage')?.addEventListener('change', onPublisherMessageChanged);
     document.getElementById('publisherSendBtn')?.addEventListener('click', sendPublisherMessage);
 
     showPage('live');
     loadInterfaces();
     loadPublisherMetadata();
     loadMessages();
+    initClearOnFirstEditInputs();
 
     setInterval(() => {
       loadInterfaces();
@@ -1418,27 +1417,33 @@
   }
 
   function renderPublisherSelectors() {
-    const interfaceSelect = document.getElementById('publisherInterface');
-
-    if (!interfaceSelect) {
+    if (!publisherInterfaces || publisherInterfaces.length === 0) {
+      selectedPublisherInterfaceName = null;
+      selectedPublisherOpcode = null;
+      renderPublisherSelection();
       return;
     }
 
-    const previousValue = interfaceSelect.value;
-    interfaceSelect.innerHTML = '';
+    const selectedInterfaceStillExists =
+            selectedPublisherInterfaceName &&
+            publisherInterfaces.some(item => item.name === selectedPublisherInterfaceName);
 
-    for (const item of publisherInterfaces) {
-      const option = document.createElement('option');
-      option.value = item.name;
-      option.innerText = `${item.name} (${item.protocol}:${item.port})`;
-      interfaceSelect.appendChild(option);
+    if (!selectedInterfaceStillExists) {
+      selectedPublisherInterfaceName = publisherInterfaces[0].name;
     }
 
-    if (previousValue && publisherInterfaces.some(item => item.name === previousValue)) {
-      interfaceSelect.value = previousValue;
+    const selectedInterface = publisherInterfaces.find(item => item.name === selectedPublisherInterfaceName);
+    const messages = selectedInterface?.messages || [];
+
+    const selectedMessageStillExists =
+            selectedPublisherOpcode &&
+            messages.some(item => item.opcode === selectedPublisherOpcode);
+
+    if (!selectedMessageStillExists) {
+      selectedPublisherOpcode = messages.length > 0 ? messages[0].opcode : null;
     }
 
-    onPublisherInterfaceChanged();
+    renderPublisherSelection();
   }
 
   function renderPublisherConfiguredList() {
@@ -1482,11 +1487,11 @@
                 selected.selectedInterface.name === item.name &&
                 selected.selectedMessage.opcode === message.opcode;
 
-        return `<span class="publisher-message-chip ${active ? 'active' : ''}">${escapeHtml(message.displayName)} [${escapeHtml(message.opcode)}]</span>`;
+        return `<span class="publisher-message-chip ${active ? 'active' : ''}" onclick="event.stopPropagation(); selectPublisherMessage('${escapeJs(item.name)}', '${escapeJs(message.opcode)}')">${escapeHtml(message.displayName)} [${escapeHtml(message.opcode)}]</span>`;
       }).join('');
 
       row.innerHTML = `
-        <div class="publisher-interface-title">${escapeHtml(item.name)}</div>
+        <div class="publisher-interface-title" onclick="selectPublisherInterface('${escapeJs(item.name)}')">${escapeHtml(item.name)}</div>
         <div class="publisher-interface-meta">
           ${escapeHtml(item.protocol || 'UDP')} : ${escapeHtml(item.port)}<br>
           Header: ${escapeHtml(item.headerType || '')}<br>
@@ -1496,22 +1501,12 @@
         <div class="publisher-message-chip-row">${messageChips}</div>
       `;
 
-      row.addEventListener('click', () => {
-        const interfaceSelect = document.getElementById('publisherInterface');
-        if (interfaceSelect) {
-          interfaceSelect.value = item.name;
-          onPublisherInterfaceChanged();
-        }
-      });
-
       list.appendChild(row);
     }
   }
 
   function setPublisherFormEnabled(enabled) {
     const ids = [
-      'publisherInterface',
-      'publisherMessage',
       'publisherHost',
       'publisherPort',
       'publisherFieldsJson',
@@ -1534,44 +1529,51 @@
     }
   }
 
-  function onPublisherInterfaceChanged() {
-    const interfaceName = document.getElementById('publisherInterface')?.value;
+  function selectPublisherInterface(interfaceName) {
     const selectedInterface = publisherInterfaces.find(item => item.name === interfaceName);
-    const messageSelect = document.getElementById('publisherMessage');
 
-    if (!selectedInterface || !messageSelect) {
-      renderPublisherConfiguredList();
-      renderPublisherHelp(null, null);
+    if (!selectedInterface) {
       return;
     }
 
-    messageSelect.innerHTML = '';
-
-    for (const message of selectedInterface.messages || []) {
-      const option = document.createElement('option');
-      option.value = message.opcode;
-      option.innerText = `${message.displayName} [${message.opcode}]`;
-      messageSelect.appendChild(option);
-    }
-
-    const portInput = document.getElementById('publisherPort');
-    if (portInput) {
-      portInput.value = selectedInterface.port;
-    }
-
-    onPublisherMessageChanged();
-    renderPublisherConfiguredList();
+    selectedPublisherInterfaceName = interfaceName;
+    selectedPublisherOpcode = (selectedInterface.messages || [])[0]?.opcode || null;
+    renderPublisherSelection();
   }
 
-  function onPublisherMessageChanged() {
+  function selectPublisherMessage(interfaceName, opcode) {
+    selectedPublisherInterfaceName = interfaceName;
+    selectedPublisherOpcode = opcode;
+    renderPublisherSelection();
+  }
+
+  function renderPublisherSelection() {
     const metadata = selectedPublisherMetadata();
 
     if (!metadata) {
-      renderPublisherHelp(null, null);
+      const summary = document.getElementById('publisherSelectedSummary');
+      if (summary) {
+        summary.innerText = 'Select a message from the left panel.';
+      }
+
+      renderPublisherFieldForm([]);
+      renderPublisherConfiguredList();
       return;
     }
 
     const { selectedInterface, selectedMessage } = metadata;
+
+    const portInput = document.getElementById('publisherPort');
+    if (portInput) {
+      portInput.value = selectedInterface.port;
+      portInput.dataset.defaultValue = String(selectedInterface.port);
+      portInput.dataset.clearedOnce = 'false';
+    }
+
+    const summary = document.getElementById('publisherSelectedSummary');
+    if (summary) {
+      summary.innerText = `${selectedInterface.name} / ${selectedMessage.displayName} [${selectedMessage.opcode}]`;
+    }
 
     renderPublisherFieldForm(selectedMessage.fields || []);
 
@@ -1586,17 +1588,24 @@
     renderPublisherConfiguredList();
   }
 
-  function selectedPublisherMetadata() {
-    const interfaceName = document.getElementById('publisherInterface')?.value;
-    const opcode = document.getElementById('publisherMessage')?.value;
+  function onPublisherInterfaceChanged() {
+    // Kept for backward compatibility. Selection now happens from the left panel.
+    renderPublisherSelection();
+  }
 
-    const selectedInterface = publisherInterfaces.find(item => item.name === interfaceName);
+  function onPublisherMessageChanged() {
+    // Kept for backward compatibility. Selection now happens from the left panel.
+    renderPublisherSelection();
+  }
+
+  function selectedPublisherMetadata() {
+    const selectedInterface = publisherInterfaces.find(item => item.name === selectedPublisherInterfaceName);
 
     if (!selectedInterface) {
       return null;
     }
 
-    const selectedMessage = (selectedInterface.messages || []).find(item => item.opcode === opcode);
+    const selectedMessage = (selectedInterface.messages || []).find(item => item.opcode === selectedPublisherOpcode);
 
     if (!selectedMessage) {
       return null;
@@ -2095,6 +2104,52 @@
     }
 
     return result;
+  }
+
+
+  function initClearOnFirstEditInputs() {
+    document.querySelectorAll('[data-clear-on-first-edit="true"]').forEach(input => {
+      if (input.dataset.clearHandlerAttached === 'true') {
+        return;
+      }
+
+      input.dataset.clearHandlerAttached = 'true';
+      input.dataset.clearedOnce = 'false';
+
+      if (!input.dataset.defaultValue) {
+        input.dataset.defaultValue = input.value || '';
+      }
+
+      input.addEventListener('focus', () => {
+        clearInputOnce(input);
+      });
+
+      input.addEventListener('keydown', () => {
+        clearInputOnce(input);
+      });
+
+      input.addEventListener('blur', () => {
+        restoreDefaultIfEmpty(input);
+      });
+    });
+  }
+
+  function clearInputOnce(input) {
+    if (input.dataset.clearedOnce === 'true') {
+      return;
+    }
+
+    input.value = '';
+    input.dataset.clearedOnce = 'true';
+  }
+
+  function restoreDefaultIfEmpty(input) {
+    if (input.value.trim() !== '') {
+      return;
+    }
+
+    input.value = input.dataset.defaultValue || '';
+    input.dataset.clearedOnce = 'false';
   }
 
   function formatTime(value) {
