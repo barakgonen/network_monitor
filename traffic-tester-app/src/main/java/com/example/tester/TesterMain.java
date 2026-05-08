@@ -1,9 +1,10 @@
 package com.example.tester;
 
+import com.example.schemas.BaseStruct;
+import com.example.schemas.StructSizeCalculator;
 import com.example.schemas.rada.messages.RadaExtendedStatus;
 import com.example.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.schemas.rada.messages.RadaTracksExtended;
-import com.example.schemas.rada.struct.RadaHeader;
 import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
@@ -13,18 +14,10 @@ import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 import org.instancio.Instancio;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.List;
-import java.util.Set;
-
-import static org.instancio.internal.util.ReflectionUtils.getFieldValue;
 
 public class TesterMain {
     public static void main(String[] args) throws Exception {
@@ -65,56 +58,21 @@ public class TesterMain {
                 PayloadConfig messageConfig = messages.get(messageIndex);
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
-////
-                var radaExtendedStatusMsg = Instancio.create(RadaExtendedStatus.class);
-                radaExtendedStatusMsg.getHeader().setMsgCounter(totalSent);
-                radaExtendedStatusMsg.getHeader().setMsgType(1);
-                int size = calculateSize(radaExtendedStatusMsg);
-                ByteBuffer buffer = ByteBuffer.allocate(size);
-                radaExtendedStatusMsg.toByteArray(buffer);
-                byte[] payload = buffer.array();
-                System.out.println("radaExtendedStatusMsg header size is: " + calculateSize(radaExtendedStatusMsg.getHeader()));
 
-                udpPublisher.send(host, port, payload);
+                var extendedStatusMessage = getExtendedStatusMsg(totalSent);
+                byte[] messagePayload = getMessagePayload(extendedStatusMessage, RadaExtendedStatus.class);
+                udpPublisher.send(host, port, messagePayload);
                 totalSent++;
 
-                var radaExtendedStatusMrsMsg = Instancio.create(RadaExtendedStatusMrs.class);
-                radaExtendedStatusMrsMsg.getHeader().setMsgCounter(totalSent);
-                radaExtendedStatusMrsMsg.getHeader().setMsgType(2);
-                int sizeradaExtendedStatusMrsMsg = calculateSize(radaExtendedStatusMrsMsg);
-                ByteBuffer bufferradaExtendedStatusMrsMsg = ByteBuffer.allocate(sizeradaExtendedStatusMrsMsg);
-                radaExtendedStatusMrsMsg.toByteArray(bufferradaExtendedStatusMrsMsg);
-                byte[] payloadradaExtendedStatusMrsMsg = bufferradaExtendedStatusMrsMsg.array();
-
-                udpPublisher.send(host, port, payloadradaExtendedStatusMrsMsg);
+                var extendedStatusMrsMsg = getExtendedStatusMrsMsg(totalSent);
+                messagePayload = getMessagePayload(extendedStatusMrsMsg, RadaExtendedStatusMrs.class);
+                udpPublisher.send(host, port, messagePayload);
                 totalSent++;
 
-                var radaTracksExtendedMsg = Instancio.create(RadaTracksExtended.class);
-                radaTracksExtendedMsg.getHeader().setMsgCounter(totalSent);
-                radaTracksExtendedMsg.getHeader().setMsgType(4);
-                int sizeRadaTracksExtended = calculateSize(radaTracksExtendedMsg);
-                ByteBuffer bufferradaTracksExtendedMsg = ByteBuffer.allocate(sizeRadaTracksExtended);
-                radaTracksExtendedMsg.toByteArray(bufferradaTracksExtendedMsg);
-                byte[] payloadRadaTracksExtended = bufferradaTracksExtendedMsg.array();
-                System.out.println("radaTracksExtendedMsg header size is: " + calculateSize(radaTracksExtendedMsg.getHeader()));
-
-                udpPublisher.send(host, port, payloadRadaTracksExtended);
+                var extendedTrackMessage = getTracksExtendedMsg(totalSent);
+                messagePayload = getMessagePayload(extendedTrackMessage, RadaTracksExtended.class);
+                udpPublisher.send(host, port, messagePayload);
                 totalSent++;
-
-                System.out.println("Sent message "
-                        + (messageIndex + 1)
-                        + "/"
-                        + messages.size()
-                        + " type="
-                        + messageConfig.getMode()
-                        + ", target="
-                        + host
-                        + ":"
-                        + port
-                        + ", bytes="
-                        + payloadRadaTracksExtended.length
-                        + ", hex="
-                        + HexFormat.of().formatHex(payload));
             }
 
             if (iteration < scenario.getRepeat() && scenario.getIntervalMillis() > 0) {
@@ -129,6 +87,39 @@ public class TesterMain {
         }
 
         System.out.println("Traffic Tester App finished");
+    }
+
+    private static RadaExtendedStatus getExtendedStatusMsg(int totalSent) {
+        var radaExtendedStatusMsg = Instancio.create(RadaExtendedStatus.class);
+        radaExtendedStatusMsg.getHeader().setMsgCounter(totalSent);
+        radaExtendedStatusMsg.getHeader().setMsgType(1);
+
+        return radaExtendedStatusMsg;
+    }
+
+    private static RadaExtendedStatusMrs getExtendedStatusMrsMsg(int totalSent) {
+        var radaExtendedStatusMrs = Instancio.create(RadaExtendedStatusMrs.class);
+        radaExtendedStatusMrs.getHeader().setMsgCounter(totalSent);
+        radaExtendedStatusMrs.getHeader().setMsgType(2);
+
+        return radaExtendedStatusMrs;
+    }
+
+    private static RadaTracksExtended getTracksExtendedMsg(int totalSent) {
+        var radaTracksExtended = Instancio.create(RadaTracksExtended.class);
+        radaTracksExtended.getHeader().setMsgCounter(totalSent);
+        radaTracksExtended.getHeader().setMsgType(4);
+
+        return radaTracksExtended;
+    }
+
+    private static byte[] getMessagePayload(BaseStruct message, Class<? extends BaseStruct> clazz) {
+        int size = StructSizeCalculator.calculateStructSize(clazz);
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        message.toByteArray(buffer);
+        byte[] payload = buffer.array();
+        System.out.println("message type is: " + message.getClass() + ", payload length is: " + payload.length);
+        return payload;
     }
 
     private static String resolveHost(TesterScenario scenario, PayloadConfig messageConfig) {
@@ -147,162 +138,5 @@ public class TesterMain {
         }
 
         return scenario.getUdp().getPort();
-    }
-    public static int calculateSize(Object obj) {
-        try {
-            return calculateSizeInternal(obj);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("Failed to calculate binary size", e);
-        }
-    }
-
-    private static int calculateSizeInternal(Object obj) throws IllegalAccessException {
-        if (obj == null) {
-            return 0;
-        }
-
-        Class<?> clazz = obj.getClass();
-
-        if (isUnsupportedJdkType(clazz)) {
-            throw new IllegalArgumentException(
-                    "Unsupported type for binary size calculation: " + clazz.getName()
-            );
-        }
-
-        int size = 0;
-
-        for (Field field : clazz.getDeclaredFields()) {
-
-            if (Modifier.isStatic(field.getModifiers())
-                    || Modifier.isTransient(field.getModifiers())
-                    || field.isSynthetic()) {
-                continue;
-            }
-
-            Class<?> type = field.getType();
-
-            if (isUnsupportedJdkType(type)) {
-                throw new IllegalArgumentException(
-                        "Unsupported field type: " + type.getName()
-                                + ", field: " + clazz.getSimpleName() + "." + field.getName()
-                );
-            }
-
-            field.setAccessible(true);
-            Object value = field.get(obj);
-
-            size += calculateFieldSize(type, value, field);
-        }
-
-        return size;
-    }
-
-    private static int calculateFieldSize(Class<?> type, Object value, Field field)
-            throws IllegalAccessException {
-
-        if (type == byte.class) {
-            return Byte.BYTES;
-        }
-
-        if (type == short.class) {
-            return Short.BYTES;
-        }
-
-        if (type == int.class) {
-            return Integer.BYTES;
-        }
-
-        if (type == long.class) {
-            return Long.BYTES;
-        }
-
-        if (type == float.class) {
-            return Float.BYTES;
-        }
-
-        if (type == double.class) {
-            return Double.BYTES;
-        }
-
-        if (type == boolean.class) {
-            return Byte.BYTES;
-        }
-
-        if (type.isEnum()) {
-            return Integer.BYTES; // change if you serialize enum differently
-        }
-
-        if (type.isArray()) {
-            return calculateArraySize(value);
-        }
-
-        return calculateSizeInternal(value);
-    }
-
-    private static int calculateArraySize(Object array) throws IllegalAccessException {
-        if (array == null) {
-            return 0;
-        }
-
-        int length = Array.getLength(array);
-        Class<?> componentType = array.getClass().getComponentType();
-
-        if (componentType == byte.class) {
-            return length * Byte.BYTES;
-        }
-
-        if (componentType == short.class) {
-            return length * Short.BYTES;
-        }
-
-        if (componentType == int.class) {
-            return length * Integer.BYTES;
-        }
-
-        if (componentType == long.class) {
-            return length * Long.BYTES;
-        }
-
-        if (componentType == float.class) {
-            return length * Float.BYTES;
-        }
-
-        if (componentType == double.class) {
-            return length * Double.BYTES;
-        }
-
-        if (componentType == boolean.class) {
-            return length * Byte.BYTES;
-        }
-
-        int size = 0;
-
-        for (int i = 0; i < length; i++) {
-            Object element = Array.get(array, i);
-            size += calculateSizeInternal(element);
-        }
-
-        return size;
-    }
-
-    private static boolean isUnsupportedJdkType(Class<?> type) {
-        if (type.isPrimitive()) {
-            return false;
-        }
-
-        if (type.isArray()) {
-            return false;
-        }
-
-        if (type.isEnum()) {
-            return false;
-        }
-
-        String name = type.getName();
-
-        return name.startsWith("java.")
-                || name.startsWith("javax.")
-                || name.startsWith("jdk.")
-                || name.startsWith("sun.");
     }
 }
