@@ -875,6 +875,139 @@
     }
   </style>
 
+
+  <style>
+    /* Unified app/page layout:
+       1. global app header: brand left, page buttons centered
+       2. page title block: identical for every page
+       3. page-specific content below
+    */
+    .app-header {
+      display: grid !important;
+      grid-template-columns: minmax(220px, auto) 1fr minmax(220px, auto);
+      align-items: center;
+      padding: 14px 20px;
+      min-height: 65px;
+    }
+
+    .app-brand {
+      justify-self: start;
+      min-width: 0 !important;
+    }
+
+    .main-tabs {
+      justify-self: center;
+      justify-content: center !important;
+      width: fit-content;
+    }
+
+    .app-header::after {
+      content: '';
+      justify-self: end;
+      width: 220px;
+    }
+
+    .page {
+      min-height: 0;
+      flex: 1;
+    }
+
+    .page-column {
+      display: none;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .page-column.active {
+      display: flex;
+    }
+
+    .page-title-section {
+      flex-shrink: 0;
+      padding: 18px 24px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .page-title-section .page-heading h2 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+
+    .page-title-section .page-heading p {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .page-body {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .live-body {
+      display: flex;
+      flex-direction: row;
+    }
+
+    .content-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .publisher-main {
+      overflow: auto;
+      padding: 18px 20px;
+    }
+
+    @media (max-width: 900px) {
+      .app-header {
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      .app-header::after {
+        display: none;
+      }
+
+      .main-tabs {
+        justify-self: auto;
+        justify-content: flex-start !important;
+        overflow-x: auto;
+        width: 100%;
+      }
+
+      .live-body {
+        flex-direction: column;
+      }
+
+      .content-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .topbar-right {
+        width: 100%;
+      }
+
+      .filter-input {
+        width: 100%;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-root">
@@ -903,84 +1036,88 @@
     </nav>
   </header>
 
-  <section id="livePage" class="page live-page active">
-    <aside class="live-sidebar">
-      <div class="sidebar-block">
-        <div class="block-label">Ingestion</div>
-        <span class="status-badge">Runtime controlled</span>
+  <section id="livePage" class="page page-column active">
+    <header class="page-title-section">
+      <div class="page-heading">
+        <h2>Live Messages</h2>
+        <p>Runtime traffic from configured interfaces</p>
       </div>
+    </header>
 
-      <section class="sidebar-panel">
-        <div class="sidebar-panel-header">
-          <span class="sidebar-panel-title">Interfaces</span>
-        </div>
-        <button id="showAllInterfacesBtn" class="secondary-btn interface-filter-all" type="button">Show All</button>
-        <div id="interfacesList" class="interfaces-list"></div>
-        <div class="sidebar-note">Green = traffic in configured recent window</div>
-      </section>
-    </aside>
-
-    <main class="live-main">
-      <header class="page-topbar">
-        <div class="page-heading">
-          <h2>Live Messages</h2>
-          <p>Runtime traffic from configured interfaces</p>
+    <div class="page-body live-body">
+      <aside class="live-sidebar">
+        <div class="sidebar-block">
+          <div class="block-label">Ingestion</div>
+          <span class="status-badge">Runtime controlled</span>
         </div>
 
-        <div class="stats-row">
-          <div class="stat-pill highlight">
-            <strong id="eventsCount">0</strong>
-            <span>messages</span>
+        <section class="sidebar-panel">
+          <div class="sidebar-panel-header">
+            <span class="sidebar-panel-title">Interfaces</span>
           </div>
-          <div class="stat-pill">
-            <strong id="selectedInterfaceLabel">All</strong>
-            <span>interfaces</span>
+          <button id="showAllInterfacesBtn" class="secondary-btn interface-filter-all" type="button">Show All</button>
+          <div id="interfacesList" class="interfaces-list"></div>
+          <div class="sidebar-note">Green = traffic in configured recent window</div>
+        </section>
+      </aside>
+
+      <main class="live-main">
+        <div class="content-toolbar">
+          <div class="stats-row">
+            <div class="stat-pill highlight">
+              <strong id="eventsCount">0</strong>
+              <span>messages</span>
+            </div>
+            <div class="stat-pill">
+              <strong id="selectedInterfaceLabel">All</strong>
+              <span>interfaces</span>
+            </div>
+          </div>
+
+          <div class="topbar-right">
+            <input id="textFilter" type="text" class="filter-input" placeholder="Filter payload…">
+            <button id="loadRecentBtn" class="secondary-btn" type="button">Load recent</button>
           </div>
         </div>
 
-        <div class="topbar-right">
-          <input id="textFilter" type="text" class="filter-input" placeholder="Filter payload…">
-          <button id="loadRecentBtn" class="secondary-btn" type="button">Load recent</button>
-        </div>
-      </header>
-
-      <div class="live-content">
-        <div class="table-wrapper">
-          <table>
-            <thead>
-            <tr>
-              <th>Observed At</th>
-              <th>Protocol</th>
-              <th>Port</th>
-              <th>Interface</th>
-              <th>Message Name</th>
-              <th>Parse Error</th>
-            </tr>
-            </thead>
-            <tbody id="messagesTableBody"></tbody>
-          </table>
-          <div id="emptyState" class="empty-state">No messages yet.</div>
-        </div>
-
-        <aside class="message-inspector">
-          <div class="message-inspector-header">
-            <h3>Payload Inspector</h3>
+        <div class="live-content">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+              <tr>
+                <th>Observed At</th>
+                <th>Protocol</th>
+                <th>Port</th>
+                <th>Interface</th>
+                <th>Message Name</th>
+                <th>Parse Error</th>
+              </tr>
+              </thead>
+              <tbody id="messagesTableBody"></tbody>
+            </table>
+            <div id="emptyState" class="empty-state">No messages yet.</div>
           </div>
-          <pre id="eventDetails">Select a message to inspect payload.</pre>
-        </aside>
-      </div>
-    </main>
+
+          <aside class="message-inspector">
+            <div class="message-inspector-header">
+              <h3>Payload Inspector</h3>
+            </div>
+            <pre id="eventDetails">Select a message to inspect payload.</pre>
+          </aside>
+        </div>
+      </main>
+    </div>
   </section>
 
-  <section id="publisherPage" class="page publisher-page">
-    <header class="page-topbar">
+  <section id="publisherPage" class="page page-column">
+    <header class="page-title-section">
       <div class="page-heading">
         <h2>Sample Publisher</h2>
         <p>Build and send messages using configured interfaces and reflection metadata</p>
       </div>
     </header>
 
-    <main class="publisher-main">
+    <main class="page-body publisher-main">
       <div class="publisher-shell">
 
         <section class="publisher-card">
@@ -1107,7 +1244,7 @@
       selectedInterfaceFilters = new Set(availableNames);
     } else {
       selectedInterfaceFilters = new Set(
-        [...selectedInterfaceFilters].filter(name => availableNames.has(name))
+              [...selectedInterfaceFilters].filter(name => availableNames.has(name))
       );
 
       if (selectedInterfaceFilters.size === 0) {
@@ -1138,8 +1275,8 @@
 
       const dotClass = !item.listening ? 'stopped' : (item.trafficRecentlyObserved ? 'live' : 'idle');
       const actionButton = item.listening
-        ? `<button class="interface-action-btn stop" onclick="event.stopPropagation(); stopInterface('${escapeJs(item.name)}')">Stop</button>`
-        : `<button class="interface-action-btn start" onclick="event.stopPropagation(); startInterface('${escapeJs(item.name)}')">Start</button>`;
+              ? `<button class="interface-action-btn stop" onclick="event.stopPropagation(); stopInterface('${escapeJs(item.name)}')">Stop</button>`
+              : `<button class="interface-action-btn start" onclick="event.stopPropagation(); startInterface('${escapeJs(item.name)}')">Start</button>`;
 
       row.innerHTML = `
         <div class="interface-main" onclick="toggleInterfaceFilter('${escapeJs(item.name)}')">
@@ -1182,8 +1319,8 @@
     const showAllButton = document.getElementById('showAllInterfacesBtn');
 
     const allSelected =
-      interfaceStatuses.length > 0 &&
-      selectedInterfaceFilters.size === interfaceStatuses.length;
+            interfaceStatuses.length > 0 &&
+            selectedInterfaceFilters.size === interfaceStatuses.length;
 
     if (showAllButton) {
       showAllButton.disabled = allSelected;
@@ -1223,14 +1360,14 @@
       const interfaceName = String(msg.interfaceName || '').toLowerCase();
 
       const interfaceMatches =
-        selectedInterfaceFilters.size === 0 ||
-        selectedInterfaceFilters.has(msg.interfaceName);
+              selectedInterfaceFilters.size === 0 ||
+              selectedInterfaceFilters.has(msg.interfaceName);
 
       const textMatches =
-        filterValue === '' ||
-        body.includes(filterValue) ||
-        messageName.includes(filterValue) ||
-        interfaceName.includes(filterValue);
+              filterValue === '' ||
+              body.includes(filterValue) ||
+              messageName.includes(filterValue) ||
+              interfaceName.includes(filterValue);
 
       return interfaceMatches && textMatches;
     });
@@ -1317,9 +1454,9 @@
     if (!publisherInterfaces || publisherInterfaces.length === 0) {
       emptyState.style.display = 'block';
       emptyState.innerText =
-        'No publishable interfaces are configured.\n\n' +
-        'Add entries under traffic.reflection-interfaces in application.yml.\n\n' +
-        'Each interface should define: name, port, header-type, opcode-field-name, and supported-messages.';
+              'No publishable interfaces are configured.\n\n' +
+              'Add entries under traffic.reflection-interfaces in application.yml.\n\n' +
+              'Each interface should define: name, port, header-type, opcode-field-name, and supported-messages.';
       list.style.display = 'none';
       setPublisherFormEnabled(false);
       return;
@@ -1341,9 +1478,9 @@
 
       const messageChips = (item.messages || []).map(message => {
         const active =
-          selected &&
-          selected.selectedInterface.name === item.name &&
-          selected.selectedMessage.opcode === message.opcode;
+                selected &&
+                selected.selectedInterface.name === item.name &&
+                selected.selectedMessage.opcode === message.opcode;
 
         return `<span class="publisher-message-chip ${active ? 'active' : ''}">${escapeHtml(message.displayName)} [${escapeHtml(message.opcode)}]</span>`;
       }).join('');
@@ -1899,8 +2036,8 @@
       delete jsonFields._comment;
 
       fields = Object.keys(generated).length > 0
-        ? deepMerge(jsonFields, generated)
-        : jsonFields;
+              ? deepMerge(jsonFields, generated)
+              : jsonFields;
     } catch (e) {
       result.className = 'publisher-result error';
       result.innerText = `Invalid JSON: ${e.message}`;
@@ -1929,9 +2066,9 @@
     if (responseBody.success) {
       result.className = 'publisher-result ok';
       result.innerText =
-        `Sent ${metadata.selectedMessage.displayName}\n` +
-        `Target: ${responseBody.host}:${responseBody.port}\n` +
-        `Bytes: ${responseBody.bytesSent}`;
+              `Sent ${metadata.selectedMessage.displayName}\n` +
+              `Target: ${responseBody.host}:${responseBody.port}\n` +
+              `Bytes: ${responseBody.bytesSent}`;
       setTimeout(loadMessages, 400);
     } else {
       result.className = 'publisher-result error';
@@ -1944,12 +2081,12 @@
 
     for (const [key, value] of Object.entries(source || {})) {
       if (
-        value &&
-        typeof value === 'object' &&
-        !Array.isArray(value) &&
-        result[key] &&
-        typeof result[key] === 'object' &&
-        !Array.isArray(result[key])
+              value &&
+              typeof value === 'object' &&
+              !Array.isArray(value) &&
+              result[key] &&
+              typeof result[key] === 'object' &&
+              !Array.isArray(result[key])
       ) {
         result[key] = deepMerge(result[key], value);
       } else {
@@ -1987,19 +2124,19 @@
 
   function escapeHtml(value) {
     return String(value)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
   }
 
   function escapeJs(value) {
     return String(value)
-      .replaceAll('\\', '\\\\')
-      .replaceAll("'", "\\'")
-      .replaceAll('\n', '\\n')
-      .replaceAll('\r', '\\r');
+            .replaceAll('\\', '\\\\')
+            .replaceAll("'", "\\'")
+            .replaceAll('\n', '\\n')
+            .replaceAll('\r', '\\r');
   }
 </script>
 </body>
