@@ -112,7 +112,6 @@
               <th>Port</th>
               <th>Interface</th>
               <th>Message Name</th>
-              <th>Message Body</th>
               <th>Parse Error</th>
             </tr>
             </thead>
@@ -123,9 +122,9 @@
 
         <aside class="event-details-side">
           <div class="event-details-header">
-            <h3>Message Inspector</h3>
+            <h3>Payload Inspector</h3>
           </div>
-          <pre id="eventDetails">Select a message to inspect details.</pre>
+          <pre id="eventDetails">Select a message to inspect payload.</pre>
         </aside>
       </div>
     </section>
@@ -286,7 +285,6 @@
         <td>${escapeHtml(msg.localPort)}</td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
-        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
         <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
       `;
 
@@ -297,16 +295,9 @@
 
   function selectMessage(msg) {
     selectedMessageId = msg.id;
-    document.getElementById('eventDetails').innerText = JSON.stringify({
-      observedAt: msg.observedAt,
-      protocol: msg.transportProtocol,
-      port: msg.localPort,
-      interfaceName: msg.interfaceName,
-      messageName: msg.messageType,
-      header: msg.header,
-      body: msg.body,
-      parseError: msg.parseError
-    }, null, 2);
+
+    const payload = msg.body || {};
+    document.getElementById('eventDetails').innerText = JSON.stringify(payload, null, 2);
 
     renderMessages();
   }

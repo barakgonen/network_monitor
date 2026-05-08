@@ -62,10 +62,12 @@ public class ReflectionUdpIngestionRunner {
         int bufferSize = properties.getUdp().getBufferSizeBytes();
 
         try (DatagramSocket socket = new DatagramSocket(port)) {
-            log.info("Reflection interface '{}' UDP listener started on port {} with candidates {}",
+            log.info("Opcode-routed reflection interface '{}' UDP listener started on port {} with headerType={}, opcodeField={}, supportedOpcodes={}",
                     reflectionInterface.getName(),
                     port,
-                    reflectionInterface.getPotentialMessages());
+                    reflectionInterface.getHeaderType(),
+                    reflectionInterface.getOpcodeFieldName(),
+                    reflectionInterface.getSupportedMessages().keySet());
 
             while (running) {
                 byte[] buffer = new byte[bufferSize];
@@ -98,13 +100,17 @@ public class ReflectionUdpIngestionRunner {
     ) {
         ReflectionParseResult parseResult = reflectionMessageParser.parse(
                 payload,
-                reflectionInterface.getPotentialMessages()
+                reflectionInterface
         );
 
         Map<String, Object> header = new LinkedHashMap<>();
-        header.put("parserMode", "reflection");
+        header.put("parserMode", "opcode-routed-reflection");
+        header.put("headerType", reflectionInterface.getHeaderType());
+        header.put("opcodeFieldName", reflectionInterface.getOpcodeFieldName());
+        header.put("opcode", parseResult.opcode());
         header.put("matchedClass", parseResult.messageClassName());
-        header.put("candidateCount", reflectionInterface.getPotentialMessages().size());
+        header.put("supportedOpcodes", reflectionInterface.getSupportedMessages().keySet());
+        header.put("parsedHeader", parseResult.headerFields());
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.putAll(parseResult.fields());
