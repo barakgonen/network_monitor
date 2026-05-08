@@ -3,39 +3,28 @@ server:
 
 traffic:
   interface-active-window-seconds: 10
+
   udp:
-    enabled: true
-    fruit-port: 5006
-    weather-port: 50013
     buffer-size-bytes: 65507
 
+  # Configure your real protocol interfaces here.
+  #
+  # Example:
+  #
+  # reflection-interfaces:
+  #   - name: Rada Interface
+  #     enabled: true
+  #     protocol: UDP
+  #     port: 5050
+  #     byte-order: BIG_ENDIAN
+  #     header-type: com.example.schemas.rada.struct.RadaHeader
+  #     opcode-field-name: msgType
+  #     supported-messages:
+  #       "4444":
+  #         message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+  #         display-name: RadaExtendedStatus
+  #
   reflection-interfaces:
-#    - name: Reflection Fruit Interface
-#      enabled: true
-#      protocol: UDP
-#      port: 5050
-#      byte-order: BIG_ENDIAN
-#      header-type: com.example.schemas.fruit.FruitProtocolHeader
-#      opcode-field-name: opcode
-#      supported-messages:
-#        "1001":
-#          message-class: com.example.schemas.reflectiondemo.ReflectionOrangeMessage
-#          display-name: Orange
-#        "1002":
-#          message-class: com.example.schemas.reflectiondemo.ReflectionBananaMessage
-#          display-name: Banana
-#
-#    - name: Reflection Weather Interface
-#      enabled: true
-#      protocol: UDP
-#      port: 5051
-#      byte-order: BIG_ENDIAN
-#      header-type: com.example.schemas.weather.WeatherProtocolHeader
-#      opcode-field-name: opcode
-#      supported-messages:
-#        "2001":
-#          message-class: com.example.schemas.reflectiondemo.ReflectionTemperatureReadingMessage
-#          display-name: TemperatureReading
     - name: BG First Reflection
       enabled: true
       protocol: UDP
@@ -96,5 +85,7 @@ traffic:
         "4":
           message-class: com.example.schemas.rada.messages.RadaTracksExtended
           display-name: RadaTracksExtended
+  ]
+
   store:
     max-size: 500
