@@ -85,7 +85,6 @@ traffic:
         "4":
           message-class: com.example.schemas.rada.messages.RadaTracksExtended
           display-name: RadaTracksExtended
-  ]
 
   store:
     max-size: 500

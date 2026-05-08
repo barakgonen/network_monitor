@@ -11,9 +11,9 @@ listener:
 messages:
   - mode: HEX
     target:
-      host: traffic-monitor-app
-      port: 5050
+      host: 127.0.0.1
+      port: 5001
     hex: "00010203040506070809"
 
-repeat: 1
+repeat: 1000
 intervalMillis: 1000
