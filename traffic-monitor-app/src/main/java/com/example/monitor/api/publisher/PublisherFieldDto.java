@@ -9,6 +9,7 @@ public record PublisherFieldDto(
         String javaType,
         boolean required,
         List<String> enumValues,
-        List<PublisherFieldDto> children
+        List<PublisherFieldDto> children,
+        Integer arrayLength
 ) {
 }

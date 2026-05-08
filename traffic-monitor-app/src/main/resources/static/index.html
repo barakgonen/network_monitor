@@ -196,6 +196,33 @@
     }
   </style>
 
+
+  <style>
+    .publisher-array-elements {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 360px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .publisher-array-element {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      background: rgba(255,255,255,0.025);
+    }
+
+    .publisher-array-element-title {
+      color: var(--amber);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -857,7 +884,8 @@
       `Class: ${selectedMessage.messageClass}\n\n` +
       `The publisher uses your configured message class.\n` +
       `You can edit discovered fields directly. Enums are dropdowns.\n` +
-      `Arrays are supported through Advanced JSON payload in V1.\n\n` +
+      `Fixed-size arrays are rendered when length can be inferred from the class no-arg constructor.\n` +
+      `If array length cannot be inferred, use Advanced JSON payload.\n\n` +
       `Supported serializer methods:\n` +
       `- toByteArray(ByteBuffer)\n` +
       `- serialize(ByteBuffer)\n` +
@@ -900,38 +928,106 @@
     }
 
     if (field.kind === 'array') {
-      const group = document.createElement('div');
-      group.className = 'publisher-field-group';
-      group.innerHTML = `
-        <div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">array</span></div>
-        <div class="publisher-array-note">Array editor V1: provide this field in Advanced JSON payload as an array. Path: ${escapeHtml(field.path)}</div>
-      `;
+      return renderPublisherArrayField(field);
+    }
+
+    return renderPublisherScalarField(field.path, field.name, field.kind, field.javaType, field.enumValues || []);
+  }
+
+  function renderPublisherArrayField(field) {
+    const group = document.createElement('div');
+    group.className = 'publisher-field-group';
+
+    const length = field.arrayLength;
+    const hasKnownLength = Number.isInteger(length) && length >= 0;
+
+    group.innerHTML = `
+      <div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">array${hasKnownLength ? ` [${length}]` : ''}</span></div>
+    `;
+
+    if (!hasKnownLength) {
+      const note = document.createElement('div');
+      note.className = 'publisher-array-note';
+      note.innerText = `Array length could not be inferred from the class no-arg constructor. Use Advanced JSON payload. Path: ${field.path}`;
+      group.appendChild(note);
       return group;
     }
 
+    if (length === 0) {
+      const note = document.createElement('div');
+      note.className = 'publisher-array-note';
+      note.innerText = 'Array length is 0.';
+      group.appendChild(note);
+      return group;
+    }
+
+    const elements = document.createElement('div');
+    elements.className = 'publisher-array-elements';
+
+    const children = field.children || [];
+
+    for (let index = 0; index < length; index++) {
+      const element = document.createElement('div');
+      element.className = 'publisher-array-element';
+      element.innerHTML = `<div class="publisher-array-element-title">${escapeHtml(field.name)}[${index}]</div>`;
+
+      if (children.length === 0) {
+        const scalarKind = arrayComponentKind(field);
+        const scalarPath = `${field.path}.${index}`;
+        element.appendChild(renderPublisherScalarField(scalarPath, `${field.name}[${index}]`, scalarKind, field.javaType, field.enumValues || []));
+      } else {
+        for (const child of children) {
+          const childCopy = {
+            ...child,
+            path: child.path.replace(field.path + '[]', `${field.path}.${index}`)
+          };
+          element.appendChild(renderPublisherField(childCopy));
+        }
+      }
+
+      elements.appendChild(element);
+    }
+
+    group.appendChild(elements);
+    return group;
+  }
+
+  function arrayComponentKind(field) {
+    if ((field.enumValues || []).length > 0) {
+      return 'enum';
+    }
+
+    if (field.javaType.includes('[B') || field.javaType.includes('Byte')) {
+      return 'number';
+    }
+
+    return 'string';
+  }
+
+  function renderPublisherScalarField(path, name, kind, javaType, enumValues) {
     const row = document.createElement('div');
     row.className = 'publisher-field-row';
 
     const label = document.createElement('label');
-    label.innerText = field.path;
+    label.innerText = path;
 
     let input;
 
-    if (field.kind === 'enum') {
+    if (kind === 'enum') {
       input = document.createElement('select');
 
-      for (const value of field.enumValues || []) {
+      for (const value of enumValues || []) {
         const option = document.createElement('option');
         option.value = value;
         option.innerText = value;
         input.appendChild(option);
       }
-    } else if (field.kind === 'number') {
+    } else if (kind === 'number') {
       input = document.createElement('input');
       input.type = 'number';
       input.step = 'any';
       input.value = '0';
-    } else if (field.kind === 'boolean') {
+    } else if (kind === 'boolean') {
       input = document.createElement('select');
 
       for (const value of ['false', 'true']) {
@@ -940,23 +1036,23 @@
         option.innerText = value;
         input.appendChild(option);
       }
-    } else if (field.kind === 'char') {
+    } else if (kind === 'char') {
       input = document.createElement('input');
       input.type = 'text';
       input.maxLength = 1;
       input.value = '';
-    } else if (field.kind === 'string') {
+    } else if (kind === 'string') {
       input = document.createElement('input');
       input.type = 'text';
       input.value = '';
     } else {
       input = document.createElement('input');
       input.type = 'text';
-      input.placeholder = `Unsupported type: ${field.javaType}`;
+      input.placeholder = `Unsupported type: ${javaType}`;
     }
 
-    input.dataset.fieldPath = field.path;
-    input.dataset.fieldKind = field.kind;
+    input.dataset.fieldPath = path;
+    input.dataset.fieldKind = kind;
 
     input.addEventListener('input', syncGeneratedFieldsToJson);
     input.addEventListener('change', syncGeneratedFieldsToJson);
@@ -998,23 +1094,42 @@
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
+      const nextPart = parts[i + 1];
+      const isLast = i === parts.length - 1;
+      const nextIsArrayIndex = isArrayIndex(nextPart);
 
-      if (part.includes('[]')) {
-        // Arrays are intentionally handled by Advanced JSON in V1.
-        return;
+      if (isArrayIndex(part)) {
+        // The current variable should already be an array.
+        const index = Number(part);
+
+        if (isLast) {
+          current[index] = value;
+          return;
+        }
+
+        if (current[index] == null) {
+          current[index] = nextIsArrayIndex ? [] : {};
+        }
+
+        current = current[index];
+        continue;
       }
 
-      if (i === parts.length - 1) {
+      if (isLast) {
         current[part] = value;
         return;
       }
 
-      if (!current[part]) {
-        current[part] = {};
+      if (current[part] == null) {
+        current[part] = nextIsArrayIndex ? [] : {};
       }
 
       current = current[part];
     }
+  }
+
+  function isArrayIndex(value) {
+    return value != null && /^\\d+$/.test(String(value));
   }
 
   function syncGeneratedFieldsToJson() {

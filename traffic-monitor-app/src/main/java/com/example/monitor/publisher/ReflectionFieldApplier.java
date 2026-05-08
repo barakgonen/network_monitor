@@ -74,27 +74,27 @@ public class ReflectionFieldApplier {
         }
 
         if (targetType == byte.class || targetType == Byte.class) {
-            return ((Number) asNumber(rawValue)).byteValue();
+            return asNumber(rawValue).byteValue();
         }
 
         if (targetType == short.class || targetType == Short.class) {
-            return ((Number) asNumber(rawValue)).shortValue();
+            return asNumber(rawValue).shortValue();
         }
 
         if (targetType == int.class || targetType == Integer.class) {
-            return ((Number) asNumber(rawValue)).intValue();
+            return asNumber(rawValue).intValue();
         }
 
         if (targetType == long.class || targetType == Long.class) {
-            return ((Number) asNumber(rawValue)).longValue();
+            return asNumber(rawValue).longValue();
         }
 
         if (targetType == float.class || targetType == Float.class) {
-            return ((Number) asNumber(rawValue)).floatValue();
+            return asNumber(rawValue).floatValue();
         }
 
         if (targetType == double.class || targetType == Double.class) {
-            return ((Number) asNumber(rawValue)).doubleValue();
+            return asNumber(rawValue).doubleValue();
         }
 
         if (targetType == boolean.class || targetType == Boolean.class) {
@@ -122,24 +122,7 @@ public class ReflectionFieldApplier {
         }
 
         if (targetType.isArray()) {
-            if (!(rawValue instanceof List<?> listValue)) {
-                throw new IllegalArgumentException("Array field expects JSON array, got: " + rawValue.getClass().getName());
-            }
-
-            Class<?> componentType = targetType.getComponentType();
-            Object array = currentValue;
-
-            if (array == null || Array.getLength(array) != listValue.size()) {
-                array = Array.newInstance(componentType, listValue.size());
-            }
-
-            for (int i = 0; i < listValue.size(); i++) {
-                Object existing = Array.get(array, i);
-                Object converted = convertValue(componentType, existing, listValue.get(i));
-                Array.set(array, i, converted);
-            }
-
-            return array;
+            return convertArrayValue(targetType, currentValue, rawValue);
         }
 
         if (rawValue instanceof Map<?, ?> mapValue) {
@@ -149,6 +132,44 @@ public class ReflectionFieldApplier {
         }
 
         throw new IllegalArgumentException("Unsupported field type: " + targetType.getName() + ", rawValue=" + rawValue);
+    }
+
+    private Object convertArrayValue(Class<?> targetType, Object currentValue, Object rawValue) {
+        if (!(rawValue instanceof List<?> listValue)) {
+            throw new IllegalArgumentException("Array field expects JSON array, got: " + rawValue.getClass().getName());
+        }
+
+        Class<?> componentType = targetType.getComponentType();
+        Object array = currentValue;
+
+        if (array == null || Array.getLength(array) != listValue.size()) {
+            array = Array.newInstance(componentType, listValue.size());
+        }
+
+        for (int i = 0; i < listValue.size(); i++) {
+            Object existing = Array.get(array, i);
+            Object rawItem = listValue.get(i);
+
+            if (rawItem instanceof Map<?, ?> rawMap && !isSimpleType(componentType)) {
+                Object nested = existing != null ? existing : instantiate(componentType);
+                apply(nested, castMap(rawMap));
+                Array.set(array, i, nested);
+            } else {
+                Object converted = convertValue(componentType, existing, rawItem);
+                Array.set(array, i, converted);
+            }
+        }
+
+        return array;
+    }
+
+    private boolean isSimpleType(Class<?> type) {
+        return type.isPrimitive()
+                || type == String.class
+                || Number.class.isAssignableFrom(type)
+                || type == Boolean.class
+                || type == Character.class
+                || type.isEnum();
     }
 
     private Number asNumber(Object rawValue) {
