@@ -74,20 +74,20 @@ public class TesterMain {
                 radaExtendedStatusMsg.toByteArray(buffer);
                 byte[] payload = buffer.array();
                 System.out.println("radaExtendedStatusMsg header size is: " + calculateSize(radaExtendedStatusMsg.getHeader()));
-//
-//                udpPublisher.send(host, port, payload);
-//                totalSent++;
-//
-//                var radaExtendedStatusMrsMsg = Instancio.create(RadaExtendedStatusMrs.class);
-//                radaExtendedStatusMrsMsg.getHeader().setMsgCounter(totalSent);
-//                radaExtendedStatusMrsMsg.getHeader().setMsgType(2);
-//                int sizeradaExtendedStatusMrsMsg = calculateSize(radaExtendedStatusMrsMsg);
-//                ByteBuffer bufferradaExtendedStatusMrsMsg = ByteBuffer.allocate(sizeradaExtendedStatusMrsMsg);
-//                radaExtendedStatusMrsMsg.toByteArray(bufferradaExtendedStatusMrsMsg);
-//                byte[] payloadradaExtendedStatusMrsMsg = bufferradaExtendedStatusMrsMsg.array();
-//
-//                udpPublisher.send(host, port, payloadradaExtendedStatusMrsMsg);
-//                totalSent++;
+
+                udpPublisher.send(host, port, payload);
+                totalSent++;
+
+                var radaExtendedStatusMrsMsg = Instancio.create(RadaExtendedStatusMrs.class);
+                radaExtendedStatusMrsMsg.getHeader().setMsgCounter(totalSent);
+                radaExtendedStatusMrsMsg.getHeader().setMsgType(2);
+                int sizeradaExtendedStatusMrsMsg = calculateSize(radaExtendedStatusMrsMsg);
+                ByteBuffer bufferradaExtendedStatusMrsMsg = ByteBuffer.allocate(sizeradaExtendedStatusMrsMsg);
+                radaExtendedStatusMrsMsg.toByteArray(bufferradaExtendedStatusMrsMsg);
+                byte[] payloadradaExtendedStatusMrsMsg = bufferradaExtendedStatusMrsMsg.array();
+
+                udpPublisher.send(host, port, payloadradaExtendedStatusMrsMsg);
+                totalSent++;
 
                 var radaTracksExtendedMsg = Instancio.create(RadaTracksExtended.class);
                 radaTracksExtendedMsg.getHeader().setMsgCounter(totalSent);

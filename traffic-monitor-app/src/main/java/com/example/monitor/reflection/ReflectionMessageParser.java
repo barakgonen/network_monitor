@@ -4,7 +4,7 @@ import com.example.monitor.config.TrafficMonitorProperties;
 import org.springframework.stereotype.Component;
 
 import java.nio.ByteOrder;
-import java.util.LinkedHashMap;
+import java.util.Arrays;
 import java.util.Map;
 
 @Component
@@ -12,15 +12,18 @@ public class ReflectionMessageParser {
     private final ReflectionObjectParser objectParser;
     private final ReflectionFieldExtractor fieldExtractor;
     private final ReflectionFieldReader fieldReader;
+    private final ReflectionStructSizeCalculator structSizeCalculator;
 
     public ReflectionMessageParser(
             ReflectionObjectParser objectParser,
             ReflectionFieldExtractor fieldExtractor,
-            ReflectionFieldReader fieldReader
+            ReflectionFieldReader fieldReader,
+            ReflectionStructSizeCalculator structSizeCalculator
     ) {
         this.objectParser = objectParser;
         this.fieldExtractor = fieldExtractor;
         this.fieldReader = fieldReader;
+        this.structSizeCalculator = structSizeCalculator;
     }
 
     public ReflectionParseResult parse(byte[] payload, TrafficMonitorProperties.ReflectionInterface reflectionInterface) {
@@ -29,9 +32,24 @@ public class ReflectionMessageParser {
 
             ByteOrder byteOrder = parseByteOrder(reflectionInterface.getByteOrder());
 
+            int headerSizeBytes = structSizeCalculator.calculateStructSize(reflectionInterface.getHeaderType());
+
+            if (payload.length < headerSizeBytes) {
+                return ReflectionParseResult.unparsable(
+                        "Payload shorter than configured header. payloadBytes="
+                                + payload.length
+                                + ", headerBytes="
+                                + headerSizeBytes
+                                + ", headerType="
+                                + reflectionInterface.getHeaderType()
+                );
+            }
+
+            byte[] headerBytes = Arrays.copyOfRange(payload, 0, headerSizeBytes);
+
             Object header = objectParser.parseHeader(
                     reflectionInterface.getHeaderType(),
-                    payload,
+                    headerBytes,
                     byteOrder
             );
 
@@ -82,6 +100,10 @@ public class ReflectionMessageParser {
     }
 
     private void validateConfig(TrafficMonitorProperties.ReflectionInterface reflectionInterface) {
+        if (reflectionInterface == null) {
+            throw new IllegalArgumentException("reflectionInterface is required");
+        }
+
         if (reflectionInterface.getHeaderType() == null || reflectionInterface.getHeaderType().isBlank()) {
             throw new IllegalArgumentException("header-type is required for interface " + reflectionInterface.getName());
         }

@@ -10,6 +10,23 @@ import java.nio.ByteOrder;
 
 @Component
 public class ReflectionObjectParser {
+    public Object parseHeader(String headerClassName, byte[] headerBytes, ByteOrder byteOrder) {
+        try {
+            return parseFromByteBuffer(headerClassName, headerBytes, byteOrder, true);
+        } catch (Exception byteBufferFailure) {
+            Object header = parseFromByteArrayFallback(headerClassName, headerBytes);
+            return header;
+        }
+    }
+
+    public Object parseMessage(String messageClassName, byte[] payload, ByteOrder byteOrder) {
+        try {
+            return parseFromByteBuffer(messageClassName, payload, byteOrder, true);
+        } catch (Exception byteBufferFailure) {
+            return parseFromByteArrayFallback(messageClassName, payload);
+        }
+    }
+
     public Object parseFromByteBuffer(String className, byte[] payload, ByteOrder byteOrder, boolean requireFullConsumption) {
         try {
             Class<?> type = Class.forName(className);
@@ -76,22 +93,6 @@ public class ReflectionObjectParser {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to parse " + className + ": " + rootMessage(e), e);
-        }
-    }
-
-    public Object parseHeader(String headerClassName, byte[] payload, ByteOrder byteOrder) {
-        try {
-            return parseFromByteBuffer(headerClassName, payload, byteOrder, false);
-        } catch (Exception byteBufferFailure) {
-            return parseFromByteArrayFallback(headerClassName, payload);
-        }
-    }
-
-    public Object parseMessage(String messageClassName, byte[] payload, ByteOrder byteOrder) {
-        try {
-            return parseFromByteBuffer(messageClassName, payload, byteOrder, true);
-        } catch (Exception byteBufferFailure) {
-            return parseFromByteArrayFallback(messageClassName, payload);
         }
     }
 
