@@ -1,442 +1,152 @@
-# Traffic Interface Tool
+# Traffic Interface Tool - Reflection Clean Baseline
 
-Initial runnable version with demo `Fruit Interface` protocol support.
+This clean baseline removes the previous hardcoded demo protocols and keeps the generic reflection-based monitoring infrastructure.
 
-## Demo Fruit protocol
-
-Header:
+## Modules
 
 ```text
-opcode:int32
-sendTimeEpochMillis:int64
-bodyLength:int32
+shared-schemas
+traffic-monitor-app
+traffic-tester-app
 ```
 
-Orange body:
+## traffic-monitor-app
+
+Spring Boot backend + static UI.
+
+Kept features:
 
 ```text
-sourceFarmLength:int32
-sourceFarm:utf8
-freshness:byte
+Reflection-based UDP listeners
+Opcode-routed message parsing
+Dynamic backend-driven Interfaces panel
+Per-interface start/stop listener control
+Per-interface runtime state
+Recent traffic indicator
+Multi-interface UI filtering
+ObservedMessage table
+Payload inspector
+Backend-formatted observedAtDisplay
 ```
 
-Freshness values:
+Removed from this clean baseline:
 
 ```text
-1 -> very_fresh
-2 -> not_fresh
-3 -> unknown
+Hardcoded Fruit protocol
+Hardcoded Weather protocol
+Static monitor publisher
+Static periodic publisher
+Demo reflection message classes
 ```
 
-Orange opcode:
+## Reflection interface configuration
+
+Configure real interfaces in:
 
 ```text
-1001
+traffic-monitor-app/src/main/resources/application.yml
 ```
 
-## Run monitor
+Example:
+
+```yaml
+traffic:
+  reflection-interfaces:
+    - name: Rada Interface
+      enabled: true
+      protocol: UDP
+      port: 5050
+      byte-order: BIG_ENDIAN
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
+      supported-messages:
+        "4444":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+```
+
+Runtime flow:
+
+```text
+UDP packet arrives on configured port
+→ calculate fixed header size from header-type
+→ slice header bytes
+→ parse header
+→ read opcode-field-name
+→ route to supported-messages[opcode]
+→ parse exact message class
+→ validate full ByteBuffer consumption
+→ expose parsed body to UI
+```
+
+## API
+
+```http
+GET  /api/messages/recent
+GET  /api/interfaces
+POST /api/interfaces/{interfaceName}/start
+POST /api/interfaces/{interfaceName}/stop
+```
+
+## Observed time display
+
+Backend sends:
+
+```json
+{
+  "observedAt": "2026-05-08T12:06:19.123Z",
+  "observedAtDisplay": "08/05/2026 - 15:06:19.123"
+}
+```
+
+The UI displays `observedAtDisplay` directly.
+
+Timezone:
+
+```text
+Asia/Jerusalem
+```
+
+## traffic-tester-app
+
+Generic UDP tester.
+
+Supported payload modes:
+
+```text
+TEXT
+BASE64
+HEX
+```
+
+It still includes a UDP listener for receiving responses.
+
+## Run
 
 ```bash
 docker compose up --build traffic-monitor-app
 ```
 
-Open:
-
-```text
-http://localhost:8080
-```
-
-## Send Orange message from tester
-
-In another terminal:
+Optional tester:
 
 ```bash
 docker compose --profile tester up --build traffic-tester-app
 ```
 
-## Change Orange message fields
-
-Edit:
+## Java
 
 ```text
-config/tester-scenario.yml
+Java 17
 ```
 
-Example:
+## Tester dependency baseline
 
-```yaml
-payload:
-  mode: FRUIT_ORANGE
-  fruit:
-    sourceFarm: "north-farm-17"
-    freshness: "very_fresh"
-```
-
-Supported freshness values:
-
-```text
-very_fresh
-not_fresh
-unknown
-```
-
-## Recent messages API
-
-```bash
-curl http://localhost:8080/api/messages/recent
-```
-
-
-## UI change
-
-The live monitoring table now shows:
-
-```text
-Observed At | Protocol | Port | Interface | Message Name | Message Body | Parse Error
-```
-
-Raw Base64 was removed from the UI.
-
-
-## Design system UI
-
-The monitor UI now uses the dark System Flow Investigator style:
-- sidebar
-- topbar stats
-- dark table layout
-- message inspector panel
-- filter input
-
-
-## Banana message
-
-Banana opcode:
-
-```text
-1002
-```
-
-Banana body:
-
-```text
-colorLength:int32
-color:utf8
-weight:double
-```
-
-Send Banana from tester:
-
-```yaml
-payload:
-  mode: FRUIT_BANANA
-  fruit:
-    color: "yellow"
-    weight: 142.75
-```
-
-
-## Multi-message tester scenario
-
-The tester now supports sending multiple messages in one run.
-
-Example:
-
-```yaml
-udp:
-  host: traffic-monitor-app
-  port: 5001
-
-messages:
-  - mode: FRUIT_ORANGE
-    fruit:
-      sourceFarm: "north-farm-17"
-      freshness: "very_fresh"
-
-  - mode: FRUIT_BANANA
-    fruit:
-      color: "yellow"
-      weight: 142.75
-
-repeat: 1
-intervalMillis: 1000
-```
-
-Run:
-
-```bash
-docker compose --profile tester up --build traffic-tester-app
-```
-
-This sends Orange and Banana to the monitor over UDP.
-
-
-## Weather Interface
-
-A second demo interface was added.
-
-```text
-Weather Interface
-UDP port: 5003
-```
-
-Message:
-
-```text
-TemperatureReading
-opcode: 2001
-```
-
-Header:
-
-```text
-opcode:int32
-sendTimeEpochMillis:int64
-bodyLength:int32
-```
-
-Body:
-
-```text
-stationIdLength:int32
-stationId:utf8
-temperatureCelsius:double
-condition:byte
-```
-
-Condition values:
-
-```text
-1 -> sunny
-2 -> cloudy
-3 -> rainy
-4 -> unknown
-```
-
-The tester scenario now sends:
-
-```text
-Fruit Orange -> UDP 5001
-Fruit Banana -> UDP 5001
-Weather TemperatureReading -> UDP 5003
-```
-
-
-## Monitor Sample Publisher
-
-The monitor app can now send UDP messages back using the same protocol codecs.
-
-Open:
-
-```text
-http://localhost:8080
-```
-
-Go to:
-
-```text
-Sample Publisher
-```
-
-Supported messages:
-
-```text
-Fruit Interface / Orange
-Fruit Interface / Banana
-Weather Interface / TemperatureReading
-```
-
-Enum fields are rendered as dropdowns.
-
-REST API:
-
-```http
-POST /api/publish/udp
-Content-Type: application/json
-```
-
-Example:
-
-```json
-{
-  "interfaceName": "Fruit Interface",
-  "messageType": "Banana",
-  "host": "localhost",
-  "port": 5001,
-  "fields": {
-    "color": "yellow",
-    "weight": 142.75
-  }
-}
-```
-
-
-## Tester UDP Listener
-
-The tester app can now listen for UDP messages sent back from the monitor app.
-
-Scenario config:
-
-```yaml
-listener:
-  enabled: true
-  port: 7001
-  durationSeconds: 120
-  bufferSizeBytes: 65507
-```
-
-Run tester:
-
-```bash
-docker compose --profile tester up --build traffic-tester-app
-```
-
-Then from the monitor UI, use Sample Publisher and send to:
-
-```text
-Host: traffic-tester-app
-Port: 7001
-```
-
-If running monitor locally outside Docker and tester locally too, use:
-
-```text
-Host: localhost
-Port: 7001
-```
-
-The tester logs incoming raw bytes and tries to decode them as Fruit or Weather messages.
-
-
-## Periodic Publisher
-
-The monitor UI now supports repeat/periodic publication.
-
-UI controls:
-
-```text
-Events / Time Unit
-Time Unit: SECOND / MINUTE / HOUR
-Start Periodic
-Stop Periodic
-Refresh Status
-```
-
-Backend APIs:
-
-```http
-POST /api/publish/udp/periodic/start
-POST /api/publish/udp/periodic/stop
-GET  /api/publish/udp/periodic/status
-```
-
-Example start request:
-
-```json
-{
-  "publishRequest": {
-    "interfaceName": "Fruit Interface",
-    "messageType": "Banana",
-    "host": "traffic-tester-app",
-    "port": 7001,
-    "fields": {
-      "color": "yellow",
-      "weight": 142.75
-    }
-  },
-  "eventsPerTimeUnit": 5,
-  "timeUnit": "SECOND"
-}
-```
-
-
-## Java version
-
-Project downgraded to Java 17.
-
-Docker images:
-
-```text
-maven:3.9.9-eclipse-temurin-17
-eclipse-temurin:17-jre
-```
-
-Maven compiler release:
+`traffic-tester-app` includes:
 
 ```xml
-<java.version>17</java.version>
+<dependency>
+  <groupId>org.instancio</groupId>
+  <artifactId>instancio-junit</artifactId>
+  <version>2.9.0</version>
+</dependency>
 ```
-
-
-## Reflection-based receiving
-
-The monitor now supports interface-level reflection parsing.
-
-Example config:
-
-```yaml
-traffic:
-  reflection-interfaces:
-    - name: Reflection Fruit Interface
-      enabled: true
-      port: 5050
-      potential-messages:
-        - com.example.schemas.reflectiondemo.ReflectionOrangeMessage
-        - com.example.schemas.reflectiondemo.ReflectionBananaMessage
-```
-
-Runtime behavior:
-
-```text
-UDP packet arrives on configured port
-→ monitor tries each class in potential-messages
-→ supported parser shape:
-   1. constructor(byte[])
-   2. static parse(byte[])
-   3. static fromBytes(byte[])
-   4. static fromByteArray(byte[])
-→ if a class succeeds, fields are extracted by reflection
-→ if no class succeeds, ObservedMessage is tagged as Unparsable
-```
-
-Extracted fields are sent to the UI in `ObservedMessage.body`.
-
-Demo reflection ports:
-
-```text
-5050/udp -> Reflection Fruit Interface
-5051/udp -> Reflection Weather Interface
-```
-
-
-## Recursive complex-field extraction
-
-Reflection parsing now treats complex fields as nested structured objects.
-
-Example:
-
-```json
-{
-  "header": {
-    "_type": "com.example.schemas.rada.struct.RadaHeader",
-    "opcode": 12,
-    "sendTime": 123456789,
-    "length": 64
-  }
-}
-```
-
-Rules:
-
-```text
-simple values -> rendered directly
-byte[]        -> base64 object with size metadata
-arrays        -> JSON arrays
-collections   -> JSON arrays
-maps          -> JSON objects
-complex POJOs -> recursively extracted by getters, then fields fallback
-records       -> record components
-cycles        -> marked with _cycle=true
-too deep      -> marked with _truncated=true
-```
-
-Default max depth: 6.

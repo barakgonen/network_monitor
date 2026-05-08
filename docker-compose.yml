@@ -6,24 +6,20 @@ services:
     container_name: traffic-monitor-app
     ports:
       - "8080:8080"
-      - "5001:5001/udp"
-      - "5003:5003/udp"
       - "5050:5050/udp"
       - "5051:5051/udp"
-    environment:
-      TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
     networks:
       - traffic-tool-net
 
   traffic-tester-app:
-    ports:
-      - "7001:7001/udp"
     build:
       context: .
       dockerfile: traffic-tester-app/Dockerfile
     container_name: traffic-tester-app
     depends_on:
       - traffic-monitor-app
+    ports:
+      - "7001:7001/udp"
     volumes:
       - ./config:/app/config:ro
     environment:
