@@ -1,6 +1,8 @@
 package com.example.monitor.ingestion.udp;
 
 import com.example.monitor.config.TrafficMonitorProperties;
+import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
+import com.example.monitor.interfaces.InterfaceRuntimeState;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.reflection.ReflectionMessageParser;
 import com.example.monitor.reflection.ReflectionParseResult;
@@ -23,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Component
 public class ReflectionUdpIngestionRunner {
@@ -32,6 +35,7 @@ public class ReflectionUdpIngestionRunner {
     private final RecentMessageStore recentMessageStore;
     private final ReflectionMessageParser reflectionMessageParser;
     private final ObservedTimeFormatter observedTimeFormatter;
+    private final InterfaceRuntimeRegistry registry;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private volatile boolean running;
@@ -40,32 +44,64 @@ public class ReflectionUdpIngestionRunner {
             TrafficMonitorProperties properties,
             RecentMessageStore recentMessageStore,
             ReflectionMessageParser reflectionMessageParser,
-            ObservedTimeFormatter observedTimeFormatter
+            ObservedTimeFormatter observedTimeFormatter,
+            InterfaceRuntimeRegistry registry
     ) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
         this.reflectionMessageParser = reflectionMessageParser;
         this.observedTimeFormatter = observedTimeFormatter;
+        this.registry = registry;
     }
 
     @PostConstruct
     public void start() {
         running = true;
 
-        for (TrafficMonitorProperties.ReflectionInterface reflectionInterface : properties.getReflectionInterfaces()) {
-            if (!reflectionInterface.isEnabled()) {
-                continue;
+        for (InterfaceRuntimeState state : registry.states()) {
+            if (state.configuration().isEnabled()) {
+                startInterface(state);
             }
-
-            executor.submit(() -> listen(reflectionInterface));
         }
     }
 
-    private void listen(TrafficMonitorProperties.ReflectionInterface reflectionInterface) {
+    public synchronized void startInterface(InterfaceRuntimeState state) {
+        if (state.listening()) {
+            return;
+        }
+
+        Future<?> task = executor.submit(() -> listen(state));
+        state.task(task);
+        state.listening(true);
+    }
+
+    public synchronized void stopInterface(InterfaceRuntimeState state) {
+        state.listening(false);
+
+        DatagramSocket socket = state.socket();
+
+        if (socket != null && !socket.isClosed()) {
+            socket.close();
+        }
+
+        Future<?> task = state.task();
+
+        if (task != null) {
+            task.cancel(true);
+        }
+
+        log.info("Stopped interface listener '{}'", state.configuration().getName());
+    }
+
+    private void listen(InterfaceRuntimeState state) {
+        TrafficMonitorProperties.ReflectionInterface reflectionInterface = state.configuration();
         int port = reflectionInterface.getPort();
         int bufferSize = properties.getUdp().getBufferSizeBytes();
 
         try (DatagramSocket socket = new DatagramSocket(port)) {
+            state.socket(socket);
+            state.listening(true);
+
             log.info("Opcode-routed reflection interface '{}' UDP listener started on port {} with headerType={}, opcodeField={}, supportedOpcodes={}",
                     reflectionInterface.getName(),
                     port,
@@ -73,13 +109,14 @@ public class ReflectionUdpIngestionRunner {
                     reflectionInterface.getOpcodeFieldName(),
                     reflectionInterface.getSupportedMessages().keySet());
 
-            while (running) {
+            while (running && state.listening()) {
                 byte[] buffer = new byte[bufferSize];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
 
                 byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
                 ObservedMessage observedMessage = toObservedMessage(reflectionInterface, packet, payload);
+                state.markReceived(observedMessage.parseError() != null);
 
                 recentMessageStore.add(observedMessage);
 
@@ -91,9 +128,12 @@ public class ReflectionUdpIngestionRunner {
                         observedMessage.parseError());
             }
         } catch (Exception e) {
-            if (running) {
+            if (running && state.listening()) {
                 log.error("Reflection UDP listener failed for port {}", port, e);
             }
+        } finally {
+            state.listening(false);
+            state.socket(null);
         }
     }
 
@@ -144,6 +184,11 @@ public class ReflectionUdpIngestionRunner {
     @PreDestroy
     public void stop() {
         running = false;
+
+        for (InterfaceRuntimeState state : registry.states()) {
+            stopInterface(state);
+        }
+
         executor.shutdownNow();
         log.info("Reflection UDP ingestion stopped");
     }

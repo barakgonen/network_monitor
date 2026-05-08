@@ -11,6 +11,7 @@ import java.util.Map;
 public class TrafficMonitorProperties {
     private Udp udp = new Udp();
     private Store store = new Store();
+    private int interfaceActiveWindowSeconds = 10;
     private List<ReflectionInterface> reflectionInterfaces = new ArrayList<>();
 
     public Udp getUdp() {
@@ -27,6 +28,14 @@ public class TrafficMonitorProperties {
 
     public void setStore(Store store) {
         this.store = store;
+    }
+
+    public int getInterfaceActiveWindowSeconds() {
+        return interfaceActiveWindowSeconds;
+    }
+
+    public void setInterfaceActiveWindowSeconds(int interfaceActiveWindowSeconds) {
+        this.interfaceActiveWindowSeconds = interfaceActiveWindowSeconds;
     }
 
     public List<ReflectionInterface> getReflectionInterfaces() {

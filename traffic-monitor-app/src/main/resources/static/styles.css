@@ -633,3 +633,92 @@ tbody tr.selected-row {
     font-size: 12px;
     white-space: pre-wrap;
 }
+
+
+.interface-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin: 0 8px 6px;
+    padding: 8px 9px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+}
+
+.interface-row.selected {
+    border-color: var(--cyan);
+    background: var(--cyan-dim);
+}
+
+.interface-main {
+    min-width: 0;
+    cursor: pointer;
+}
+
+.interface-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.interface-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--dim);
+    flex: 0 0 auto;
+}
+
+.interface-dot.live {
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+}
+
+.interface-dot.idle {
+    background: var(--amber);
+}
+
+.interface-dot.stopped {
+    background: var(--red);
+}
+
+.interface-meta {
+    color: var(--muted);
+    font-size: 10px;
+    font-family: var(--mono);
+    margin-top: 4px;
+}
+
+.interface-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.interface-action-btn {
+    padding: 4px 7px;
+    font-size: 10px;
+    font-family: var(--mono);
+}
+
+.interface-action-btn.start {
+    color: var(--green);
+    border-color: rgba(61, 219, 160, 0.35);
+    background: var(--green-dim);
+}
+
+.interface-action-btn.stop {
+    color: var(--red);
+    border-color: rgba(255, 92, 106, 0.35);
+    background: var(--red-dim);
+}
+
+.interface-filter-all {
+    margin: 0 8px 8px;
+}

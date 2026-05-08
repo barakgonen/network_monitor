@@ -84,14 +84,9 @@
       <div class="sidebar-panel-header">
         <span class="sidebar-panel-title">Interfaces</span>
       </div>
-      <div class="topic-chip">Fruit Interface</div>
-      <div class="sidebar-note">Port 5001 / UDP</div>
-      <div class="topic-chip">Weather Interface</div>
-      <div class="sidebar-note">Port 5003 / UDP</div>
-      <div class="topic-chip">Reflection Fruit Interface</div>
-      <div class="sidebar-note">Port 5050 / UDP</div>
-      <div class="topic-chip">Reflection Weather Interface</div>
-      <div class="sidebar-note">Port 5051 / UDP</div>
+      <button class="secondary-btn interface-filter-all" onclick="selectInterfaceFilter(null)">Show All</button>
+      <div id="interfacesList" class="interfaces-list"></div>
+      <div class="sidebar-note">Green = traffic in configured recent window</div>
     </section>
   </aside>
 
@@ -252,6 +247,8 @@
 <script>
   let allMessages = [];
   let selectedMessageId = null;
+  let selectedInterfaceFilter = null;
+  let interfaceStatuses = [];
 
   const messageDefinitions = {
     "Fruit Interface": {
@@ -289,6 +286,61 @@
     renderMessages();
   }
 
+  async function loadInterfaces() {
+    const response = await fetch('/api/interfaces');
+    interfaceStatuses = await response.json();
+    renderInterfaces();
+  }
+
+  function renderInterfaces() {
+    const container = document.getElementById('interfacesList');
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = '';
+
+    for (const item of interfaceStatuses) {
+      const row = document.createElement('div');
+      row.className = 'interface-row';
+      if (selectedInterfaceFilter === item.name) {
+        row.classList.add('selected');
+      }
+
+      const dotClass = !item.listening ? 'stopped' : (item.trafficRecentlyObserved ? 'live' : 'idle');
+      const actionButton = item.listening
+        ? `<button class="interface-action-btn stop" onclick="event.stopPropagation(); stopInterface('${escapeJs(item.name)}')">Stop</button>`
+        : `<button class="interface-action-btn start" onclick="event.stopPropagation(); startInterface('${escapeJs(item.name)}')">Start</button>`;
+
+      row.innerHTML = `
+        <div class="interface-main" onclick="selectInterfaceFilter('${escapeJs(item.name)}')">
+          <div class="interface-name"><span class="interface-dot ${dotClass}"></span>${escapeHtml(item.name)}</div>
+          <div class="interface-meta">${escapeHtml(item.protocol || 'UDP')} : ${item.port} · ${item.receivedCount} msgs · ${item.parseErrorCount} errors</div>
+        </div>
+        <div class="interface-actions">${actionButton}</div>
+      `;
+
+      container.appendChild(row);
+    }
+  }
+
+  function selectInterfaceFilter(interfaceName) {
+    selectedInterfaceFilter = interfaceName;
+    document.getElementById('selectedInterfaceLabel').innerText = interfaceName || 'All';
+    renderInterfaces();
+    renderMessages();
+  }
+
+  async function startInterface(interfaceName) {
+    await fetch(`/api/interfaces/${encodeURIComponent(interfaceName)}/start`, { method: 'POST' });
+    await loadInterfaces();
+  }
+
+  async function stopInterface(interfaceName) {
+    await fetch(`/api/interfaces/${encodeURIComponent(interfaceName)}/stop`, { method: 'POST' });
+    await loadInterfaces();
+  }
+
   function renderMessages() {
     const filterValue = document.getElementById('textFilter').value.toLowerCase();
     const tbody = document.getElementById('messagesTableBody');
@@ -300,7 +352,17 @@
       const body = JSON.stringify(msg.body || {}).toLowerCase();
       const messageName = String(msg.messageType || '').toLowerCase();
       const interfaceName = String(msg.interfaceName || '').toLowerCase();
-      return body.includes(filterValue) || messageName.includes(filterValue) || interfaceName.includes(filterValue);
+
+      const interfaceMatches =
+        selectedInterfaceFilter == null || msg.interfaceName === selectedInterfaceFilter;
+
+      const textMatches =
+        filterValue === ''
+        || body.includes(filterValue)
+        || messageName.includes(filterValue)
+        || interfaceName.includes(filterValue);
+
+      return interfaceMatches && textMatches;
     });
 
     emptyState.style.display = filtered.length === 0 ? 'block' : 'none';
@@ -485,6 +547,14 @@
       `Last error: ${status.lastError || 'none'}`;
   }
 
+  function escapeJs(value) {
+    return String(value)
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "\\'")
+      .replaceAll('\n', '\\n')
+      .replaceAll('\r', '\\r');
+  }
+
   function formatTime(value) {
     if (!value) {
       return '';
@@ -509,7 +579,10 @@
   onPublisherInterfaceChanged();
   loadPeriodicStatus();
   loadMessages();
-  setInterval(loadMessages, 2000);
+  setInterval(() => {
+    loadInterfaces();
+    loadMessages();
+  }, 2000);
 </script>
 </body>
 </html>

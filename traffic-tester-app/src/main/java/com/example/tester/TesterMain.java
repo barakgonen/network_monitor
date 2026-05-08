@@ -62,16 +62,19 @@ public class TesterMain {
                 var extendedStatusMessage = getExtendedStatusMsg(totalSent);
                 byte[] messagePayload = getMessagePayload(extendedStatusMessage, RadaExtendedStatus.class);
                 udpPublisher.send(host, port, messagePayload);
+                udpPublisher.send(host, port + 1, messagePayload);
                 totalSent++;
 
                 var extendedStatusMrsMsg = getExtendedStatusMrsMsg(totalSent);
                 messagePayload = getMessagePayload(extendedStatusMrsMsg, RadaExtendedStatusMrs.class);
                 udpPublisher.send(host, port, messagePayload);
+                udpPublisher.send(host, port + 1, messagePayload);
                 totalSent++;
 
                 var extendedTrackMessage = getTracksExtendedMsg(totalSent);
                 messagePayload = getMessagePayload(extendedTrackMessage, RadaTracksExtended.class);
                 udpPublisher.send(host, port, messagePayload);
+                udpPublisher.send(host, port + 1, messagePayload);
                 totalSent++;
             }
 
