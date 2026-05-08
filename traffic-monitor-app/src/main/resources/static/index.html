@@ -53,6 +53,15 @@
     }
   </style>
 
+
+  <style>
+    .secondary-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -84,7 +93,7 @@
       <div class="sidebar-panel-header">
         <span class="sidebar-panel-title">Interfaces</span>
       </div>
-      <button class="secondary-btn interface-filter-all" onclick="selectAllInterfaces()">Show All</button>
+      <button id="showAllInterfacesBtn" class="secondary-btn interface-filter-all" onclick="selectAllInterfaces()">Show All</button>
       <div id="interfacesList" class="interfaces-list"></div>
       <div class="sidebar-note">Green = traffic in configured recent window</div>
     </section>
@@ -381,12 +390,21 @@
 
   function updateSelectedInterfaceLabel() {
     const label = document.getElementById('selectedInterfaceLabel');
+    const showAllButton = document.getElementById('showAllInterfacesBtn');
 
     if (!label) {
       return;
     }
 
-    if (selectedInterfaceFilters.size === interfaceStatuses.length) {
+    const allSelected =
+      interfaceStatuses.length > 0
+      && selectedInterfaceFilters.size === interfaceStatuses.length;
+
+    if (showAllButton) {
+      showAllButton.disabled = allSelected;
+    }
+
+    if (allSelected) {
       label.innerText = 'All';
       return;
     }
