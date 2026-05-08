@@ -1015,6 +1015,24 @@
     }
   </style>
 
+
+  <style>
+    .json-sync-status {
+      margin-top: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .json-sync-status.error {
+      color: var(--red);
+    }
+
+    .json-sync-status.ok {
+      color: var(--green);
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-root">
@@ -1163,6 +1181,7 @@
             <details>
               <summary class="field-label">Advanced JSON payload</summary>
               <textarea id="publisherFieldsJson" class="json-editor" spellcheck="false">{}</textarea>
+              <div id="jsonSyncStatus" class="json-sync-status">JSON and form are synced.</div>
             </details>
 
             <button id="publisherSendBtn" class="primary-btn" type="button">Send Once</button>
@@ -1182,6 +1201,7 @@
   let interfaceStatuses = [];
   let selectedInterfaceFilters = new Set();
   let publisherInterfaces = [];
+  let isApplyingJsonToForm = false;
   let selectedPublisherInterfaceName = null;
   let selectedPublisherOpcode = null;
 
@@ -1192,6 +1212,7 @@
     document.getElementById('loadRecentBtn')?.addEventListener('click', loadMessages);
     document.getElementById('textFilter')?.addEventListener('input', renderMessages);
     document.getElementById('publisherSendBtn')?.addEventListener('click', sendPublisherMessage);
+    document.getElementById('publisherFieldsJson')?.addEventListener('input', onAdvancedJsonInput);
 
     showPage('live');
     loadInterfaces();
@@ -1582,6 +1603,7 @@
       const generatedFields = collectGeneratedFields();
       const hasGeneratedFields = Object.keys(generatedFields).length > 0;
       editor.value = JSON.stringify(hasGeneratedFields ? generatedFields : samplePublisherPayload(selectedInterface, selectedMessage), null, 2);
+      setJsonSyncStatus('JSON and form are synced.', 'ok');
     }
 
     renderPublisherHelp(selectedInterface, selectedMessage);
@@ -2014,6 +2036,10 @@
   }
 
   function syncGeneratedFieldsToJson() {
+    if (isApplyingJsonToForm) {
+      return;
+    }
+
     const editor = document.getElementById('publisherFieldsJson');
 
     if (!editor) {
@@ -2021,7 +2047,183 @@
     }
 
     editor.value = JSON.stringify(collectGeneratedFields(), null, 2);
+    setJsonSyncStatus('JSON and form are synced.', 'ok');
   }
+
+
+  function onAdvancedJsonInput() {
+    const editor = document.getElementById('publisherFieldsJson');
+
+    if (!editor) {
+      return;
+    }
+
+    const raw = editor.value.trim();
+
+    if (raw === '') {
+      setJsonSyncStatus('JSON is empty. Form was not updated.', 'error');
+      return;
+    }
+
+    let parsed;
+
+    try {
+      parsed = JSON.parse(raw);
+      delete parsed._comment;
+    } catch (e) {
+      setJsonSyncStatus(`Invalid JSON: ${e.message}`, 'error');
+      return;
+    }
+
+    applyJsonToGeneratedForm(parsed);
+  }
+
+  function applyJsonToGeneratedForm(fields) {
+    const metadata = selectedPublisherMetadata();
+
+    if (!metadata) {
+      return;
+    }
+
+    isApplyingJsonToForm = true;
+
+    try {
+      // Re-render the form so array rows can be rebuilt from JSON.
+      renderPublisherFieldForm(metadata.selectedMessage.fields || []);
+
+      for (const field of metadata.selectedMessage.fields || []) {
+        applyJsonFieldToForm(field, fields);
+      }
+
+      setJsonSyncStatus('Form updated from JSON.', 'ok');
+    } finally {
+      isApplyingJsonToForm = false;
+    }
+  }
+
+  function applyJsonFieldToForm(field, sourceRoot) {
+    if (field.kind === 'array') {
+      applyJsonArrayFieldToForm(field, sourceRoot);
+      return;
+    }
+
+    if (field.kind === 'object') {
+      for (const child of field.children || []) {
+        applyJsonFieldToForm(child, sourceRoot);
+      }
+      return;
+    }
+
+    const value = getNestedValue(sourceRoot, field.path);
+
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    const input = document.querySelector(`[data-field-path="${cssEscape(field.path)}"]`);
+
+    if (!input) {
+      return;
+    }
+
+    input.value = String(value);
+  }
+
+  function applyJsonArrayFieldToForm(field, sourceRoot) {
+    const arrayValue = getNestedValue(sourceRoot, field.path);
+
+    if (!Array.isArray(arrayValue)) {
+      return;
+    }
+
+    const maxLength = Number.isInteger(field.arrayLength) ? field.arrayLength : arrayValue.length;
+    const rowsToRender = Math.min(arrayValue.length, maxLength);
+
+    const group = document.querySelector(`[data-array-path="${cssEscape(field.path)}"]`);
+    const elements = group?.querySelector(`[data-array-elements="${cssEscape(field.path)}"]`);
+
+    if (!group || !elements) {
+      return;
+    }
+
+    elements.innerHTML = '';
+
+    for (let index = 0; index < rowsToRender; index++) {
+      const row = createPublisherArrayRow(field, index);
+      elements.appendChild(row);
+    }
+
+    if (rowsToRender > 0) {
+      elements.classList.remove('collapsed');
+      const toggleButton = group.querySelector('.publisher-array-toggle');
+      if (toggleButton) {
+        toggleButton.innerText = 'Collapse';
+      }
+    }
+
+    updateArrayCounter(field.path, maxLength);
+
+    if (arrayValue.length > maxLength) {
+      setJsonSyncStatus(`Array '${field.path}' has ${arrayValue.length} rows, but max is ${maxLength}. Extra rows were ignored.`, 'error');
+    }
+
+    for (let index = 0; index < rowsToRender; index++) {
+      const rowValue = arrayValue[index];
+
+      if ((field.children || []).length === 0) {
+        const input = document.querySelector(`[data-field-path="${cssEscape(field.path + '.' + index)}"]`);
+        if (input && rowValue !== undefined && rowValue !== null) {
+          input.value = String(rowValue);
+        }
+      } else {
+        for (const child of field.children || []) {
+          const childPath = child.path.replace(field.path + '[]', `${field.path}.${index}`);
+          const value = getNestedValue(sourceRoot, childPath);
+          const input = document.querySelector(`[data-field-path="${cssEscape(childPath)}"]`);
+
+          if (input && value !== undefined && value !== null) {
+            input.value = String(value);
+          }
+        }
+      }
+    }
+  }
+
+  function getNestedValue(root, path) {
+    const parts = path.split('.').filter(Boolean);
+    let current = root;
+
+    for (const part of parts) {
+      if (current == null) {
+        return undefined;
+      }
+
+      if (isArrayIndex(part)) {
+        current = current[Number(part)];
+      } else {
+        current = current[part];
+      }
+    }
+
+    return current;
+  }
+
+  function setJsonSyncStatus(message, status) {
+    const el = document.getElementById('jsonSyncStatus');
+
+    if (!el) {
+      return;
+    }
+
+    el.classList.remove('ok', 'error');
+
+    if (status) {
+      el.classList.add(status);
+    }
+
+    el.innerText = message;
+  }
+
 
   async function sendPublisherMessage() {
     const metadata = selectedPublisherMetadata();
