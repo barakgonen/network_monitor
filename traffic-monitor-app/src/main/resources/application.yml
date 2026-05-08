@@ -6,7 +6,7 @@ traffic:
   udp:
     enabled: true
     fruit-port: 5006
-    weather-port: 5003
+    weather-port: 50013
     buffer-size-bytes: 65507
 
   reflection-interfaces:
@@ -76,6 +76,25 @@ traffic:
         "4":
           message-class: com.example.schemas.rada.messages.RadaTracksExtended
           display-name: RadaTracksExtended
-
+    - name: BG Third Reflection
+      enabled: true
+      protocol: UDP
+      port: 5003
+      byte-order: BIG_ENDIAN
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
+      supported-messages:
+        "1":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+        "2":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          display-name: RadaExtendedStatusMrs
+        "3":
+          message-class: com.example.schemas.rada.messages.RadaStatus
+          display-name: RadaStatus
+        "4":
+          message-class: com.example.schemas.rada.messages.RadaTracksExtended
+          display-name: RadaTracksExtended
   store:
     max-size: 500

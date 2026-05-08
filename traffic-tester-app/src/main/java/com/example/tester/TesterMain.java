@@ -61,20 +61,17 @@ public class TesterMain {
 
                 var extendedStatusMessage = getExtendedStatusMsg(totalSent);
                 byte[] messagePayload = getMessagePayload(extendedStatusMessage, RadaExtendedStatus.class);
-                udpPublisher.send(host, port, messagePayload);
-                udpPublisher.send(host, port + 1, messagePayload);
+                sendToPorts(udpPublisher, host, port, messagePayload, 3);
                 totalSent++;
 
                 var extendedStatusMrsMsg = getExtendedStatusMrsMsg(totalSent);
                 messagePayload = getMessagePayload(extendedStatusMrsMsg, RadaExtendedStatusMrs.class);
-                udpPublisher.send(host, port, messagePayload);
-                udpPublisher.send(host, port + 1, messagePayload);
+                sendToPorts(udpPublisher, host, port, messagePayload, 3);
                 totalSent++;
 
                 var extendedTrackMessage = getTracksExtendedMsg(totalSent);
                 messagePayload = getMessagePayload(extendedTrackMessage, RadaTracksExtended.class);
-                udpPublisher.send(host, port, messagePayload);
-                udpPublisher.send(host, port + 1, messagePayload);
+                sendToPorts(udpPublisher, host, port, messagePayload, 3);
                 totalSent++;
             }
 
@@ -90,6 +87,12 @@ public class TesterMain {
         }
 
         System.out.println("Traffic Tester App finished");
+    }
+
+    private static void sendToPorts(UdpPublisher udpPublisher, String host, int port, byte[] messagePayload, int numberOfClients) {
+        for (int i = 0; i < numberOfClients; i++) {
+            udpPublisher.send(host, port + i, messagePayload);
+        }
     }
 
     private static RadaExtendedStatus getExtendedStatusMsg(int totalSent) {
