@@ -1,8 +1,5 @@
 package com.example.tester.udp;
 
-import com.example.schemas.fruit.FruitProtocolCodec;
-import com.example.schemas.weather.WeatherProtocolCodec;
-
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.nio.charset.StandardCharsets;
@@ -13,9 +10,6 @@ import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class UdpListener implements AutoCloseable {
-    private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
-    private final WeatherProtocolCodec weatherProtocolCodec = new WeatherProtocolCodec();
-
     private final int port;
     private final int bufferSizeBytes;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -67,10 +61,6 @@ public class UdpListener implements AutoCloseable {
                 System.out.println("Bytes: " + payload.length);
                 System.out.println("Hex: " + HexFormat.of().formatHex(payload));
                 System.out.println("Text: " + new String(payload, StandardCharsets.UTF_8));
-
-                tryDecodeFruit(payload);
-                tryDecodeWeather(payload);
-
                 System.out.println("=====================================");
                 System.out.println();
             }
@@ -79,40 +69,6 @@ public class UdpListener implements AutoCloseable {
                 System.err.println("Tester UDP listener failed: " + e.getMessage());
                 e.printStackTrace(System.err);
             }
-        }
-    }
-
-    private void tryDecodeFruit(byte[] payload) {
-        try {
-            FruitProtocolCodec.DecodedFruitMessage decoded = fruitProtocolCodec.decode(payload);
-
-            if (!"Unknown".equals(decoded.messageType())) {
-                System.out.println("Decoded as Fruit Interface:");
-                System.out.println("  messageType: " + decoded.messageType());
-                System.out.println("  header: opcode=" + decoded.header().opcode()
-                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
-                        + ", bodyLength=" + decoded.header().bodyLength());
-                System.out.println("  body: " + decoded.bodyFields());
-            }
-        } catch (Exception ignored) {
-            // Not a fruit payload, or invalid fruit payload.
-        }
-    }
-
-    private void tryDecodeWeather(byte[] payload) {
-        try {
-            WeatherProtocolCodec.DecodedWeatherMessage decoded = weatherProtocolCodec.decode(payload);
-
-            if (!"Unknown".equals(decoded.messageType())) {
-                System.out.println("Decoded as Weather Interface:");
-                System.out.println("  messageType: " + decoded.messageType());
-                System.out.println("  header: opcode=" + decoded.header().opcode()
-                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
-                        + ", bodyLength=" + decoded.header().bodyLength());
-                System.out.println("  body: " + decoded.bodyFields());
-            }
-        } catch (Exception ignored) {
-            // Not a weather payload, or invalid weather payload.
         }
     }
 

@@ -5,8 +5,6 @@ public class PayloadConfig {
     private String text = "";
     private String base64 = "";
     private String hex = "";
-    private FruitPayloadConfig fruit = new FruitPayloadConfig();
-    private WeatherPayloadConfig weather = new WeatherPayloadConfig();
 
     /**
      * Optional per-message target override.
@@ -44,22 +42,6 @@ public class PayloadConfig {
 
     public void setHex(String hex) {
         this.hex = hex;
-    }
-
-    public FruitPayloadConfig getFruit() {
-        return fruit;
-    }
-
-    public void setFruit(FruitPayloadConfig fruit) {
-        this.fruit = fruit;
-    }
-
-    public WeatherPayloadConfig getWeather() {
-        return weather;
-    }
-
-    public void setWeather(WeatherPayloadConfig weather) {
-        this.weather = weather;
     }
 
     public PayloadTargetConfig getTarget() {

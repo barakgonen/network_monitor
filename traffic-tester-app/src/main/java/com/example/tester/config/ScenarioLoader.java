@@ -72,15 +72,6 @@ public class ScenarioLoader {
             if (message.getMode() == null) {
                 throw new IllegalArgumentException("messages[" + i + "].mode is required");
             }
-
-            if ((message.getMode() == PayloadMode.FRUIT_ORANGE || message.getMode() == PayloadMode.FRUIT_BANANA)
-                    && message.getFruit() == null) {
-                throw new IllegalArgumentException("messages[" + i + "].fruit is required for " + message.getMode());
-            }
-
-            if (message.getMode() == PayloadMode.WEATHER_TEMPERATURE_READING && message.getWeather() == null) {
-                throw new IllegalArgumentException("messages[" + i + "].weather is required for " + message.getMode());
-            }
         }
 
         if (scenario.getRepeat() <= 0) {
