@@ -6,6 +6,7 @@ import java.util.Map;
 public record ObservedMessage(
         String id,
         Instant observedAt,
+        String observedAtDisplay,
         String transportProtocol,
         String remoteAddress,
         int localPort,

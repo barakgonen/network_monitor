@@ -3,6 +3,7 @@ package com.example.monitor.ingestion.udp;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.store.RecentMessageStore;
+import com.example.monitor.time.ObservedTimeFormatter;
 import com.example.schemas.fruit.FruitProtocolCodec;
 import com.example.schemas.fruit.FruitProtocolHeader;
 import com.example.schemas.weather.WeatherProtocolCodec;
@@ -31,6 +32,7 @@ public class UdpIngestionRunner {
 
     private final TrafficMonitorProperties properties;
     private final RecentMessageStore recentMessageStore;
+    private final ObservedTimeFormatter observedTimeFormatter;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
@@ -40,9 +42,10 @@ public class UdpIngestionRunner {
     private DatagramSocket fruitSocket;
     private DatagramSocket weatherSocket;
 
-    public UdpIngestionRunner(TrafficMonitorProperties properties, RecentMessageStore recentMessageStore) {
+    public UdpIngestionRunner(TrafficMonitorProperties properties, RecentMessageStore recentMessageStore, ObservedTimeFormatter observedTimeFormatter) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
+        this.observedTimeFormatter = observedTimeFormatter;
     }
 
     @PostConstruct
@@ -147,9 +150,12 @@ public class UdpIngestionRunner {
             parseError = e.getMessage();
         }
 
+        Instant observedAt = Instant.now();
+
         return new ObservedMessage(
                 UUID.randomUUID().toString(),
-                Instant.now(),
+                observedAt,
+                observedTimeFormatter.format(observedAt),
                 "UDP",
                 packet.getAddress().getHostAddress() + ":" + packet.getPort(),
                 localPort,

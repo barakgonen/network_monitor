@@ -5,6 +5,7 @@ import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.reflection.ReflectionMessageParser;
 import com.example.monitor.reflection.ReflectionParseResult;
 import com.example.monitor.store.RecentMessageStore;
+import com.example.monitor.time.ObservedTimeFormatter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -30,6 +31,7 @@ public class ReflectionUdpIngestionRunner {
     private final TrafficMonitorProperties properties;
     private final RecentMessageStore recentMessageStore;
     private final ReflectionMessageParser reflectionMessageParser;
+    private final ObservedTimeFormatter observedTimeFormatter;
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private volatile boolean running;
@@ -37,11 +39,13 @@ public class ReflectionUdpIngestionRunner {
     public ReflectionUdpIngestionRunner(
             TrafficMonitorProperties properties,
             RecentMessageStore recentMessageStore,
-            ReflectionMessageParser reflectionMessageParser
+            ReflectionMessageParser reflectionMessageParser,
+            ObservedTimeFormatter observedTimeFormatter
     ) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
         this.reflectionMessageParser = reflectionMessageParser;
+        this.observedTimeFormatter = observedTimeFormatter;
     }
 
     @PostConstruct
@@ -117,9 +121,12 @@ public class ReflectionUdpIngestionRunner {
 
         String parseError = parseResult.parsed() ? null : parseResult.error();
 
+        Instant observedAt = Instant.now();
+
         return new ObservedMessage(
                 UUID.randomUUID().toString(),
-                Instant.now(),
+                observedAt,
+                observedTimeFormatter.format(observedAt),
                 "UDP",
                 packet.getAddress().getHostAddress() + ":" + packet.getPort(),
                 reflectionInterface.getPort(),
