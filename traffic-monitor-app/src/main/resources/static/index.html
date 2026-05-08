@@ -84,7 +84,7 @@
       <div class="sidebar-panel-header">
         <span class="sidebar-panel-title">Interfaces</span>
       </div>
-      <button class="secondary-btn interface-filter-all" onclick="selectInterfaceFilter(null)">Show All</button>
+      <button class="secondary-btn interface-filter-all" onclick="selectAllInterfaces()">Show All</button>
       <div id="interfacesList" class="interfaces-list"></div>
       <div class="sidebar-note">Green = traffic in configured recent window</div>
     </section>
@@ -247,7 +247,7 @@
 <script>
   let allMessages = [];
   let selectedMessageId = null;
-  let selectedInterfaceFilter = null;
+  let selectedInterfaceFilters = new Set();
   let interfaceStatuses = [];
 
   const messageDefinitions = {
@@ -289,6 +289,25 @@
   async function loadInterfaces() {
     const response = await fetch('/api/interfaces');
     interfaceStatuses = await response.json();
+
+    const availableNames = new Set(interfaceStatuses.map(item => item.name));
+
+    // First load: select all interfaces by default.
+    if (selectedInterfaceFilters.size === 0) {
+      selectedInterfaceFilters = new Set(availableNames);
+    } else {
+      // Remove selections for interfaces that no longer exist.
+      selectedInterfaceFilters = new Set(
+        [...selectedInterfaceFilters].filter(name => availableNames.has(name))
+      );
+
+      // If everything disappeared from the selection, go back to all.
+      if (selectedInterfaceFilters.size === 0) {
+        selectedInterfaceFilters = new Set(availableNames);
+      }
+    }
+
+    updateSelectedInterfaceLabel();
     renderInterfaces();
   }
 
@@ -303,7 +322,7 @@
     for (const item of interfaceStatuses) {
       const row = document.createElement('div');
       row.className = 'interface-row';
-      if (selectedInterfaceFilter === item.name) {
+      if (selectedInterfaceFilters.has(item.name)) {
         row.classList.add('selected');
       }
 
@@ -325,10 +344,54 @@
   }
 
   function selectInterfaceFilter(interfaceName) {
-    selectedInterfaceFilter = interfaceName;
-    document.getElementById('selectedInterfaceLabel').innerText = interfaceName || 'All';
+    // Backward-compatible wrapper.
+    if (interfaceName == null) {
+      selectAllInterfaces();
+      return;
+    }
+
+    toggleInterfaceFilter(interfaceName);
+  }
+
+  function toggleInterfaceFilter(interfaceName) {
+    if (selectedInterfaceFilters.has(interfaceName)) {
+      selectedInterfaceFilters.delete(interfaceName);
+    } else {
+      selectedInterfaceFilters.add(interfaceName);
+    }
+
+    // Avoid empty selection. Empty would be confusing because it hides all rows.
+    // If user deselects the last interface, select all instead.
+    if (selectedInterfaceFilters.size === 0) {
+      selectAllInterfaces();
+      return;
+    }
+
+    updateSelectedInterfaceLabel();
     renderInterfaces();
     renderMessages();
+  }
+
+  function selectAllInterfaces() {
+    selectedInterfaceFilters = new Set(interfaceStatuses.map(item => item.name));
+    updateSelectedInterfaceLabel();
+    renderInterfaces();
+    renderMessages();
+  }
+
+  function updateSelectedInterfaceLabel() {
+    const label = document.getElementById('selectedInterfaceLabel');
+
+    if (!label) {
+      return;
+    }
+
+    if (selectedInterfaceFilters.size === interfaceStatuses.length) {
+      label.innerText = 'All';
+      return;
+    }
+
+    label.innerText = `${selectedInterfaceFilters.size} selected`;
   }
 
   async function startInterface(interfaceName) {
@@ -354,7 +417,8 @@
       const interfaceName = String(msg.interfaceName || '').toLowerCase();
 
       const interfaceMatches =
-        selectedInterfaceFilter == null || msg.interfaceName === selectedInterfaceFilter;
+        selectedInterfaceFilters.size === 0
+        || selectedInterfaceFilters.has(msg.interfaceName);
 
       const textMatches =
         filterValue === ''
