@@ -53,6 +53,149 @@
     }
   </style>
 
+
+  <style>
+    .publisher-empty-state {
+      padding: 18px 16px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    .publisher-meta-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      max-height: 360px;
+      overflow: auto;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .publisher-interface-item {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+    }
+
+    .publisher-interface-item.active {
+      border-color: var(--cyan);
+      background: var(--cyan-dim);
+    }
+
+    .publisher-interface-title {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .publisher-interface-meta {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .publisher-message-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .publisher-message-chip {
+      border: 1px solid var(--border);
+      background: var(--surface-3);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+
+    .publisher-message-chip.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--cyan-dim);
+    }
+  </style>
+
+
+  <style>
+    .publisher-fields-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 460px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      padding: 12px;
+    }
+
+    .publisher-field-row {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .publisher-field-row label {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      word-break: break-word;
+    }
+
+    .publisher-field-row input,
+    .publisher-field-row select,
+    .publisher-field-row textarea {
+      width: 100%;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .publisher-field-group {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .publisher-field-group-title {
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .publisher-array-note {
+      color: var(--amber);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .publisher-json-fallback {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    @media (max-width: 900px) {
+      .publisher-field-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -166,21 +309,25 @@
       <div class="publisher-layout">
         <div class="publisher-card">
           <div class="publisher-card-header">
-            <h3>Build and send UDP message</h3>
+            <h3>Configured interfaces and messages</h3>
+          </div>
+
+          <div id="publisherEmptyState" class="publisher-empty-state" style="display:none;"></div>
+          <div id="publisherConfiguredList" class="publisher-meta-list"></div>
+
+          <div class="publisher-card-header">
+            <h3>Build and send message</h3>
           </div>
 
           <div class="publisher-form">
             <div class="form-row">
               <label for="publisherInterface">Interface</label>
-              <select id="publisherInterface" onchange="onPublisherInterfaceChanged()">
-                <option value="Fruit Interface">Fruit Interface</option>
-                <option value="Weather Interface">Weather Interface</option>
-              </select>
+              <select id="publisherInterface" onchange="onPublisherInterfaceChanged()"></select>
             </div>
 
             <div class="form-row">
               <label for="publisherMessage">Message</label>
-              <select id="publisherMessage" onchange="renderPublisherFields()"></select>
+              <select id="publisherMessage" onchange="onPublisherMessageChanged()"></select>
             </div>
 
             <div class="form-row">
@@ -190,36 +337,22 @@
 
             <div class="form-row">
               <label for="publisherPort">Target UDP Port</label>
-              <input id="publisherPort" type="number" min="1" max="65535" value="5001">
+              <input id="publisherPort" type="number" min="1" max="65535" value="5050">
             </div>
 
-            <div id="publisherFields"></div>
-
-            <button class="primary-btn" onclick="publishMessage()">Send Once</button>
-
-            <div class="periodic-box">
-              <div class="form-row">
-                <label for="eventsPerTimeUnit">Events / Time Unit</label>
-                <input id="eventsPerTimeUnit" type="number" min="1" value="1">
-              </div>
-
-              <div class="form-row">
-                <label for="periodicTimeUnit">Time Unit</label>
-                <select id="periodicTimeUnit">
-                  <option value="SECOND">Second</option>
-                  <option value="MINUTE">Minute</option>
-                  <option value="HOUR">Hour</option>
-                </select>
-              </div>
-
-              <div class="periodic-actions">
-                <button class="primary-btn" onclick="startPeriodicPublishing()">Start Periodic</button>
-                <button class="stop-btn" onclick="stopPeriodicPublishing()">Stop Periodic</button>
-                <button class="secondary-btn" onclick="loadPeriodicStatus()">Refresh Status</button>
-              </div>
-
-              <div id="periodicStatus" class="periodic-status">Periodic publisher is stopped.</div>
+            
+            <div>
+              <div class="field-label" style="margin-bottom: 6px;">Message Fields</div>
+              <div id="publisherGeneratedFields" class="publisher-fields-form"></div>
             </div>
+
+            <details>
+              <summary class="field-label">Advanced JSON payload</summary>
+              <textarea id="publisherFieldsJson" class="json-editor publisher-json-fallback" spellcheck="false">{}</textarea>
+            </details>
+
+
+            <button id="publisherSendBtn" class="primary-btn" onclick="sendPublisherMessage()">Send Once</button>
           </div>
 
           <div id="publisherResult" class="publisher-result">Ready.</div>
@@ -227,63 +360,83 @@
 
         <div class="publisher-card">
           <div class="publisher-card-header">
-            <h3>Publisher Notes</h3>
+            <h3>Selected message metadata</h3>
           </div>
-          <div class="publisher-help">
-            The backend creates the real protocol byte[] using the same codecs as the tester app.<br><br>
-            Enum fields are rendered as dropdowns:<br>
-            - Orange freshness: very_fresh / not_fresh / unknown<br>
-            - Weather condition: sunny / cloudy / rainy / unknown<br><br>
-            Default targets:<br>
-            - Fruit Interface → localhost:5001<br>
-            - Weather Interface → localhost:5003
-          </div>
+          <div id="publisherHelp" class="publisher-help">Loading publisher metadata...</div>
         </div>
       </div>
     </section>
+
   </main>
 </div>
+
 
 <script>
   let allMessages = [];
   let selectedMessageId = null;
-  let selectedInterfaceFilters = new Set();
   let interfaceStatuses = [];
+  let selectedInterfaceFilters = new Set();
   let publisherInterfaces = [];
 
-  const messageDefinitions = {
-    "Fruit Interface": {
-      defaultPort: 5001,
-      messages: {
-        "Orange": [
-          { name: "sourceFarm", type: "string", defaultValue: "north-farm-17" },
-          { name: "freshness", type: "enum", defaultValue: "very_fresh", options: ["very_fresh", "not_fresh", "unknown"] }
-        ],
-        "Banana": [
-          { name: "color", type: "string", defaultValue: "yellow" },
-          { name: "weight", type: "number", defaultValue: 142.75 }
-        ]
-      }
-    },
-    "Weather Interface": {
-      defaultPort: 5003,
-      messages: {
-        "TemperatureReading": [
-          { name: "stationId", type: "string", defaultValue: "station-tlv-01" },
-          { name: "temperatureCelsius", type: "number", defaultValue: 28.4 },
-          { name: "condition", type: "enum", defaultValue: "sunny", options: ["sunny", "cloudy", "rainy", "unknown"] }
-        ]
-      }
-    }
-  };
+  document.addEventListener('DOMContentLoaded', () => {
+    const loadRecentBtn = document.getElementById('loadRecentBtn');
+    const textFilter = document.getElementById('textFilter');
 
-  document.getElementById('loadRecentBtn').addEventListener('click', loadMessages);
-  document.getElementById('textFilter').addEventListener('input', renderMessages);
+    if (loadRecentBtn) {
+      loadRecentBtn.addEventListener('click', loadMessages);
+    }
+
+    if (textFilter) {
+      textFilter.addEventListener('input', renderMessages);
+    }
+
+    showTab('live');
+    loadInterfaces();
+    loadPublisherMetadata();
+    loadMessages();
+
+    setInterval(() => {
+      loadInterfaces();
+      loadMessages();
+    }, 2000);
+  });
+
+  function showTab(tab) {
+    const livePanel = document.getElementById('livePanel');
+    const publisherPanel = document.getElementById('publisherPanel');
+    const liveTab = document.getElementById('liveTab');
+    const publisherTab = document.getElementById('publisherTab');
+
+    if (livePanel) {
+      livePanel.style.display = tab === 'live' ? '' : 'none';
+    }
+
+    if (publisherPanel) {
+      publisherPanel.style.display = tab === 'publisher' ? '' : 'none';
+    }
+
+    if (liveTab) {
+      liveTab.classList.toggle('active', tab === 'live');
+    }
+
+    if (publisherTab) {
+      publisherTab.classList.toggle('active', tab === 'publisher');
+    }
+
+    if (tab === 'publisher') {
+      loadPublisherMetadata();
+    }
+  }
 
   async function loadMessages() {
     const response = await fetch('/api/messages/recent');
     allMessages = await response.json();
-    document.getElementById('eventsCount').innerText = allMessages.length;
+
+    const eventsCount = document.getElementById('eventsCount');
+    if (eventsCount) {
+      eventsCount.innerText = allMessages.length;
+    }
+
     renderMessages();
   }
 
@@ -293,16 +446,13 @@
 
     const availableNames = new Set(interfaceStatuses.map(item => item.name));
 
-    // First load: select all interfaces by default.
     if (selectedInterfaceFilters.size === 0) {
       selectedInterfaceFilters = new Set(availableNames);
     } else {
-      // Remove selections for interfaces that no longer exist.
       selectedInterfaceFilters = new Set(
         [...selectedInterfaceFilters].filter(name => availableNames.has(name))
       );
 
-      // If everything disappeared from the selection, go back to all.
       if (selectedInterfaceFilters.size === 0) {
         selectedInterfaceFilters = new Set(availableNames);
       }
@@ -314,6 +464,7 @@
 
   function renderInterfaces() {
     const container = document.getElementById('interfacesList');
+
     if (!container) {
       return;
     }
@@ -323,6 +474,7 @@
     for (const item of interfaceStatuses) {
       const row = document.createElement('div');
       row.className = 'interface-row';
+
       if (selectedInterfaceFilters.has(item.name)) {
         row.classList.add('selected');
       }
@@ -333,7 +485,7 @@
         : `<button class="interface-action-btn start" onclick="event.stopPropagation(); startInterface('${escapeJs(item.name)}')">Start</button>`;
 
       row.innerHTML = `
-        <div class="interface-main" onclick="selectInterfaceFilter('${escapeJs(item.name)}')">
+        <div class="interface-main" onclick="toggleInterfaceFilter('${escapeJs(item.name)}')">
           <div class="interface-name"><span class="interface-dot ${dotClass}"></span>${escapeHtml(item.name)}</div>
           <div class="interface-meta">${escapeHtml(item.protocol || 'UDP')} : ${item.port} · ${item.receivedCount} msgs · ${item.parseErrorCount} errors</div>
         </div>
@@ -344,16 +496,6 @@
     }
   }
 
-  function selectInterfaceFilter(interfaceName) {
-    // Backward-compatible wrapper.
-    if (interfaceName == null) {
-      selectAllInterfaces();
-      return;
-    }
-
-    toggleInterfaceFilter(interfaceName);
-  }
-
   function toggleInterfaceFilter(interfaceName) {
     if (selectedInterfaceFilters.has(interfaceName)) {
       selectedInterfaceFilters.delete(interfaceName);
@@ -361,8 +503,6 @@
       selectedInterfaceFilters.add(interfaceName);
     }
 
-    // Avoid empty selection. Empty would be confusing because it hides all rows.
-    // If user deselects the last interface, select all instead.
     if (selectedInterfaceFilters.size === 0) {
       selectAllInterfaces();
       return;
@@ -382,12 +522,21 @@
 
   function updateSelectedInterfaceLabel() {
     const label = document.getElementById('selectedInterfaceLabel');
+    const showAllButton = document.getElementById('showAllInterfacesBtn');
+
+    const allSelected =
+      interfaceStatuses.length > 0 &&
+      selectedInterfaceFilters.size === interfaceStatuses.length;
+
+    if (showAllButton) {
+      showAllButton.disabled = allSelected;
+    }
 
     if (!label) {
       return;
     }
 
-    if (selectedInterfaceFilters.size === interfaceStatuses.length) {
+    if (allSelected) {
       label.innerText = 'All';
       return;
     }
@@ -406,9 +555,15 @@
   }
 
   function renderMessages() {
-    const filterValue = document.getElementById('textFilter').value.toLowerCase();
+    const filterInput = document.getElementById('textFilter');
+    const filterValue = (filterInput?.value || '').toLowerCase();
+
     const tbody = document.getElementById('messagesTableBody');
     const emptyState = document.getElementById('emptyState');
+
+    if (!tbody) {
+      return;
+    }
 
     tbody.innerHTML = '';
 
@@ -418,19 +573,21 @@
       const interfaceName = String(msg.interfaceName || '').toLowerCase();
 
       const interfaceMatches =
-        selectedInterfaceFilters.size === 0
-        || selectedInterfaceFilters.has(msg.interfaceName);
+        selectedInterfaceFilters.size === 0 ||
+        selectedInterfaceFilters.has(msg.interfaceName);
 
       const textMatches =
-        filterValue === ''
-        || body.includes(filterValue)
-        || messageName.includes(filterValue)
-        || interfaceName.includes(filterValue);
+        filterValue === '' ||
+        body.includes(filterValue) ||
+        messageName.includes(filterValue) ||
+        interfaceName.includes(filterValue);
 
       return interfaceMatches && textMatches;
     });
 
-    emptyState.style.display = filtered.length === 0 ? 'block' : 'none';
+    if (emptyState) {
+      emptyState.style.display = filtered.length === 0 ? 'block' : 'none';
+    }
 
     for (const msg of filtered) {
       const row = document.createElement('tr');
@@ -456,196 +613,32 @@
 
   function selectMessage(msg) {
     selectedMessageId = msg.id;
-
     const payload = msg.body || {};
-    document.getElementById('eventDetails').innerText = JSON.stringify(payload, null, 2);
+
+    const details = document.getElementById('eventDetails');
+    if (details) {
+      details.innerText = JSON.stringify(payload, null, 2);
+    }
 
     renderMessages();
   }
-
-  function showTab(tab) {
-    const livePanel = document.getElementById('livePanel');
-    const publisherPanel = document.getElementById('publisherPanel');
-    const liveTab = document.getElementById('liveTab');
-    const publisherTab = document.getElementById('publisherTab');
-
-    if (livePanel) {
-      livePanel.style.display = tab === 'live' ? '' : 'none';
-    }
-
-    if (publisherPanel) {
-      publisherPanel.style.display = tab === 'publisher' ? '' : 'none';
-    }
-
-    if (liveTab) {
-      liveTab.classList.toggle('active', tab === 'live');
-    }
-
-    if (publisherTab) {
-      publisherTab.classList.toggle('active', tab === 'publisher');
-    }
-  }
-
-  function onPublisherInterfaceChanged() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageSelect = document.getElementById('publisherMessage');
-    const definition = messageDefinitions[interfaceName];
-
-    messageSelect.innerHTML = '';
-    Object.keys(definition.messages).forEach(messageType => {
-      const option = document.createElement('option');
-      option.value = messageType;
-      option.innerText = messageType;
-      messageSelect.appendChild(option);
-    });
-
-    document.getElementById('publisherPort').value = definition.defaultPort;
-    renderPublisherFields();
-  }
-
-  function renderPublisherFields() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageType = document.getElementById('publisherMessage').value;
-    const fieldsContainer = document.getElementById('publisherFields');
-    const fields = messageDefinitions[interfaceName].messages[messageType];
-
-    fieldsContainer.innerHTML = '';
-
-    for (const field of fields) {
-      const row = document.createElement('div');
-      row.className = 'form-row';
-
-      let inputHtml;
-
-      if (field.type === 'enum') {
-        inputHtml = `
-          <select id="field-${field.name}">
-            ${field.options.map(option => `
-              <option value="${escapeHtml(option)}" ${option === field.defaultValue ? 'selected' : ''}>${escapeHtml(option)}</option>
-            `).join('')}
-          </select>
-        `;
-      } else {
-        inputHtml = `<input id="field-${field.name}" type="${field.type === 'number' ? 'number' : 'text'}" value="${escapeHtml(field.defaultValue)}" ${field.type === 'number' ? 'step="any"' : ''}>`;
-      }
-
-      row.innerHTML = `
-        <label for="field-${field.name}">${escapeHtml(field.name)}</label>
-        ${inputHtml}
-      `;
-
-      fieldsContainer.appendChild(row);
-    }
-  }
-
-  function buildPublishRequest() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageType = document.getElementById('publisherMessage').value;
-    const host = document.getElementById('publisherHost').value;
-    const port = Number(document.getElementById('publisherPort').value);
-    const fields = {};
-
-    const definitions = messageDefinitions[interfaceName].messages[messageType];
-
-    for (const field of definitions) {
-      const input = document.getElementById(`field-${field.name}`);
-      fields[field.name] = field.type === 'number' ? Number(input.value) : input.value;
-    }
-
-    return { interfaceName, messageType, host, port, fields };
-  }
-
-  async function publishMessage() {
-    const request = buildPublishRequest();
-
-    const result = document.getElementById('publisherResult');
-    result.className = 'publisher-result';
-    result.innerText = 'Sending...';
-
-    const response = await fetch('/api/publish/udp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request)
-    });
-
-    const responseBody = await response.json();
-
-    if (responseBody.success) {
-      result.className = 'publisher-result ok';
-      result.innerText = `Sent ${responseBody.messageType} to ${responseBody.host}:${responseBody.port} (${responseBody.bytesSent} bytes)`;
-      setTimeout(loadMessages, 300);
-    } else {
-      result.className = 'publisher-result error';
-      result.innerText = `Failed: ${responseBody.error}`;
-    }
-  }
-
-  async function startPeriodicPublishing() {
-    const publishRequest = buildPublishRequest();
-    const eventsPerTimeUnit = Number(document.getElementById('eventsPerTimeUnit').value);
-    const timeUnit = document.getElementById('periodicTimeUnit').value;
-
-    const response = await fetch('/api/publish/udp/periodic/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ publishRequest, eventsPerTimeUnit, timeUnit })
-    });
-
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  async function stopPeriodicPublishing() {
-    const response = await fetch('/api/publish/udp/periodic/stop', {
-      method: 'POST'
-    });
-
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  async function loadPeriodicStatus() {
-    const response = await fetch('/api/publish/udp/periodic/status');
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  function renderPeriodicStatus(status) {
-    const el = document.getElementById('periodicStatus');
-
-    if (!status.running) {
-      el.innerText = `Periodic publisher is stopped. Sent count: ${status.sentCount || 0}`;
-      return;
-    }
-
-    el.innerText =
-      `Running: ${status.interfaceName} / ${status.messageType}\n` +
-      `Target: ${status.host}:${status.port}\n` +
-      `Rate: ${status.eventsPerTimeUnit} per ${String(status.timeUnit).toLowerCase()}\n` +
-      `Interval: ${status.intervalMillis} ms\n` +
-      `Sent: ${status.sentCount}\n` +
-      `Last error: ${status.lastError || 'none'}`;
-  }
-
-  function escapeJs(value) {
-    return String(value)
-      .replaceAll('\\', '\\\\')
-      .replaceAll("'", "\\'")
-      .replaceAll('\n', '\\n')
-      .replaceAll('\r', '\\r');
-  }
-
 
   async function loadPublisherMetadata() {
     const response = await fetch('/api/publisher/interfaces');
     publisherInterfaces = await response.json();
 
+    renderPublisherSelectors();
+    renderPublisherConfiguredList();
+  }
+
+  function renderPublisherSelectors() {
     const interfaceSelect = document.getElementById('publisherInterface');
 
     if (!interfaceSelect) {
       return;
     }
 
+    const previousValue = interfaceSelect.value;
     interfaceSelect.innerHTML = '';
 
     for (const item of publisherInterfaces) {
@@ -655,7 +648,104 @@
       interfaceSelect.appendChild(option);
     }
 
+    if (previousValue && publisherInterfaces.some(item => item.name === previousValue)) {
+      interfaceSelect.value = previousValue;
+    }
+
     onPublisherInterfaceChanged();
+  }
+
+  function renderPublisherConfiguredList() {
+    const emptyState = document.getElementById('publisherEmptyState');
+    const list = document.getElementById('publisherConfiguredList');
+
+    if (!emptyState || !list) {
+      return;
+    }
+
+    list.innerHTML = '';
+
+    if (!publisherInterfaces || publisherInterfaces.length === 0) {
+      emptyState.style.display = 'block';
+      emptyState.innerText =
+        'No publishable interfaces are configured.\n\n' +
+        'Add entries under traffic.reflection-interfaces in application.yml.\n\n' +
+        'Each interface should define: name, port, header-type, opcode-field-name, and supported-messages.';
+      list.style.display = 'none';
+      setPublisherFormEnabled(false);
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    list.style.display = 'flex';
+    setPublisherFormEnabled(true);
+
+    const selected = selectedPublisherMetadata();
+
+    for (const item of publisherInterfaces) {
+      const row = document.createElement('div');
+      row.className = 'publisher-interface-item';
+
+      if (selected && selected.selectedInterface.name === item.name) {
+        row.classList.add('active');
+      }
+
+      const messageChips = (item.messages || []).map(message => {
+        const active =
+          selected &&
+          selected.selectedInterface.name === item.name &&
+          selected.selectedMessage.opcode === message.opcode;
+
+        return `<span class="publisher-message-chip ${active ? 'active' : ''}">${escapeHtml(message.displayName)} [${escapeHtml(message.opcode)}]</span>`;
+      }).join('');
+
+      row.innerHTML = `
+        <div class="publisher-interface-title">${escapeHtml(item.name)}</div>
+        <div class="publisher-interface-meta">
+          ${escapeHtml(item.protocol || 'UDP')} : ${escapeHtml(item.port)}<br>
+          Header: ${escapeHtml(item.headerType || '')}<br>
+          Opcode field: ${escapeHtml(item.opcodeFieldName || '')}<br>
+          Messages: ${(item.messages || []).length}
+        </div>
+        <div class="publisher-message-chip-row">${messageChips}</div>
+      `;
+
+      row.addEventListener('click', () => {
+        const interfaceSelect = document.getElementById('publisherInterface');
+        if (interfaceSelect) {
+          interfaceSelect.value = item.name;
+          onPublisherInterfaceChanged();
+        }
+      });
+
+      list.appendChild(row);
+    }
+  }
+
+  function setPublisherFormEnabled(enabled) {
+    const ids = [
+      'publisherInterface',
+      'publisherMessage',
+      'publisherHost',
+      'publisherPort',
+      'publisherFieldsJson',
+      'publisherSendBtn'
+    ];
+
+    for (const id of ids) {
+      const element = document.getElementById(id);
+
+      if (element) {
+        element.disabled = !enabled;
+      }
+    }
+
+    const result = document.getElementById('publisherResult');
+
+    if (result && !enabled) {
+      result.className = 'publisher-result';
+      result.innerText = 'No configured interfaces.';
+    }
   }
 
   function onPublisherInterfaceChanged() {
@@ -664,38 +754,50 @@
     const messageSelect = document.getElementById('publisherMessage');
 
     if (!selectedInterface || !messageSelect) {
+      renderPublisherConfiguredList();
+      renderPublisherHelp(null, null);
       return;
     }
 
     messageSelect.innerHTML = '';
 
-    for (const message of selectedInterface.messages) {
+    for (const message of selectedInterface.messages || []) {
       const option = document.createElement('option');
       option.value = message.opcode;
       option.innerText = `${message.displayName} [${message.opcode}]`;
       messageSelect.appendChild(option);
     }
 
-    document.getElementById('publisherPort').value = selectedInterface.port;
+    const portInput = document.getElementById('publisherPort');
+    if (portInput) {
+      portInput.value = selectedInterface.port;
+    }
+
     onPublisherMessageChanged();
+    renderPublisherConfiguredList();
   }
 
   function onPublisherMessageChanged() {
     const metadata = selectedPublisherMetadata();
 
     if (!metadata) {
+      renderPublisherHelp(null, null);
       return;
     }
 
     const { selectedInterface, selectedMessage } = metadata;
 
-    const jsonEditor = document.getElementById('publisherFieldsJson');
+    renderPublisherFieldForm(selectedMessage.fields || []);
 
-    if (jsonEditor && (!jsonEditor.value || jsonEditor.value.trim() === '{}' || jsonEditor.value.trim() === '')) {
-      jsonEditor.value = JSON.stringify(samplePublisherPayload(selectedInterface, selectedMessage), null, 2);
+    const editor = document.getElementById('publisherFieldsJson');
+    if (editor) {
+      const generatedFields = collectGeneratedFields();
+      const hasGeneratedFields = Object.keys(generatedFields).length > 0;
+      editor.value = JSON.stringify(hasGeneratedFields ? generatedFields : samplePublisherPayload(selectedInterface, selectedMessage), null, 2);
     }
 
     renderPublisherHelp(selectedInterface, selectedMessage);
+    renderPublisherConfiguredList();
   }
 
   function selectedPublisherMetadata() {
@@ -708,7 +810,7 @@
       return null;
     }
 
-    const selectedMessage = selectedInterface.messages.find(item => item.opcode === opcode);
+    const selectedMessage = (selectedInterface.messages || []).find(item => item.opcode === opcode);
 
     if (!selectedMessage) {
       return null;
@@ -718,8 +820,12 @@
   }
 
   function samplePublisherPayload(selectedInterface, selectedMessage) {
+    if (!selectedMessage) {
+      return {};
+    }
+
     return {
-      "_comment": "Replace this JSON with fields matching the message class. Nested objects and arrays are supported.",
+      "_comment": "Replace this JSON with fields matching your message class. Nested objects and arrays are supported.",
       "header": {
         [selectedInterface.opcodeFieldName || "opcode"]: Number(selectedMessage.opcode)
       }
@@ -730,6 +836,11 @@
     const help = document.getElementById('publisherHelp');
 
     if (!help) {
+      return;
+    }
+
+    if (!selectedInterface || !selectedMessage) {
+      help.innerText = 'No message selected.';
       return;
     }
 
@@ -744,7 +855,10 @@
       `Opcode: ${selectedMessage.opcode}\n` +
       `Name: ${selectedMessage.displayName}\n` +
       `Class: ${selectedMessage.messageClass}\n\n` +
-      `Serialization contract supported by backend:\n` +
+      `The publisher uses your configured message class.\n` +
+      `You can edit discovered fields directly. Enums are dropdowns.\n` +
+      `Arrays are supported through Advanced JSON payload in V1.\n\n` +
+      `Supported serializer methods:\n` +
       `- toByteArray(ByteBuffer)\n` +
       `- serialize(ByteBuffer)\n` +
       `- writeTo(ByteBuffer)\n` +
@@ -752,9 +866,175 @@
       `- serialize() returning byte[]`;
   }
 
+
+  function renderPublisherFieldForm(fields) {
+    const container = document.getElementById('publisherGeneratedFields');
+
+    if (!container) {
+      return;
+    }
+
+    container.innerHTML = '';
+
+    if (!fields || fields.length === 0) {
+      container.innerHTML = '<div class="publisher-array-note">No fields discovered for this message class. Use Advanced JSON payload.</div>';
+      return;
+    }
+
+    for (const field of fields) {
+      container.appendChild(renderPublisherField(field));
+    }
+  }
+
+  function renderPublisherField(field) {
+    if (field.kind === 'object') {
+      const group = document.createElement('div');
+      group.className = 'publisher-field-group';
+      group.innerHTML = `<div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">(${escapeHtml(field.javaType)})</span></div>`;
+
+      for (const child of field.children || []) {
+        group.appendChild(renderPublisherField(child));
+      }
+
+      return group;
+    }
+
+    if (field.kind === 'array') {
+      const group = document.createElement('div');
+      group.className = 'publisher-field-group';
+      group.innerHTML = `
+        <div class="publisher-field-group-title">${escapeHtml(field.name)} <span style="color: var(--muted)">array</span></div>
+        <div class="publisher-array-note">Array editor V1: provide this field in Advanced JSON payload as an array. Path: ${escapeHtml(field.path)}</div>
+      `;
+      return group;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'publisher-field-row';
+
+    const label = document.createElement('label');
+    label.innerText = field.path;
+
+    let input;
+
+    if (field.kind === 'enum') {
+      input = document.createElement('select');
+
+      for (const value of field.enumValues || []) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.innerText = value;
+        input.appendChild(option);
+      }
+    } else if (field.kind === 'number') {
+      input = document.createElement('input');
+      input.type = 'number';
+      input.step = 'any';
+      input.value = '0';
+    } else if (field.kind === 'boolean') {
+      input = document.createElement('select');
+
+      for (const value of ['false', 'true']) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.innerText = value;
+        input.appendChild(option);
+      }
+    } else if (field.kind === 'char') {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 1;
+      input.value = '';
+    } else if (field.kind === 'string') {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.value = '';
+    } else {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = `Unsupported type: ${field.javaType}`;
+    }
+
+    input.dataset.fieldPath = field.path;
+    input.dataset.fieldKind = field.kind;
+
+    input.addEventListener('input', syncGeneratedFieldsToJson);
+    input.addEventListener('change', syncGeneratedFieldsToJson);
+
+    row.appendChild(label);
+    row.appendChild(input);
+
+    return row;
+  }
+
+  function collectGeneratedFields() {
+    const fields = {};
+    const inputs = document.querySelectorAll('[data-field-path]');
+
+    for (const input of inputs) {
+      const path = input.dataset.fieldPath;
+      const kind = input.dataset.fieldKind;
+      const rawValue = input.value;
+
+      let value;
+
+      if (kind === 'number') {
+        value = rawValue === '' ? 0 : Number(rawValue);
+      } else if (kind === 'boolean') {
+        value = rawValue === 'true';
+      } else {
+        value = rawValue;
+      }
+
+      setNestedValue(fields, path, value);
+    }
+
+    return fields;
+  }
+
+  function setNestedValue(target, path, value) {
+    const parts = path.split('.').filter(Boolean);
+    let current = target;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+
+      if (part.includes('[]')) {
+        // Arrays are intentionally handled by Advanced JSON in V1.
+        return;
+      }
+
+      if (i === parts.length - 1) {
+        current[part] = value;
+        return;
+      }
+
+      if (!current[part]) {
+        current[part] = {};
+      }
+
+      current = current[part];
+    }
+  }
+
+  function syncGeneratedFieldsToJson() {
+    const editor = document.getElementById('publisherFieldsJson');
+
+    if (!editor) {
+      return;
+    }
+
+    editor.value = JSON.stringify(collectGeneratedFields(), null, 2);
+  }
+
+
   async function sendPublisherMessage() {
     const metadata = selectedPublisherMetadata();
     const result = document.getElementById('publisherResult');
+
+    if (!result) {
+      return;
+    }
 
     if (!metadata) {
       result.className = 'publisher-result error';
@@ -765,8 +1045,13 @@
     let fields;
 
     try {
-      fields = JSON.parse(document.getElementById('publisherFieldsJson').value || '{}');
-      delete fields._comment;
+      const generated = collectGeneratedFields();
+      const jsonFields = JSON.parse(document.getElementById('publisherFieldsJson')?.value || '{}');
+      delete jsonFields._comment;
+
+      fields = Object.keys(generated).length > 0
+        ? deepMerge(jsonFields, generated)
+        : jsonFields;
     } catch (e) {
       result.className = 'publisher-result error';
       result.innerText = `Invalid JSON: ${e.message}`;
@@ -776,8 +1061,8 @@
     const request = {
       interfaceName: metadata.selectedInterface.name,
       opcode: metadata.selectedMessage.opcode,
-      host: document.getElementById('publisherHost').value,
-      port: Number(document.getElementById('publisherPort').value),
+      host: document.getElementById('publisherHost')?.value,
+      port: Number(document.getElementById('publisherPort')?.value),
       fields
     };
 
@@ -810,11 +1095,47 @@
       return '';
     }
 
-    try {
-      return new Date(value).toLocaleTimeString();
-    } catch {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
       return value;
     }
+
+    const pad2 = (number) => String(number).padStart(2, '0');
+    const pad3 = (number) => String(number).padStart(3, '0');
+
+    const day = pad2(date.getDate());
+    const month = pad2(date.getMonth() + 1);
+    const year = date.getFullYear();
+
+    const hours = pad2(date.getHours());
+    const minutes = pad2(date.getMinutes());
+    const seconds = pad2(date.getSeconds());
+    const millis = pad3(date.getMilliseconds());
+
+    return `${day}/${month}/${year} - ${hours}:${minutes}:${seconds}.${millis}`;
+  }
+
+
+  function deepMerge(target, source) {
+    const result = Array.isArray(target) ? [...target] : { ...(target || {}) };
+
+    for (const [key, value] of Object.entries(source || {})) {
+      if (
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        result[key] &&
+        typeof result[key] === 'object' &&
+        !Array.isArray(result[key])
+      ) {
+        result[key] = deepMerge(result[key], value);
+      } else {
+        result[key] = value;
+      }
+    }
+
+    return result;
   }
 
   function escapeHtml(value) {
@@ -826,13 +1147,13 @@
       .replaceAll("'", '&#039;');
   }
 
-  onPublisherInterfaceChanged();
-  loadPeriodicStatus();
-  loadMessages();
-  setInterval(() => {
-    loadInterfaces();
-    loadMessages();
-  }, 2000);
+  function escapeJs(value) {
+    return String(value)
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "\\'")
+      .replaceAll('\n', '\\n')
+      .replaceAll('\r', '\\r');
+  }
 </script>
 </body>
 </html>

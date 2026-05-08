@@ -11,9 +11,11 @@ import java.util.Map;
 @Service
 public class PublisherMetadataService {
     private final TrafficMonitorProperties properties;
+    private final PublisherFieldMetadataService fieldMetadataService;
 
-    public PublisherMetadataService(TrafficMonitorProperties properties) {
+    public PublisherMetadataService(TrafficMonitorProperties properties, PublisherFieldMetadataService fieldMetadataService) {
         this.properties = properties;
+        this.fieldMetadataService = fieldMetadataService;
     }
 
     public List<PublisherInterfaceDto> interfaces() {
@@ -86,7 +88,8 @@ public class PublisherMetadataService {
         return new PublisherMessageDto(
                 entry.getKey(),
                 displayName,
-                value.getMessageClass()
+                value.getMessageClass(),
+                fieldMetadataService.fieldsForClass(value.getMessageClass())
         );
     }
 
