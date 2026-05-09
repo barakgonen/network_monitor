@@ -11,7 +11,11 @@
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
         <module name="schema-utils" />
+        <module name="message-reader-core" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="communication-layer" target="17" />
+    </bytecodeTargetLevel>
   </component>
 </project>
