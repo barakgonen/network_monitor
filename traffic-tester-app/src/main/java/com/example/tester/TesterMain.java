@@ -26,7 +26,6 @@ public class TesterMain {
         TesterScenario scenario = new ScenarioLoader().load(Path.of(configPath));
         List<PayloadConfig> messages = scenario.effectiveMessages();
 
-        PayloadFactory payloadFactory = new PayloadFactory();
         UdpPublisher udpPublisher = new UdpPublisher();
 
         UdpListener listener = null;
