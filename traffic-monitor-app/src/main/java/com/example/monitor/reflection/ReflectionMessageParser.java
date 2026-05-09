@@ -1,5 +1,7 @@
 package com.example.monitor.reflection;
 
+import com.example.schemautils.ReflectionStructSizeCalculator;
+
 import com.example.monitor.config.TrafficMonitorProperties;
 import org.springframework.stereotype.Component;
 
@@ -12,18 +14,15 @@ public class ReflectionMessageParser {
     private final ReflectionObjectParser objectParser;
     private final ReflectionFieldExtractor fieldExtractor;
     private final ReflectionFieldReader fieldReader;
-    private final ReflectionStructSizeCalculator structSizeCalculator;
 
     public ReflectionMessageParser(
             ReflectionObjectParser objectParser,
             ReflectionFieldExtractor fieldExtractor,
-            ReflectionFieldReader fieldReader,
-            ReflectionStructSizeCalculator structSizeCalculator
+            ReflectionFieldReader fieldReader
     ) {
         this.objectParser = objectParser;
         this.fieldExtractor = fieldExtractor;
         this.fieldReader = fieldReader;
-        this.structSizeCalculator = structSizeCalculator;
     }
 
     public ReflectionParseResult parse(byte[] payload, TrafficMonitorProperties.ReflectionInterface reflectionInterface) {
@@ -32,7 +31,7 @@ public class ReflectionMessageParser {
 
             ByteOrder byteOrder = parseByteOrder(reflectionInterface.getByteOrder());
 
-            int headerSizeBytes = structSizeCalculator.calculateStructSize(reflectionInterface.getHeaderType());
+            int headerSizeBytes = ReflectionStructSizeCalculator.calculateStructSize(reflectionInterface.getHeaderType());
 
             if (payload.length < headerSizeBytes) {
                 return ReflectionParseResult.unparsable(

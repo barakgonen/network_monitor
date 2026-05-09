@@ -1,6 +1,7 @@
 package com.example.monitor.publisher;
 
-import com.example.monitor.reflection.ReflectionStructSizeCalculator;
+import com.example.schemautils.ReflectionStructSizeCalculator;
+
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -9,11 +10,6 @@ import java.nio.ByteOrder;
 
 @Component
 public class ReflectionMessageSerializer {
-    private final ReflectionStructSizeCalculator structSizeCalculator;
-
-    public ReflectionMessageSerializer(ReflectionStructSizeCalculator structSizeCalculator) {
-        this.structSizeCalculator = structSizeCalculator;
-    }
 
     public byte[] serialize(Object message, ByteOrder byteOrder) {
         if (message == null) {
@@ -26,7 +22,7 @@ public class ReflectionMessageSerializer {
             return direct;
         }
 
-        int size = structSizeCalculator.calculateStructSize(message.getClass());
+        int size = ReflectionStructSizeCalculator.calculateStructSize(message.getClass());
         ByteBuffer buffer = ByteBuffer.allocate(size).order(byteOrder);
 
         if (tryByteBufferSerialization(message, buffer)) {
