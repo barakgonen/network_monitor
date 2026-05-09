@@ -1,6 +1,6 @@
 package com.example.monitor.reflection;
 
-import com.example.schemautils.ReflectionStructSizeCalculator;
+import com.example.schemautils.StructSizeCalculator;
 
 import com.example.monitor.config.TrafficMonitorProperties;
 import org.springframework.stereotype.Component;
@@ -31,7 +31,7 @@ public class ReflectionMessageParser {
 
             ByteOrder byteOrder = parseByteOrder(reflectionInterface.getByteOrder());
 
-            int headerSizeBytes = ReflectionStructSizeCalculator.calculateStructSize(reflectionInterface.getHeaderType());
+            int headerSizeBytes = StructSizeCalculator.calculateStructSize(reflectionInterface.getHeaderType());
 
             if (payload.length < headerSizeBytes) {
                 return ReflectionParseResult.unparsable(

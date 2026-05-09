@@ -21,12 +21,12 @@ public class InterfaceControlController {
     }
 
     @PostMapping("/{interfaceName}/start")
-    public InterfaceStatusDto start(@PathVariable(name = "interfaceName") String interfaceName) {
+    public InterfaceStatusDto start(@PathVariable String interfaceName) {
         return interfaceControlService.start(interfaceName);
     }
 
     @PostMapping("/{interfaceName}/stop")
-    public InterfaceStatusDto stop(@PathVariable(name = "interfaceName") String interfaceName) {
+    public InterfaceStatusDto stop(@PathVariable String interfaceName) {
         return interfaceControlService.stop(interfaceName);
     }
 }

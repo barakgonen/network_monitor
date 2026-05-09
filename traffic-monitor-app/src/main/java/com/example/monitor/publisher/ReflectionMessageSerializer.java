@@ -1,6 +1,6 @@
 package com.example.monitor.publisher;
 
-import com.example.schemautils.ReflectionStructSizeCalculator;
+import com.example.schemautils.StructSizeCalculator;
 
 import org.springframework.stereotype.Component;
 
@@ -22,7 +22,7 @@ public class ReflectionMessageSerializer {
             return direct;
         }
 
-        int size = ReflectionStructSizeCalculator.calculateStructSize(message.getClass());
+        int size = StructSizeCalculator.calculateStructSize(message.getClass());
         ByteBuffer buffer = ByteBuffer.allocate(size).order(byteOrder);
 
         if (tryByteBufferSerialization(message, buffer)) {

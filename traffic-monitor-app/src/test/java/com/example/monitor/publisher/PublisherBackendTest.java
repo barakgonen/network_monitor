@@ -7,7 +7,6 @@ import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.publisher.testmodel.DirectByteArrayMessage;
 import com.example.monitor.publisher.testmodel.FixedByteBufferMessage;
 import com.example.monitor.publisher.testmodel.TestStatus;
-import com.example.monitor.reflection.ReflectionStructSizeCalculator;
 import org.junit.jupiter.api.Test;
 
 import java.net.DatagramPacket;
@@ -100,7 +99,7 @@ class PublisherBackendTest {
 
     @Test
     void serializerUsesByteBufferContractForFixedStructs() {
-        ReflectionMessageSerializer serializer = new ReflectionMessageSerializer(new ReflectionStructSizeCalculator());
+        ReflectionMessageSerializer serializer = new ReflectionMessageSerializer();
         FixedByteBufferMessage message = new FixedByteBufferMessage();
         message.first = 11;
         message.second = 22;
@@ -119,7 +118,7 @@ class PublisherBackendTest {
     @Test
     void serializerPrefersDirectByteArrayContractForComplexArrayMessages() {
         ReflectionFieldApplier applier = new ReflectionFieldApplier();
-        ReflectionMessageSerializer serializer = new ReflectionMessageSerializer(new ReflectionStructSizeCalculator());
+        ReflectionMessageSerializer serializer = new ReflectionMessageSerializer();
 
         DirectByteArrayMessage message = (DirectByteArrayMessage) applier.createAndApply(
                 DirectByteArrayMessage.class.getName(),
@@ -165,7 +164,7 @@ class PublisherBackendTest {
         PublisherService publisherService = new PublisherService(
                 metadataService,
                 new ReflectionFieldApplier(),
-                new ReflectionMessageSerializer(new ReflectionStructSizeCalculator()),
+                new ReflectionMessageSerializer(),
                 new UdpPublisher()
         );
 

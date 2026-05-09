@@ -24,7 +24,67 @@ traffic:
   #         message-class: com.example.schemas.rada.messages.RadaExtendedStatus
   #         display-name: RadaExtendedStatus
   #
-  reflection-interfaces: []
+  reflection-interfaces:
+    - name: BG First Reflection
+      enabled: true
+      protocol: UDP
+      port: 5001
+      byte-order: BIG_ENDIAN
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
+      supported-messages:
+        "1":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+        "2":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          display-name: RadaExtendedStatusMrs
+        "3":
+          message-class: com.example.schemas.rada.messages.RadaStatus
+          display-name: RadaStatus
+        "4":
+          message-class: com.example.schemas.rada.messages.RadaTracksExtended
+          display-name: RadaTracksExtended
+    - name: BG Second Reflection
+      enabled: true
+      protocol: UDP
+      port: 5002
+      byte-order: BIG_ENDIAN
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
+      supported-messages:
+        "1":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+        "2":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          display-name: RadaExtendedStatusMrs
+        "3":
+          message-class: com.example.schemas.rada.messages.RadaStatus
+          display-name: RadaStatus
+        "4":
+          message-class: com.example.schemas.rada.messages.RadaTracksExtended
+          display-name: RadaTracksExtended
+    - name: BG Third Reflection
+      enabled: true
+      protocol: UDP
+      port: 5003
+      byte-order: BIG_ENDIAN
+      header-type: com.example.schemas.rada.struct.RadaHeader
+      opcode-field-name: msgType
+      supported-messages:
+        "1":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatus
+          display-name: RadaExtendedStatus
+        "2":
+          message-class: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          display-name: RadaExtendedStatusMrs
+        "3":
+          message-class: com.example.schemas.rada.messages.RadaStatus
+          display-name: RadaStatus
+        "4":
+          message-class: com.example.schemas.rada.messages.RadaTracksExtended
+          display-name: RadaTracksExtended
 
   store:
     max-size: 500
