@@ -35,6 +35,8 @@ public class RadaExtendedStatusMrs implements BaseStruct {
         fromByteArray(byteBuffer);
     }
 
+    public RadaExtendedStatusMrs() {}
+
     public RadaHeader getHeader() {
         return header;
     }
