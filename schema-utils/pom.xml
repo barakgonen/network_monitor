@@ -13,6 +13,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>schema-annotations</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <version>5.10.2</version>

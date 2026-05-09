@@ -1,38 +1,50 @@
 package com.example.schemautils;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
+import com.example.schema.annotations.EnumWireSize;
+import com.example.schema.annotations.FixedArrayLength;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.lang.annotation.ElementType.FIELD;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
 /**
  * Static utility for calculating fixed binary struct sizes from Java class layout.
+ *
+ * Single utility class.
  *
  * Supported:
  * - primitive fields
  * - boxed primitive fields
+ * - enum fields
  * - nested fixed-size structs
  * - fixed-size arrays using {@link FixedArrayLength}
  *
+ * Enum behavior:
+ * - By default, enum fields are treated as 4 bytes.
+ * - Override per field with {@link EnumWireSize}.
+ *
  * Unsupported by design:
  * - String / CharSequence
- * - enums without explicit wire-size metadata
  * - collections / maps
  * - arrays without {@link FixedArrayLength}
  */
 public final class StructSizeCalculator {
+    private static final int DEFAULT_ENUM_WIRE_SIZE_BYTES = Integer.BYTES;
+
     private StructSizeCalculator() {
     }
 
-    @Target(FIELD)
-    @Retention(RUNTIME)
-    public @interface FixedArrayLength {
-        int value();
+    public static int calculateStructSize(String className) {
+        if (className == null || className.isBlank()) {
+            throw new IllegalArgumentException("className is required");
+        }
+
+        try {
+            return calculateStructSize(Class.forName(className));
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException("Class not found: " + className, e);
+        }
     }
 
     public static int calculateStructSize(Class<?> type) {
@@ -49,7 +61,7 @@ public final class StructSizeCalculator {
         }
 
         if (type.isEnum()) {
-            throw new IllegalArgumentException("Enum wire size is unknown: " + type.getName());
+            return DEFAULT_ENUM_WIRE_SIZE_BYTES;
         }
 
         if (type == String.class || CharSequence.class.isAssignableFrom(type)) {
@@ -98,7 +110,7 @@ public final class StructSizeCalculator {
         }
 
         if (fieldType.isEnum()) {
-            throw new IllegalArgumentException("Enum wire size is unknown for field: " + fieldDescription(field));
+            return enumWireSize(field);
         }
 
         if (fieldType == String.class || CharSequence.class.isAssignableFrom(fieldType)) {
@@ -132,7 +144,7 @@ public final class StructSizeCalculator {
         if (isFixedScalar(componentType)) {
             componentSize = fixedScalarSize(componentType);
         } else if (componentType.isEnum()) {
-            throw new IllegalArgumentException("Enum array component wire size is unknown: " + fieldDescription(field));
+            componentSize = enumWireSize(field);
         } else if (componentType == String.class || CharSequence.class.isAssignableFrom(componentType)) {
             throw new IllegalArgumentException("String array component is variable length: " + fieldDescription(field));
         } else {
@@ -140,6 +152,30 @@ public final class StructSizeCalculator {
         }
 
         return length * componentSize;
+    }
+
+    private static int enumWireSize(Field field) {
+        EnumWireSize enumWireSize = field.getAnnotation(EnumWireSize.class);
+
+        if (enumWireSize == null) {
+            return DEFAULT_ENUM_WIRE_SIZE_BYTES;
+        }
+
+        int value = enumWireSize.value();
+
+        if (value == Byte.BYTES
+                || value == Short.BYTES
+                || value == Integer.BYTES
+                || value == Long.BYTES) {
+            return value;
+        }
+
+        throw new IllegalArgumentException(
+                "@EnumWireSize must be one of 1, 2, 4, 8 bytes for field: "
+                        + fieldDescription(field)
+                        + ", actual="
+                        + value
+        );
     }
 
     public static boolean isFixedScalar(Class<?> type) {

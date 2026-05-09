@@ -9,6 +9,7 @@
         <module name="shared-schemas" />
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
+        <module name="schema-utils" />
       </profile>
     </annotationProcessing>
   </component>
