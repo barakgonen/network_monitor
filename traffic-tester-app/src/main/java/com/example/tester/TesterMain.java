@@ -1,10 +1,10 @@
 package com.example.tester;
 
 import com.example.schemas.BaseStruct;
-import com.example.schemas.StructSizeCalculator;
 import com.example.schemas.rada.messages.RadaExtendedStatus;
 import com.example.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.schemas.rada.messages.RadaTracksExtended;
+import com.example.schemautils.StructSizeCalculator;
 import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;

@@ -17,6 +17,11 @@
       <artifactId>shared-schemas</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>schema-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.yaml</groupId>
