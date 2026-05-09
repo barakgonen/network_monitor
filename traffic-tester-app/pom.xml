@@ -14,17 +14,12 @@
   <dependencies>
     <dependency>
       <groupId>com.example</groupId>
+      <artifactId>message-reader-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
       <artifactId>shared-schemas</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.example</groupId>
-      <artifactId>schema-utils</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>com.example</groupId>
-      <artifactId>communication-layer</artifactId>
       <version>${project.version}</version>
     </dependency>
 

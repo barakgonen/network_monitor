@@ -11,6 +11,7 @@
   <modules>
     <module>schema-annotations</module>
     <module>schema-utils</module>
+    <module>message-reader-core</module>
     <module>shared-schemas</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>

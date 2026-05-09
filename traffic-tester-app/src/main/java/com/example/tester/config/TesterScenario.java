@@ -5,6 +5,7 @@ import java.util.List;
 public class TesterScenario {
     private UdpConfig udp;
     private UdpListenerConfig listener = new UdpListenerConfig();
+    private ReaderConfig reader = new ReaderConfig();
 
     /**
      * Preferred V2 format: send multiple messages in one tester run.
@@ -25,6 +26,14 @@ public class TesterScenario {
 
     public void setUdp(UdpConfig udp) {
         this.udp = udp;
+    }
+
+    public ReaderConfig getReader() {
+        return reader;
+    }
+
+    public void setReader(ReaderConfig reader) {
+        this.reader = reader;
     }
 
     public UdpListenerConfig getListener() {

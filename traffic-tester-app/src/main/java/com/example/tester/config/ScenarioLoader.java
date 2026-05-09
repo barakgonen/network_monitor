@@ -58,6 +58,21 @@ public class ScenarioLoader {
             }
         }
 
+
+        if (scenario.getReader() != null && scenario.getReader().isEnabled()) {
+            if (scenario.getReader().getDurationSeconds() <= 0) {
+                throw new IllegalArgumentException("reader.durationSeconds must be greater than 0");
+            }
+
+            if (scenario.getReader().getBufferSizeBytes() <= 0) {
+                throw new IllegalArgumentException("reader.bufferSizeBytes must be greater than 0");
+            }
+
+            if (scenario.getReader().getInterfaces() == null) {
+                throw new IllegalArgumentException("reader.interfaces must not be null");
+            }
+        }
+
         if (scenario.effectiveMessages().isEmpty()) {
             throw new IllegalArgumentException("Scenario must define either 'messages' with at least one entry or legacy 'payload'");
         }

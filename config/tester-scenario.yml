@@ -17,3 +17,25 @@ messages:
 
 repeat: 1000
 intervalMillis: 1000
+reader:
+  interfaces:
+    - name: BG First Reflection
+      enabled: true
+      protocol: UDP
+      port: 7001
+      byteOrder: BIG_ENDIAN
+      headerType: com.example.schemas.rada.struct.RadaHeader
+      opcodeFieldName: msgType
+      supportedMessages:
+        "1":
+          messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+          displayName: RadaExtendedStatus
+        "2":
+          messageClass: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+          displayName: RadaExtendedStatusMrs
+        "3":
+          messageClass: com.example.schemas.rada.messages.RadaStatus
+          displayName: RadaStatus
+        "4":
+          messageClass: com.example.schemas.rada.messages.RadaTracksExtended
+          displayName: RadaTracksExtended

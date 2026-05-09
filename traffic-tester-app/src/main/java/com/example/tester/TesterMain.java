@@ -9,6 +9,8 @@ import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
 import com.example.tester.config.UdpListenerConfig;
+import com.example.tester.payload.GenericPayloadFactory;
+import com.example.tester.reader.TesterTrafficReaderManager;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 import org.instancio.Instancio;
@@ -25,28 +27,27 @@ public class TesterMain {
         TesterScenario scenario = new ScenarioLoader().load(Path.of(configPath));
         List<PayloadConfig> messages = scenario.effectiveMessages();
 
-        UdpPublisher udpPublisher = new UdpPublisher();
-
         UdpListener listener = null;
+
+        GenericPayloadFactory payloadFactory = new GenericPayloadFactory();
+        UdpPublisher udpPublisher = new UdpPublisher();
+        TesterTrafficReaderManager readerManager = null;
 
         System.out.println("Traffic Tester App started");
         System.out.println("Scenario: " + configPath);
         System.out.println("Default UDP target: " + scenario.getUdp().getHost() + ":" + scenario.getUdp().getPort());
         System.out.println("Messages per iteration: " + messages.size());
         System.out.println("Repeat: " + scenario.getRepeat());
+        if (scenario.getReader() != null && scenario.getReader().isEnabled()) {
+            readerManager = new TesterTrafficReaderManager(scenario.getReader());
+            readerManager.start();
 
-        UdpListenerConfig listenerConfig = scenario.getListener();
-
-        if (listenerConfig != null && listenerConfig.isEnabled()) {
-            listener = new UdpListener(listenerConfig.getPort(), listenerConfig.getBufferSizeBytes());
-            listener.start();
-
-            System.out.println("Tester will listen for UDP responses on port "
-                    + listenerConfig.getPort()
-                    + " for "
-                    + listenerConfig.getDurationSeconds()
+            System.out.println("Tester generic reader will run for "
+                    + scenario.getReader().getDurationSeconds()
                     + " seconds");
         }
+
+        UdpListenerConfig listenerConfig = scenario.getListener();
 
         int totalSent = 1;
 

@@ -1,11 +1,13 @@
 package com.example.monitor.ingestion.udp;
 
+import com.example.messagereader.api.ParsedTrafficMessage;
+import com.example.messagereader.api.TrafficReader;
+import com.example.messagereader.api.TrafficReaderFactory;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
 import com.example.monitor.interfaces.InterfaceRuntimeState;
 import com.example.monitor.model.ObservedMessage;
-import com.example.monitor.reflection.ReflectionMessageParser;
-import com.example.monitor.reflection.ReflectionParseResult;
+import com.example.monitor.reader.TrafficInterfaceDefinitionMapper;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.monitor.time.ObservedTimeFormatter;
 import jakarta.annotation.PostConstruct;
@@ -14,18 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 @Component
 public class ReflectionUdpIngestionRunner {
@@ -33,25 +29,27 @@ public class ReflectionUdpIngestionRunner {
 
     private final TrafficMonitorProperties properties;
     private final RecentMessageStore recentMessageStore;
-    private final ReflectionMessageParser reflectionMessageParser;
     private final ObservedTimeFormatter observedTimeFormatter;
     private final InterfaceRuntimeRegistry registry;
-    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final TrafficReaderFactory trafficReaderFactory;
+    private final TrafficInterfaceDefinitionMapper definitionMapper;
 
     private volatile boolean running;
 
     public ReflectionUdpIngestionRunner(
             TrafficMonitorProperties properties,
             RecentMessageStore recentMessageStore,
-            ReflectionMessageParser reflectionMessageParser,
             ObservedTimeFormatter observedTimeFormatter,
-            InterfaceRuntimeRegistry registry
+            InterfaceRuntimeRegistry registry,
+            TrafficReaderFactory trafficReaderFactory,
+            TrafficInterfaceDefinitionMapper definitionMapper
     ) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
-        this.reflectionMessageParser = reflectionMessageParser;
         this.observedTimeFormatter = observedTimeFormatter;
         this.registry = registry;
+        this.trafficReaderFactory = trafficReaderFactory;
+        this.definitionMapper = definitionMapper;
     }
 
     @PostConstruct
@@ -70,110 +68,76 @@ public class ReflectionUdpIngestionRunner {
             return;
         }
 
-        Future<?> task = executor.submit(() -> listen(state));
-        state.task(task);
+        TrafficReader reader = trafficReaderFactory.createReader(
+                definitionMapper.toReaderDefinition(state.configuration()),
+                properties.getUdp().getBufferSizeBytes(),
+                parsed -> handleParsedMessage(state, parsed)
+        );
+
+        state.reader(reader);
         state.listening(true);
+        reader.start();
+
+        log.info("Started interface reader '{}' on port {}",
+                state.configuration().getName(),
+                state.configuration().getPort());
     }
 
     public synchronized void stopInterface(InterfaceRuntimeState state) {
         state.listening(false);
 
-        DatagramSocket socket = state.socket();
+        TrafficReader reader = state.reader();
 
-        if (socket != null && !socket.isClosed()) {
-            socket.close();
+        if (reader != null) {
+            reader.stop();
         }
 
-        Future<?> task = state.task();
+        state.reader(null);
 
-        if (task != null) {
-            task.cancel(true);
-        }
-
-        log.info("Stopped interface listener '{}'", state.configuration().getName());
+        log.info("Stopped interface reader '{}'", state.configuration().getName());
     }
 
-    private void listen(InterfaceRuntimeState state) {
-        TrafficMonitorProperties.ReflectionInterface reflectionInterface = state.configuration();
-        int port = reflectionInterface.getPort();
-        int bufferSize = properties.getUdp().getBufferSizeBytes();
-
-        try (DatagramSocket socket = new DatagramSocket(port)) {
-            state.socket(socket);
-            state.listening(true);
-
-            log.info("Opcode-routed reflection interface '{}' UDP listener started on port {} with headerType={}, opcodeField={}, supportedOpcodes={}",
-                    reflectionInterface.getName(),
-                    port,
-                    reflectionInterface.getHeaderType(),
-                    reflectionInterface.getOpcodeFieldName(),
-                    reflectionInterface.getSupportedMessages().keySet());
-
-            while (running && state.listening()) {
-                byte[] buffer = new byte[bufferSize];
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-
-                byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
-                ObservedMessage observedMessage = toObservedMessage(reflectionInterface, packet, payload);
-                state.markReceived(observedMessage.parseError() != null);
-
-                recentMessageStore.add(observedMessage);
-
-                log.info("Reflection listener received packet on port {} from {}:{} - message={} - parseError={}",
-                        port,
-                        packet.getAddress().getHostAddress(),
-                        packet.getPort(),
-                        observedMessage.messageType(),
-                        observedMessage.parseError());
-            }
-        } catch (Exception e) {
-            if (running && state.listening()) {
-                log.error("Reflection UDP listener failed for port {}", port, e);
-            }
-        } finally {
-            state.listening(false);
-            state.socket(null);
+    private void handleParsedMessage(InterfaceRuntimeState state, ParsedTrafficMessage parsed) {
+        if (!running || !state.listening()) {
+            return;
         }
+
+        ObservedMessage observedMessage = toObservedMessage(parsed);
+        state.markReceived(observedMessage.parseError() != null);
+
+        recentMessageStore.add(observedMessage);
+
+        log.info("Received {} packet on port {} from {} - message={} - parseError={}",
+                parsed.rawPacket().protocol(),
+                parsed.rawPacket().localPort(),
+                parsed.rawPacket().remoteAddress(),
+                observedMessage.messageType(),
+                observedMessage.parseError());
     }
 
-    private ObservedMessage toObservedMessage(
-            TrafficMonitorProperties.ReflectionInterface reflectionInterface,
-            DatagramPacket packet,
-            byte[] payload
-    ) {
-        ReflectionParseResult parseResult = reflectionMessageParser.parse(
-                payload,
-                reflectionInterface
-        );
+    private ObservedMessage toObservedMessage(ParsedTrafficMessage parsed) {
+        byte[] payload = parsed.rawPacket().payload();
 
         Map<String, Object> header = new LinkedHashMap<>();
-        header.put("parserMode", "opcode-routed-reflection");
-        header.put("headerType", reflectionInterface.getHeaderType());
-        header.put("opcodeFieldName", reflectionInterface.getOpcodeFieldName());
-        header.put("opcode", parseResult.opcode());
-        header.put("matchedClass", parseResult.messageClassName());
-        header.put("supportedOpcodes", reflectionInterface.getSupportedMessages().keySet());
-        header.put("parsedHeader", parseResult.headerFields());
+        header.put("parserMode", "message-reader-core");
+        header.put("opcode", parsed.opcode());
+        header.put("matchedClass", parsed.messageClassName());
+        header.put("parsedHeader", parsed.headerFields());
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.putAll(parseResult.fields());
-
-        String parseError = parseResult.parsed() ? null : parseResult.error();
-
-        Instant observedAt = Instant.now();
+        String parseError = parsed.parsed() ? null : parsed.parseError();
+        Instant observedAt = parsed.rawPacket().receivedAt() == null ? Instant.now() : parsed.rawPacket().receivedAt();
 
         return new ObservedMessage(
                 UUID.randomUUID().toString(),
                 observedAt,
                 observedTimeFormatter.format(observedAt),
-                "UDP",
-                packet.getAddress().getHostAddress() + ":" + packet.getPort(),
-                reflectionInterface.getPort(),
-                reflectionInterface.getName(),
-                parseResult.messageSimpleName(),
+                parsed.rawPacket().protocol().name(),
+                parsed.rawPacket().remoteAddress(),
+                parsed.rawPacket().localPort(),
+                parsed.interfaceName(),
+                parsed.messageName(),
                 header,
-                body,
+                parsed.bodyFields(),
                 payload.length,
                 new String(payload, StandardCharsets.UTF_8),
                 Base64.getEncoder().encodeToString(payload),
@@ -189,7 +153,6 @@ public class ReflectionUdpIngestionRunner {
             stopInterface(state);
         }
 
-        executor.shutdownNow();
-        log.info("Reflection UDP ingestion stopped");
+        log.info("Reflection ingestion stopped");
     }
 }

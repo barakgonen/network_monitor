@@ -1,5 +1,9 @@
 package com.example.monitor.publisher;
 
+import com.example.messagereader.api.PublishTarget;
+import com.example.messagereader.api.TrafficPublisher;
+import com.example.messagereader.api.TransportProtocol;
+
 import com.example.monitor.api.publisher.PublisherSendRequest;
 import com.example.monitor.api.publisher.PublisherSendResponse;
 import com.example.monitor.config.TrafficMonitorProperties;
@@ -12,18 +16,18 @@ public class PublisherService {
     private final PublisherMetadataService metadataService;
     private final ReflectionFieldApplier fieldApplier;
     private final ReflectionMessageSerializer serializer;
-    private final UdpPublisher udpPublisher;
+    private final TrafficPublisher trafficPublisher;
 
     public PublisherService(
             PublisherMetadataService metadataService,
             ReflectionFieldApplier fieldApplier,
             ReflectionMessageSerializer serializer,
-            UdpPublisher udpPublisher
+            TrafficPublisher trafficPublisher
     ) {
         this.metadataService = metadataService;
         this.fieldApplier = fieldApplier;
         this.serializer = serializer;
-        this.udpPublisher = udpPublisher;
+        this.trafficPublisher = trafficPublisher;
     }
 
     public PublisherSendResponse send(PublisherSendRequest request) {
@@ -46,7 +50,7 @@ public class PublisherService {
                     parseByteOrder(reflectionInterface.getByteOrder())
             );
 
-            udpPublisher.send(request.host(), request.port(), payload);
+            trafficPublisher.publish(new PublishTarget(TransportProtocol.UDP, request.host(), request.port()), payload);
 
             return new PublisherSendResponse(
                     true,
