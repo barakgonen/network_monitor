@@ -9,6 +9,7 @@
   <packaging>pom</packaging>
 
   <modules>
+    <module>schema-utils</module>
     <module>shared-schemas</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>
