@@ -1,7 +1,7 @@
 package com.example.schemas.rada.messages;
 
+import com.example.schema.annotations.FixedArrayLength;
 import com.example.schemas.BaseStruct;
-import com.example.schemas.rada.FixedArrayLength;
 import com.example.schemas.rada.struct.RadaHeader;
 import com.example.schemas.rada.struct.RadaPlotData;
 import com.example.schemas.rada.struct.RadaTrackData;

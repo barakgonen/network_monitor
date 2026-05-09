@@ -1,7 +1,7 @@
 package com.example.schemas.rada.struct;
 
+import com.example.schema.annotations.FixedArrayLength;
 import com.example.schemas.BaseStruct;
-import com.example.schemas.rada.FixedArrayLength;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
