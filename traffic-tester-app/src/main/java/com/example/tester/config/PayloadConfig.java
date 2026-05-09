@@ -8,7 +8,7 @@ public class PayloadConfig {
 
     /**
      * Optional per-message target override.
-     * If not provided, the scenario-level udp target is used.
+     * If not provided, the scenario-level UDP target is used.
      */
     private PayloadTargetConfig target = new PayloadTargetConfig();
 

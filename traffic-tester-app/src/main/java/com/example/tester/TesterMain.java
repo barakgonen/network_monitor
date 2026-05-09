@@ -9,7 +9,6 @@ import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
 import com.example.tester.config.UdpListenerConfig;
-import com.example.tester.payload.PayloadFactory;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 import org.instancio.Instancio;
