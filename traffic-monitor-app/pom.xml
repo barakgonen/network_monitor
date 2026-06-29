@@ -55,6 +55,7 @@
         <version>${spring.boot.version}</version>
         <configuration>
           <mainClass>com.example.monitor.TrafficMonitorApplication</mainClass>
+          <classifier>exec</classifier>
         </configuration>
         <executions>
           <execution>

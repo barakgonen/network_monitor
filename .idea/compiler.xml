@@ -6,16 +6,18 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="shared-schemas" />
         <module name="schema-annotations" />
-        <module name="traffic-tester-app" />
-        <module name="traffic-monitor-app" />
+        <module name="specific-traffic-app" />
         <module name="schema-utils" />
         <module name="message-reader-core" />
+        <module name="shared-schemas" />
+        <module name="traffic-tester-app" />
+        <module name="traffic-monitor-app" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="communication-layer" target="17" />
+      <module name="specific-traffic-monitor-app" target="21" />
     </bytecodeTargetLevel>
   </component>
 </project>

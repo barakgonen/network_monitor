@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Component
 public class EventDispatcher {
@@ -42,15 +41,6 @@ public class EventDispatcher {
         dispatchInternal(binding, message);
     }
 
-    public boolean supports(Class<?> messageType) {
-        return bindingsByMessageType.containsKey(messageType);
-    }
-
-    public Set<Class<?>> supportedMessageTypes() {
-        return Set.copyOf(bindingsByMessageType.keySet());
-    }
-
-    @SuppressWarnings("unchecked")
     private <T> void dispatchInternal(
             EventBindingRegistry.EventBinding<T> binding,
             Object message
