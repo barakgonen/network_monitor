@@ -3,6 +3,7 @@ package com.example.monitor.ingestion.udp;
 import com.example.messagereader.api.ParsedTrafficMessage;
 import com.example.messagereader.api.TrafficReader;
 import com.example.messagereader.api.TrafficReaderFactory;
+import com.example.monitor.callback.EventDispatcher;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
 import com.example.monitor.interfaces.InterfaceRuntimeState;
@@ -33,6 +34,7 @@ public class ReflectionUdpIngestionRunner {
     private final InterfaceRuntimeRegistry registry;
     private final TrafficReaderFactory trafficReaderFactory;
     private final TrafficInterfaceDefinitionMapper definitionMapper;
+    private final EventDispatcher eventDispatcher;
 
     private volatile boolean running;
 
@@ -42,7 +44,8 @@ public class ReflectionUdpIngestionRunner {
             ObservedTimeFormatter observedTimeFormatter,
             InterfaceRuntimeRegistry registry,
             TrafficReaderFactory trafficReaderFactory,
-            TrafficInterfaceDefinitionMapper definitionMapper
+            TrafficInterfaceDefinitionMapper definitionMapper,
+            EventDispatcher eventDispatcher
     ) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
@@ -50,6 +53,7 @@ public class ReflectionUdpIngestionRunner {
         this.registry = registry;
         this.trafficReaderFactory = trafficReaderFactory;
         this.definitionMapper = definitionMapper;
+        this.eventDispatcher = eventDispatcher;
     }
 
     @PostConstruct
@@ -102,6 +106,8 @@ public class ReflectionUdpIngestionRunner {
             return;
         }
 
+        triggerCallbackForEvent(parsed);
+
         ObservedMessage observedMessage = toObservedMessage(parsed);
         state.markReceived(observedMessage.parseError() != null);
 
@@ -113,6 +119,14 @@ public class ReflectionUdpIngestionRunner {
                 parsed.rawPacket().remoteAddress(),
                 observedMessage.messageType(),
                 observedMessage.parseError());
+    }
+
+    private void triggerCallbackForEvent(ParsedTrafficMessage parsed) {
+        try {
+            eventDispatcher.dispatch(parsed.parsedInstance());
+        } catch (Exception e) {
+            log.error("Exception occurred while processing parsed traffic message", e);
+        }
     }
 
     private ObservedMessage toObservedMessage(ParsedTrafficMessage parsed) {
