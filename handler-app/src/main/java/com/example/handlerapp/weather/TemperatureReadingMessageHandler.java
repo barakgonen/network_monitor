@@ -1,12 +1,13 @@
 package com.example.handlerapp.weather;
 
-import com.example.handlercore.IncomingMessage;
+import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedHandler;
 import com.example.handlercore.ReplySender;
+import com.example.schemas.weather.TemperatureReadingMessage;
 import org.springframework.stereotype.Component;
 
 @Component
-public class TemperatureReadingMessageHandler implements MessageArrivedHandler {
+public class TemperatureReadingMessageHandler implements MessageArrivedHandler<TemperatureReadingMessage> {
 
     @Override
     public String interfaceName() {
@@ -19,13 +20,10 @@ public class TemperatureReadingMessageHandler implements MessageArrivedHandler {
     }
 
     @Override
-    public void onMessageArrived(IncomingMessage message, ReplySender replySender) {
+    public void onMessageArrived(TemperatureReadingMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         // TODO: decide what to do when a TemperatureReading message arrives, e.g.:
-        // TemperatureReadingMessage reading = new TemperatureReadingMessage(
-        //         (String) message.body().get("stationId"),
-        //         ((Number) message.body().get("temperatureCelsius")).doubleValue(),
-        //         WeatherCondition.fromWireName((String) message.body().get("condition"))
-        // );
-        // replySender.reply("Weather Interface", "TemperatureReading", Map.of(...), message.remoteHost(), message.remotePort());
+        // if (destinationConfig != null) {
+        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port());
+        // }
     }
 }

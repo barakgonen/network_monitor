@@ -1,6 +1,7 @@
 package com.example.tester.udp;
 
 import com.example.schemas.fruit.FruitProtocolCodec;
+import com.example.schemas.ping.PingProtocolCodec;
 import com.example.schemas.weather.WeatherProtocolCodec;
 
 import java.net.DatagramPacket;
@@ -15,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class UdpListener implements AutoCloseable {
     private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
     private final WeatherProtocolCodec weatherProtocolCodec = new WeatherProtocolCodec();
+    private final PingProtocolCodec pingProtocolCodec = new PingProtocolCodec();
 
     private final int port;
     private final int bufferSizeBytes;
@@ -70,6 +72,7 @@ public class UdpListener implements AutoCloseable {
 
                 tryDecodeFruit(payload);
                 tryDecodeWeather(payload);
+                tryDecodePing(payload);
 
                 System.out.println("=====================================");
                 System.out.println();
@@ -113,6 +116,23 @@ public class UdpListener implements AutoCloseable {
             }
         } catch (Exception ignored) {
             // Not a weather payload, or invalid weather payload.
+        }
+    }
+
+    private void tryDecodePing(byte[] payload) {
+        try {
+            PingProtocolCodec.DecodedPingMessage decoded = pingProtocolCodec.decode(payload);
+
+            if (!"Unknown".equals(decoded.messageType())) {
+                System.out.println("Decoded as Ping Interface:");
+                System.out.println("  messageType: " + decoded.messageType());
+                System.out.println("  header: opcode=" + decoded.header().opcode()
+                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
+                        + ", bodyLength=" + decoded.header().bodyLength());
+                System.out.println("  body: " + decoded.bodyFields());
+            }
+        } catch (Exception ignored) {
+            // Not a ping payload, or invalid ping payload.
         }
     }
 

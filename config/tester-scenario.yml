@@ -34,5 +34,12 @@ messages:
       temperatureCelsius: 28.4
       condition: "sunny"
 
+  - mode: PING
+    target:
+      host: 127.0.0.1
+      port: 5001
+    ping:
+      sequence: 1
+
 repeat: 1231
 intervalMillis: 1000

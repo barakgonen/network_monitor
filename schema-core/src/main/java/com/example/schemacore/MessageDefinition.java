@@ -10,7 +10,13 @@ public interface MessageDefinition {
 
     int opcode();
 
+    Class<? extends ProtocolMessage> messageClass();
+
     Map<String, Object> decodeBody(ByteBuffer body) throws Exception;
 
+    ProtocolMessage decodeMessage(ByteBuffer body) throws Exception;
+
     byte[] encodeBody(Map<String, Object> fields) throws Exception;
+
+    byte[] encodeBody(ProtocolMessage message) throws Exception;
 }

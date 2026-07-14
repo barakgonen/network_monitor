@@ -14,9 +14,10 @@ Seven Maven modules make up the system, split so the "engine" is a generic, dist
 and everything Fruit/Weather-specific is a swappable, client-suppliable layer on top:
 
 - **schema-core** / **handler-core** — the generic engine's two contracts, zero Fruit/Weather
-  knowledge, zero dependency on anything but the JDK: `schema-core` defines `MessageDefinition`
-  (wire decode/encode) and `handler-core` defines `MessageArrivedHandler` (the `onMessageArrived`
-  auto-reply dispatch contract).
+  knowledge: `schema-core` defines `MessageDefinition` (wire decode/encode) with zero
+  dependencies beyond the JDK, and `handler-core` defines `MessageArrivedHandler<T>` (the
+  generic, typed `onMessageArrived` auto-reply dispatch contract), depending on `schema-core`
+  only for the `ProtocolMessage` marker type.
 - **shared-schemas** / **handler-app** — *our* concrete implementations of those two contracts
   for the Fruit/Weather protocols. Neither is required by the engine — they're supplied by
   whoever assembles a runnable app, exactly like a plugin.
@@ -140,6 +141,28 @@ with a 4-byte `int32` length. Every message starts with the same 12-byte header:
 | `temperatureCelsius` | float64 |
 | `condition` | byte (1=`sunny`, 2=`cloudy`, 3=`rainy`, 4=`unknown`) |
 
+### Ping Interface
+
+A minimal extensibility proof: send a Ping, the monitor auto-replies with a Pong. Demonstrates
+adding a brand-new interface with zero changes to `schema-core`/`handler-core`/
+`traffic-monitor-app-core` — only `shared-schemas` (2 message definitions),
+`handler-app` (1 handler), `config/traffic-tool.yml`, and `traffic-tester-app` changed.
+
+| Message | Opcode |
+|---|---|
+| Ping | 3001 |
+| Pong | 3002 |
+
+**Ping/Pong body (identical shape):**
+
+| Field | Type |
+|---|---|
+| `sequence` | int32 |
+
+`handler-app`'s `PingMessageHandler` replies to every Ping with a Pong echoing the same
+`sequence`, sent back to the sender's address:port — see
+[Auto-reply message handlers](#auto-reply-message-handlers).
+
 Codecs validate header size (≥12 bytes) and that `bodyLength` matches the remaining buffer.
 
 ## Module reference
@@ -150,9 +173,10 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 |---|---|
 | `ProtocolHeader` (record) | Generic header: `opcode`, `sendTimeEpochMillis`, `bodyLength` |
 | `ProtocolHeaderCodec` | `decodeHeader(ByteBuffer)` / `encodeMessage(opcode, sendTime, body)` — the one place the 12-byte framing is implemented |
-| `MessageDefinition` (interface) | `interfaceName()`, `messageType()`, `opcode()`, `decodeBody(ByteBuffer)`, `encodeBody(Map)` — one implementation per real message type |
-| `MessageDefinitionRegistry` | Built from a `List<MessageDefinition>`; keyed by opcode and by interfaceName/messageType; `loadFromClassNames(List<String>)` does the reflective `Class.forName` + `newInstance()` loading; fail-fast on duplicate keys |
-| `MessageFields` | Static `requireString`/`requireDouble` field-validation helpers shared by all `MessageDefinition` implementations |
+| `ProtocolMessage` (interface) | Empty marker interface — every concrete message record (`OrangeMessage`, `BananaMessage`, ...) implements it, purely so generic code (`ReplySender`) can accept "a real message" without depending on `shared-schemas` |
+| `MessageDefinition` (interface) | `interfaceName()`, `messageType()`, `opcode()`, `messageClass()`, `decodeBody(ByteBuffer)` → `Map` (for `ObservedMessage`/UI display), `decodeMessage(ByteBuffer)` → `ProtocolMessage` (for typed handler dispatch), `encodeBody(Map)` (for the REST publish API), `encodeBody(ProtocolMessage)` (for `ReplySender`) — one implementation per real message type |
+| `MessageDefinitionRegistry` | Built from a `List<MessageDefinition>`; keyed by opcode, by interfaceName/messageType, **and** by `messageClass()` (so a typed instance can resolve its own definition); `loadFromClassNames(List<String>)` does the reflective `Class.forName` + `newInstance()` loading; fail-fast on duplicate keys in any index |
+| `MessageFields` | Static `requireString`/`requireDouble`/`requireInt` field-validation helpers shared by the `Map`-based `encodeBody` implementations |
 
 ### shared-schemas (`com.example.schemas`)
 
@@ -161,15 +185,19 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 | `com.example.schemas` | `MessageParser`, `MessageSerializer` (interfaces), `ParsedMessage` (record), `ProtocolType` (TCP/UDP enum) — an older, unused scaffold, see [Known gaps](#known-gaps--legacy-code) |
 | `com.example.schemas.fruit` | `FruitOpcodes`, `FruitProtocolHeader`, `FruitProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `FruitFreshness` (enum), `OrangeMessage`, `BananaMessage`, `OrangeMessageDefinition`, `BananaMessageDefinition` (the `schema-core` implementations, loaded reflectively by `traffic-monitor-app`) |
 | `com.example.schemas.weather` | `WeatherOpcodes`, `WeatherProtocolHeader`, `WeatherProtocolCodec`, `WeatherCondition` (enum), `TemperatureReadingMessage`, `TemperatureReadingMessageDefinition` |
+| `com.example.schemas.ping` | `PingOpcodes`, `PingMessage`, `PongMessage`, `PingProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `PingMessageDefinition`, `PongMessageDefinition` — the extensibility proof interface |
 | `com.example.schemas.demo` | `BananaParser`/`BananaSerializer`, `MangoParser`/`MangoSerializer` — trivial text-based `MessageParser`/`MessageSerializer` demo implementations, unrelated to the binary Fruit/Weather codecs above |
 
 ### handler-core (`com.example.handlercore`)
 
+Depends on `schema-core` (its only dependency) purely for the `ProtocolMessage` type — still
+zero Fruit/Weather knowledge.
+
 | Class | Purpose |
 |---|---|
-| `IncomingMessage` (record) | Generic decoded-message view passed to handlers: interface/type, remote host/port, header, body |
-| `ReplySender` (interface) | `reply(interfaceName, messageType, fields, host, port)` — how a handler sends a message back out |
-| `MessageArrivedHandler` (interface) | `interfaceName()`, `messageType()`, `onMessageArrived(IncomingMessage, ReplySender)` — one implementation per reactive message type |
+| `DestinationConfig` (record) | `(String host, int port)` — the resolved auto-reply destination for the interface that just fired, handed to the handler so it doesn't have to guess |
+| `ReplySender` (interface) | `reply(ProtocolMessage message, String host, int port)` — construct a real typed message instance and send it to an explicit host/port |
+| `MessageArrivedHandler<T>` (interface) | Generic over the concrete incoming message type. `interfaceName()`, `messageType()`, `onMessageArrived(T message, ReplySender replySender, DestinationConfig destinationConfig)` — `message` arrives already decoded into its real type (e.g. `OrangeMessage`), no `Map` unpacking needed; `destinationConfig` is `null` if no destination is configured for that interface |
 | `MessageHandlerRegistry` | Keyed by interfaceName/messageType; fail-fast on duplicates |
 | `MessageArrivedDispatcher` | Looks up the registry and invokes the matching handler, if any |
 
@@ -179,6 +207,7 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 |---|---|
 | `com.example.handlerapp.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
 | `com.example.handlerapp.weather` | `TemperatureReadingMessageHandler` (stub) |
+| `com.example.handlerapp.ping` | `PingMessageHandler` — always auto-replies with a Pong echoing the same `sequence` |
 
 ### traffic-monitor-app-core (`com.example.monitor`)
 
@@ -193,8 +222,9 @@ All of the monitor's actual Java source and resources (`application.yml`, `stati
 | `com.example.monitor.store` | `RecentMessageStore` — thread-safe bounded `ArrayDeque`, backs `/api/messages/recent` |
 | `com.example.monitor.ingestion.udp` | `UdpIngestionRunner` — opens the Fruit and Weather UDP sockets on startup, decodes packets generically via `MessageDefinitionRegistry`, writes to the store, dispatches to `handler-core` |
 | `com.example.monitor.publishing` | `MonitorPayloadFactory` (fields map → protocol bytes via `MessageDefinitionRegistry`), `UdpMessagePublisher` (send one datagram), `PeriodicPublisherService` (scheduled repeat send) |
-| `com.example.monitor.handler` | `HandlerWiringConfig` — wires the `handler-core` `ReplySender`/`MessageHandlerRegistry`/`MessageArrivedDispatcher` beans on top of `MonitorPayloadFactory`/`UdpMessagePublisher` |
-| `com.example.monitor.api` | `MessageController`, `PublishController`, `PeriodicPublishController` + their request/response records |
+| `com.example.monitor.handler` | `HandlerWiringConfig` — wires the `handler-core` `ReplySender`/`MessageHandlerRegistry`/`MessageArrivedDispatcher` beans on top of `MonitorPayloadFactory`/`UdpMessagePublisher`, resolving reply destinations via `AutoReplySettingsService` |
+| `com.example.monitor.autoreply` | `AutoReplySettingsService` — runtime-mutable global + per-interface auto-reply enabled/destination state, seeded from `TrafficToolConfig` |
+| `com.example.monitor.api` | `MessageController`, `PublishController`, `PeriodicPublishController`, `AutoReplyController` + their request/response records |
 
 ### traffic-monitor-app
 
@@ -329,33 +359,109 @@ Served at `http://localhost:8080`, dark "System Flow Investigator" theme, two ta
 
 ### Auto-reply message handlers
 
-Every successfully decoded message is also dispatched (asynchronously, off the UDP receive
-loop) to a per-message-type `onMessageArrived` hook, so you can react to specific inbound
-messages — most commonly by sending a reply. To add one: implement `handler-core`'s
-`MessageArrivedHandler` in `handler-app` (`@Component`, `interfaceName()`/`messageType()` pick
-which message it reacts to) and use `ReplySender.reply(interfaceName, messageType, fields,
-host, port)` to send something back.
+Every successfully decoded message is dispatched (asynchronously, off the UDP receive loop) to
+a per-message-type `onMessageArrived` hook, so you can react to specific inbound messages —
+most commonly by sending a reply. `MessageArrivedHandler<T>` is generic over the concrete
+incoming message type, so a handler receives the message **already decoded into its real
+type** — no `Map` unpacking, no casting. To add one: implement `MessageArrivedHandler<T>` in
+`handler-app` (`@Component`, `interfaceName()`/`messageType()` pick which message it reacts to,
+`T` is that message's shared-schemas record) and call `replySender.reply(ProtocolMessage
+message, String host, int port)` with a real typed instance (e.g.
+`new BananaMessage("yellow", 100.0)`) to send something back. `ReplySender`'s implementation
+resolves which `MessageDefinition` to encode with via
+`MessageDefinitionRegistry.findByMessageClass(message.getClass())` — no string-based dispatch
+on the reply side either.
+
+The third parameter, `DestinationConfig destinationConfig`, is the resolved auto-reply
+destination (host/port) for the interface that triggered dispatch — see
+[Auto-reply toggle](#auto-reply-toggle) below for where it comes from. It's `null` if that
+interface has no destination configured, which handlers should check before replying.
 
 Worked example — `handler-app/.../fruit/OrangeMessageHandler.java` replies with a Banana when
-an Orange arrives with `freshness == not_fresh`, sent back to the sender's own address:port:
+an Orange arrives with `freshness == not_fresh`:
 
 ```java
-public void onMessageArrived(IncomingMessage message, ReplySender replySender) {
-    OrangeMessage orange = new OrangeMessage(
-            (String) message.body().get("sourceFarm"),
-            FruitFreshness.fromWireName((String) message.body().get("freshness"))
-    );
+public class OrangeMessageHandler implements MessageArrivedHandler<OrangeMessage> {
+    @Override
+    public String interfaceName() { return "Fruit Interface"; }
 
-    if (orange.freshness() == FruitFreshness.NOT_FRESH) {
-        replySender.reply("Fruit Interface", "Banana",
-                Map.of("color", "yellow", "weight", 100.0),
-                message.remoteHost(), message.remotePort());
+    @Override
+    public String messageType() { return "Orange"; }
+
+    @Override
+    public void onMessageArrived(OrangeMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
+        if (message.freshness() == FruitFreshness.NOT_FRESH && destinationConfig != null) {
+            replySender.reply(new BananaMessage("yellow", 100.0), destinationConfig.host(), destinationConfig.port());
+        }
     }
 }
 ```
 
-`BananaMessageHandler` and `TemperatureReadingMessageHandler` are registered stubs (no-op,
-with a `// TODO` showing the pattern) — ready to fill in without touching any wiring.
+`BananaMessageHandler`, `TemperatureReadingMessageHandler`, and `PingMessageHandler` (always
+replies `new PongMessage(message.sequence())`, echoing the same sequence) round out the
+registered handlers — `BananaMessageHandler`/`TemperatureReadingMessageHandler` are still empty
+stubs with a `// TODO`.
+
+Every `shared-schemas` message record (`OrangeMessage`, `BananaMessage`,
+`TemperatureReadingMessage`, `PingMessage`, `PongMessage`) implements `schema-core`'s
+`ProtocolMessage` — an empty marker interface that exists purely so `handler-core`'s generic
+types can accept "any real protocol message" without depending on `shared-schemas` itself.
+`handler-core` depends on `schema-core` for this (its only dependency), which is still fully
+Fruit/Weather-agnostic. `MessageDefinition` also grew a typed decode path
+(`decodeMessage(ByteBuffer) → ProtocolMessage`, alongside the existing `Map`-returning
+`decodeBody` used for the UI) so `UdpIngestionRunner` can hand handlers the real typed object
+instead of a generic envelope.
+
+### Auto-reply toggle
+
+Two independent gates control whether `onMessageArrived` actually fires and where the reply
+goes, both defaulting from `config/traffic-tool.yml` and both live-editable via the UI/API
+without a restart:
+
+- **Global switch** (`AutoReplySettingsService.isGlobalEnabled()`) — a single master on/off for
+  the whole mechanism.
+- **Per-interface switch + destination** — each interface (Fruit/Weather/Ping) has its own
+  `enabled` flag plus a `host`/`port`.
+
+`UdpIngestionRunner.dispatchIfEligible()` checks `autoReplySettingsService.shouldAutoReply
+(interfaceName)` (both switches at once) right after the parse-error check — if either is off,
+the handler never runs. If it passes, `UdpIngestionRunner` resolves that interface's
+`host`/`port` from `AutoReplySettingsService` into a `handler-core` `DestinationConfig` (`null`
+if somehow unconfigured) and passes it straight into `onMessageArrived(...)` as the third
+argument — the handler explicitly uses `destinationConfig.host()/port()` when it calls
+`replySender.reply(...)`. `ReplySender`'s implementation itself does no destination
+resolution or overriding — it just sends to whatever host/port it's given, so the whole
+destination story lives in one visible place (`UdpIngestionRunner` + the handler), not split
+across a silent override inside the reply mechanism.
+
+Defaults come from `config/traffic-tool.yml`:
+
+```yaml
+autoReply:
+  enabled: false          # global default
+
+interfaces:
+  - key: ping
+    name: Ping Interface
+    messages: [...]
+    autoReply:             # per-interface default
+      enabled: false
+      host: localhost
+      port: 7001
+```
+
+REST API (`AutoReplyController`):
+
+| Method | Path | Body | Purpose |
+|---|---|---|---|
+| GET | `/api/autoreply/settings` | — | `{ globalEnabled, interfaces: { <name>: {enabled, host, port} } }` |
+| POST | `/api/autoreply/global` | `{ enabled }` | Sets the global switch |
+| POST | `/api/autoreply/interface` | `{ interfaceName, enabled, host, port }` | Sets one interface's switch + destination |
+
+Web UI: a new **Auto-Reply** tab — a master toggle switch, plus a collapsible accordion with
+one row per interface. The accordion is built entirely from the `GET` response's `interfaces`
+map (not hardcoded), so it automatically picks up new interfaces added to
+`config/traffic-tool.yml` with no frontend changes.
 
 ## traffic-tester-app details
 
@@ -376,7 +482,7 @@ listener:
   bufferSizeBytes: 65507     # default 65507
 
 messages:                  # preferred (V2) format — list of messages sent per iteration
-  - mode: FRUIT_ORANGE       # FRUIT_ORANGE | FRUIT_BANANA | WEATHER_TEMPERATURE_READING | TEXT | BASE64 | HEX
+  - mode: FRUIT_ORANGE       # FRUIT_ORANGE | FRUIT_BANANA | WEATHER_TEMPERATURE_READING | PING | TEXT | BASE64 | HEX
     target:                  # optional per-message override of udp.host/port
       host: 127.0.0.1
       port: 5001

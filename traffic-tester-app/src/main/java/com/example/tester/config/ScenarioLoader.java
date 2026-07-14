@@ -81,6 +81,10 @@ public class ScenarioLoader {
             if (message.getMode() == PayloadMode.WEATHER_TEMPERATURE_READING && message.getWeather() == null) {
                 throw new IllegalArgumentException("messages[" + i + "].weather is required for " + message.getMode());
             }
+
+            if (message.getMode() == PayloadMode.PING && message.getPing() == null) {
+                throw new IllegalArgumentException("messages[" + i + "].ping is required for " + message.getMode());
+            }
         }
 
         if (scenario.getRepeat() <= 0) {

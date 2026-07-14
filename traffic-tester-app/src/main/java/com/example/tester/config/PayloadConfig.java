@@ -7,6 +7,7 @@ public class PayloadConfig {
     private String hex = "";
     private FruitPayloadConfig fruit = new FruitPayloadConfig();
     private WeatherPayloadConfig weather = new WeatherPayloadConfig();
+    private PingPayloadConfig ping = new PingPayloadConfig();
 
     /**
      * Optional per-message target override.
@@ -60,6 +61,14 @@ public class PayloadConfig {
 
     public void setWeather(WeatherPayloadConfig weather) {
         this.weather = weather;
+    }
+
+    public PingPayloadConfig getPing() {
+        return ping;
+    }
+
+    public void setPing(PingPayloadConfig ping) {
+        this.ping = ping;
     }
 
     public PayloadTargetConfig getTarget() {

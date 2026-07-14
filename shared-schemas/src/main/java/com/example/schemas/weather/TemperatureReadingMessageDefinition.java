@@ -2,6 +2,7 @@ package com.example.schemas.weather;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageFields;
+import com.example.schemacore.ProtocolMessage;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
@@ -25,6 +26,11 @@ public class TemperatureReadingMessageDefinition implements MessageDefinition {
     }
 
     @Override
+    public Class<TemperatureReadingMessage> messageClass() {
+        return TemperatureReadingMessage.class;
+    }
+
+    @Override
     public Map<String, Object> decodeBody(ByteBuffer body) {
         Map<String, Object> bodyFields = new LinkedHashMap<>();
         WeatherProtocolCodec.decodeTemperatureReadingBody(body, bodyFields);
@@ -32,13 +38,25 @@ public class TemperatureReadingMessageDefinition implements MessageDefinition {
     }
 
     @Override
+    public ProtocolMessage decodeMessage(ByteBuffer body) {
+        return fromFields(decodeBody(body));
+    }
+
+    @Override
     public byte[] encodeBody(Map<String, Object> fields) {
-        TemperatureReadingMessage reading = new TemperatureReadingMessage(
+        return WeatherProtocolCodec.encodeTemperatureReadingBody(fromFields(fields));
+    }
+
+    @Override
+    public byte[] encodeBody(ProtocolMessage message) {
+        return WeatherProtocolCodec.encodeTemperatureReadingBody((TemperatureReadingMessage) message);
+    }
+
+    private TemperatureReadingMessage fromFields(Map<String, Object> fields) {
+        return new TemperatureReadingMessage(
                 MessageFields.requireString(fields, "stationId"),
                 MessageFields.requireDouble(fields, "temperatureCelsius"),
                 WeatherCondition.fromWireName(MessageFields.requireString(fields, "condition"))
         );
-
-        return WeatherProtocolCodec.encodeTemperatureReadingBody(reading);
     }
 }

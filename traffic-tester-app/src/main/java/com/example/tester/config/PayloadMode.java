@@ -6,5 +6,6 @@ public enum PayloadMode {
     HEX,
     FRUIT_ORANGE,
     FRUIT_BANANA,
-    WEATHER_TEMPERATURE_READING
+    WEATHER_TEMPERATURE_READING,
+    PING
 }

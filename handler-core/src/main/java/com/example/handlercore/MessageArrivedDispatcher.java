@@ -9,8 +9,9 @@ public final class MessageArrivedDispatcher {
         this.replySender = replySender;
     }
 
-    public void dispatch(IncomingMessage message) {
-        registry.find(message.interfaceName(), message.messageType())
-                .ifPresent(handler -> handler.onMessageArrived(message, replySender));
+    @SuppressWarnings("unchecked")
+    public void dispatch(String interfaceName, String messageType, Object message, DestinationConfig destinationConfig) {
+        registry.find(interfaceName, messageType).ifPresent(handler ->
+                ((MessageArrivedHandler<Object>) handler).onMessageArrived(message, replySender, destinationConfig));
     }
 }

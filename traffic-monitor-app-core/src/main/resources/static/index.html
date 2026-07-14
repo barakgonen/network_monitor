@@ -91,6 +91,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
       <button class="tab" id="publisherTab" onclick="showTab('publisher')">Sample Publisher</button>
+      <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">Auto-Reply</button>
     </nav>
 
     <section id="livePanel" class="panel table-panel">
@@ -209,6 +210,43 @@
         </div>
       </div>
     </section>
+
+    <section id="autoReplyPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>Auto-Reply</h2>
+      </div>
+
+      <div class="publisher-layout">
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Master Switch</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row toggle-row">
+              <label class="toggle-switch">
+                <input type="checkbox" id="globalAutoReplyToggle" onchange="toggleGlobalAutoReply()">
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="globalAutoReplyLabel">Auto-Reply: disabled</span>
+            </div>
+          </div>
+
+          <div class="publisher-help">
+            When enabled, inbound messages matching a registered <code>onMessageArrived</code>
+            handler trigger an automatic reply. Each interface below also needs its own toggle
+            enabled, and a destination host/port to send replies to (e.g. traffic-tester-app).
+          </div>
+        </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Per-Interface Destinations</h3>
+          </div>
+          <div id="autoReplyAccordion" class="accordion"></div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -310,9 +348,15 @@
   function showTab(tab) {
     document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
     document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
+    document.getElementById('autoReplyPanel').style.display = tab === 'autoreply' ? '' : 'none';
 
     document.getElementById('liveTab').classList.toggle('active', tab === 'live');
     document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
+    document.getElementById('autoReplyTab').classList.toggle('active', tab === 'autoreply');
+
+    if (tab === 'autoreply') {
+      loadAutoReplySettings();
+    }
   }
 
   function onPublisherInterfaceChanged() {
@@ -454,6 +498,93 @@
       `Interval: ${status.intervalMillis} ms\n` +
       `Sent: ${status.sentCount}\n` +
       `Last error: ${status.lastError || 'none'}`;
+  }
+
+  async function loadAutoReplySettings() {
+    const response = await fetch('/api/autoreply/settings');
+    const settings = await response.json();
+    renderAutoReplyPanel(settings);
+  }
+
+  function renderAutoReplyPanel(settings) {
+    document.getElementById('globalAutoReplyToggle').checked = settings.globalEnabled;
+    document.getElementById('globalAutoReplyLabel').innerText =
+      `Auto-Reply: ${settings.globalEnabled ? 'enabled' : 'disabled'}`;
+
+    const accordion = document.getElementById('autoReplyAccordion');
+    accordion.innerHTML = '';
+
+    const interfaceNames = Object.keys(settings.interfaces || {}).sort();
+
+    if (interfaceNames.length === 0) {
+      accordion.innerHTML = '<div class="empty-state">No interfaces configured.</div>';
+      return;
+    }
+
+    for (const interfaceName of interfaceNames) {
+      const destination = settings.interfaces[interfaceName];
+      const row = document.createElement('div');
+      row.className = 'accordion-row';
+
+      row.innerHTML = `
+        <div class="accordion-header">
+          <label class="toggle-switch" onclick="event.stopPropagation()">
+            <input type="checkbox" class="interface-toggle" ${destination.enabled ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="accordion-title">${escapeHtml(interfaceName)}</span>
+          <span class="accordion-summary">${escapeHtml(destination.host)}:${escapeHtml(destination.port)}</span>
+        </div>
+        <div class="accordion-body">
+          <div class="form-row">
+            <label>Host</label>
+            <input class="interface-host" value="${escapeHtml(destination.host)}">
+          </div>
+          <div class="form-row">
+            <label>Port</label>
+            <input class="interface-port" type="number" min="1" max="65535" value="${escapeHtml(destination.port)}">
+          </div>
+          <button class="primary-btn interface-save">Save</button>
+        </div>
+      `;
+
+      const header = row.querySelector('.accordion-header');
+      header.addEventListener('click', () => row.classList.toggle('expanded'));
+
+      const toggleInput = row.querySelector('.interface-toggle');
+      toggleInput.addEventListener('change', () => saveInterfaceAutoReply(interfaceName, row));
+
+      const saveBtn = row.querySelector('.interface-save');
+      saveBtn.addEventListener('click', () => saveInterfaceAutoReply(interfaceName, row));
+
+      accordion.appendChild(row);
+    }
+  }
+
+  async function toggleGlobalAutoReply() {
+    const enabled = document.getElementById('globalAutoReplyToggle').checked;
+
+    const response = await fetch('/api/autoreply/global', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+
+    renderAutoReplyPanel(await response.json());
+  }
+
+  async function saveInterfaceAutoReply(interfaceName, row) {
+    const enabled = row.querySelector('.interface-toggle').checked;
+    const host = row.querySelector('.interface-host').value;
+    const port = Number(row.querySelector('.interface-port').value);
+
+    const response = await fetch('/api/autoreply/interface', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ interfaceName, enabled, host, port })
+    });
+
+    renderAutoReplyPanel(await response.json());
   }
 
   function formatTime(value) {

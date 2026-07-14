@@ -1,4 +1,4 @@
-package com.example.schemas.fruit;
+package com.example.schemas.ping;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageFields;
@@ -8,32 +8,32 @@ import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class OrangeMessageDefinition implements MessageDefinition {
+public class PingMessageDefinition implements MessageDefinition {
 
     @Override
     public String interfaceName() {
-        return "Fruit Interface";
+        return "Ping Interface";
     }
 
     @Override
     public String messageType() {
-        return "Orange";
+        return "Ping";
     }
 
     @Override
     public int opcode() {
-        return FruitOpcodes.ORANGE;
+        return PingOpcodes.PING;
     }
 
     @Override
-    public Class<OrangeMessage> messageClass() {
-        return OrangeMessage.class;
+    public Class<PingMessage> messageClass() {
+        return PingMessage.class;
     }
 
     @Override
     public Map<String, Object> decodeBody(ByteBuffer body) {
         Map<String, Object> bodyFields = new LinkedHashMap<>();
-        FruitProtocolCodec.decodeOrangeBody(body, bodyFields);
+        PingProtocolCodec.decodePingBody(body, bodyFields);
         return bodyFields;
     }
 
@@ -44,18 +44,15 @@ public class OrangeMessageDefinition implements MessageDefinition {
 
     @Override
     public byte[] encodeBody(Map<String, Object> fields) {
-        return FruitProtocolCodec.encodeOrangeBody(fromFields(fields));
+        return PingProtocolCodec.encodePingBody(fromFields(fields));
     }
 
     @Override
     public byte[] encodeBody(ProtocolMessage message) {
-        return FruitProtocolCodec.encodeOrangeBody((OrangeMessage) message);
+        return PingProtocolCodec.encodePingBody((PingMessage) message);
     }
 
-    private OrangeMessage fromFields(Map<String, Object> fields) {
-        return new OrangeMessage(
-                MessageFields.requireString(fields, "sourceFarm"),
-                FruitFreshness.fromWireName(MessageFields.requireString(fields, "freshness"))
-        );
+    private PingMessage fromFields(Map<String, Object> fields) {
+        return new PingMessage(MessageFields.requireInt(fields, "sequence"));
     }
 }

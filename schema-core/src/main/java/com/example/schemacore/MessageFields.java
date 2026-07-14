@@ -40,4 +40,22 @@ public final class MessageFields {
             throw new IllegalArgumentException("Field must be a valid double: " + name + ", value=" + value);
         }
     }
+
+    public static int requireInt(Map<String, Object> fields, String name) {
+        Object value = fields == null ? null : fields.get(name);
+
+        if (value == null) {
+            throw new IllegalArgumentException("Missing required field: " + name);
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Field must be a valid int: " + name + ", value=" + value);
+        }
+    }
 }

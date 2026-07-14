@@ -1,16 +1,15 @@
 package com.example.handlerapp.fruit;
 
-import com.example.handlercore.IncomingMessage;
+import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedHandler;
 import com.example.handlercore.ReplySender;
+import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.OrangeMessage;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 @Component
-public class OrangeMessageHandler implements MessageArrivedHandler {
+public class OrangeMessageHandler implements MessageArrivedHandler<OrangeMessage> {
 
     @Override
     public String interfaceName() {
@@ -23,20 +22,9 @@ public class OrangeMessageHandler implements MessageArrivedHandler {
     }
 
     @Override
-    public void onMessageArrived(IncomingMessage message, ReplySender replySender) {
-        OrangeMessage orange = new OrangeMessage(
-                (String) message.body().get("sourceFarm"),
-                FruitFreshness.fromWireName((String) message.body().get("freshness"))
-        );
-
-        if (orange.freshness() == FruitFreshness.NOT_FRESH) {
-            replySender.reply(
-                    "Fruit Interface",
-                    "Banana",
-                    Map.of("color", "yellow", "weight", 100.0),
-                    message.remoteHost(),
-                    message.remotePort()
-            );
+    public void onMessageArrived(OrangeMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
+        if (message.freshness() == FruitFreshness.NOT_FRESH && destinationConfig != null) {
+            replySender.reply(new BananaMessage("yellow", 100.0), destinationConfig.host(), destinationConfig.port());
         }
     }
 }

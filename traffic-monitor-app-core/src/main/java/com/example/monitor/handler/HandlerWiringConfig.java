@@ -16,14 +16,14 @@ public class HandlerWiringConfig {
 
     @Bean
     public ReplySender replySender(MonitorPayloadFactory payloadFactory, UdpMessagePublisher udpMessagePublisher) {
-        return (interfaceName, messageType, fields, host, port) -> {
-            byte[] payload = payloadFactory.create(interfaceName, messageType, fields);
+        return (message, host, port) -> {
+            byte[] payload = payloadFactory.create(message);
             udpMessagePublisher.send(host, port, payload);
         };
     }
 
     @Bean
-    public MessageHandlerRegistry messageHandlerRegistry(List<MessageArrivedHandler> handlers) {
+    public MessageHandlerRegistry messageHandlerRegistry(List<MessageArrivedHandler<?>> handlers) {
         return new MessageHandlerRegistry(handlers);
     }
 

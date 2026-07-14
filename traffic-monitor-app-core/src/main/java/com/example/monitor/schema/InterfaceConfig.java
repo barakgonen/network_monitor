@@ -6,6 +6,7 @@ public class InterfaceConfig {
     private String key;
     private String name;
     private List<MessageConfig> messages;
+    private AutoReplyDestinationConfig autoReply = new AutoReplyDestinationConfig();
 
     public String getKey() {
         return key;
@@ -29,5 +30,13 @@ public class InterfaceConfig {
 
     public void setMessages(List<MessageConfig> messages) {
         this.messages = messages;
+    }
+
+    public AutoReplyDestinationConfig getAutoReply() {
+        return autoReply;
+    }
+
+    public void setAutoReply(AutoReplyDestinationConfig autoReply) {
+        this.autoReply = autoReply;
     }
 }

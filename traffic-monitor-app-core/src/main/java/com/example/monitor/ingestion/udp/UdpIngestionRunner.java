@@ -1,7 +1,8 @@
 package com.example.monitor.ingestion.udp;
 
-import com.example.handlercore.IncomingMessage;
+import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedDispatcher;
+import com.example.monitor.autoreply.AutoReplySettingsService;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.store.RecentMessageStore;
@@ -9,6 +10,7 @@ import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.ProtocolHeader;
 import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.ProtocolMessage;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -38,6 +40,7 @@ public class UdpIngestionRunner {
     private final RecentMessageStore recentMessageStore;
     private final MessageArrivedDispatcher messageArrivedDispatcher;
     private final MessageDefinitionRegistry messageDefinitionRegistry;
+    private final AutoReplySettingsService autoReplySettingsService;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final List<DatagramSocket> sockets = new CopyOnWriteArrayList<>();
 
@@ -47,12 +50,14 @@ public class UdpIngestionRunner {
             TrafficMonitorProperties properties,
             RecentMessageStore recentMessageStore,
             MessageArrivedDispatcher messageArrivedDispatcher,
-            MessageDefinitionRegistry messageDefinitionRegistry
+            MessageDefinitionRegistry messageDefinitionRegistry,
+            AutoReplySettingsService autoReplySettingsService
     ) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
         this.messageArrivedDispatcher = messageArrivedDispatcher;
         this.messageDefinitionRegistry = messageDefinitionRegistry;
+        this.autoReplySettingsService = autoReplySettingsService;
     }
 
     @PostConstruct
@@ -80,9 +85,10 @@ public class UdpIngestionRunner {
                 socket.receive(packet);
 
                 byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
-                ObservedMessage message = toObservedMessage(packet, port, payload);
+                DecodedPacket decoded = decode(payload);
+                ObservedMessage message = toObservedMessage(packet, port, payload, decoded);
                 recentMessageStore.add(message);
-                dispatchIfParsed(packet, port, message);
+                dispatchIfEligible(decoded);
 
                 log.info("Received UDP {} message from {}:{} on port {} - {} bytes - type={} - parseError={}",
                         message.interfaceName(),
@@ -100,59 +106,65 @@ public class UdpIngestionRunner {
         }
     }
 
-    private void dispatchIfParsed(DatagramPacket packet, int localPort, ObservedMessage message) {
-        if (message.parseError() != null) {
+    private DecodedPacket decode(byte[] payload) {
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
+
+            MessageDefinition definition = messageDefinitionRegistry.findByOpcode(header.opcode())
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown opcode: " + header.opcode()));
+
+            int bodyStart = buffer.position();
+            Map<String, Object> bodyFields = definition.decodeBody(buffer);
+            ProtocolMessage typedMessage = definition.decodeMessage(
+                    ByteBuffer.wrap(payload, bodyStart, payload.length - bodyStart));
+
+            return new DecodedPacket(definition, header, bodyFields, typedMessage, null);
+        } catch (Exception e) {
+            return new DecodedPacket(null, null, null, null, e.getMessage());
+        }
+    }
+
+    private void dispatchIfEligible(DecodedPacket decoded) {
+        if (decoded.parseError() != null) {
             return;
         }
 
-        IncomingMessage incoming = new IncomingMessage(
-                message.interfaceName(),
-                message.messageType(),
-                packet.getAddress().getHostAddress(),
-                packet.getPort(),
-                localPort,
-                message.observedAt().toEpochMilli(),
-                message.header(),
-                message.body()
-        );
+        String interfaceName = decoded.definition().interfaceName();
+        String messageType = decoded.definition().messageType();
+
+        if (!autoReplySettingsService.shouldAutoReply(interfaceName)) {
+            return;
+        }
+
+        DestinationConfig destinationConfig = autoReplySettingsService.interfaceSettings(interfaceName)
+                .map(settings -> new DestinationConfig(settings.host(), settings.port()))
+                .orElse(null);
 
         executor.submit(() -> {
             try {
-                messageArrivedDispatcher.dispatch(incoming);
+                messageArrivedDispatcher.dispatch(interfaceName, messageType, decoded.typedMessage(), destinationConfig);
             } catch (Exception e) {
-                log.warn("onMessageArrived handler failed for {}/{}: {}",
-                        incoming.interfaceName(), incoming.messageType(), e.getMessage(), e);
+                log.warn("onMessageArrived handler failed for {}/{}: {}", interfaceName, messageType, e.getMessage(), e);
             }
         });
     }
 
-    private ObservedMessage toObservedMessage(DatagramPacket packet, int localPort, byte[] payload) {
+    private ObservedMessage toObservedMessage(DatagramPacket packet, int localPort, byte[] payload, DecodedPacket decoded) {
         String payloadText = new String(payload, StandardCharsets.UTF_8);
         String payloadBase64 = Base64.getEncoder().encodeToString(payload);
 
-        String interfaceName = "Unknown";
-        String messageType = "Unknown";
+        String interfaceName = decoded.definition() != null ? decoded.definition().interfaceName() : "Unknown";
+        String messageType = decoded.definition() != null ? decoded.definition().messageType() : "Unknown";
+
         Map<String, Object> header = new LinkedHashMap<>();
-        Map<String, Object> body = new LinkedHashMap<>();
-        String parseError = null;
-
-        try {
-            ByteBuffer buffer = ByteBuffer.wrap(payload);
-            ProtocolHeader decodedHeader = ProtocolHeaderCodec.decodeHeader(buffer);
-
-            MessageDefinition definition = messageDefinitionRegistry.findByOpcode(decodedHeader.opcode())
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown opcode: " + decodedHeader.opcode()));
-
-            interfaceName = definition.interfaceName();
-            messageType = definition.messageType();
-
-            header.put("opcode", decodedHeader.opcode());
-            header.put("sendTimeEpochMillis", decodedHeader.sendTimeEpochMillis());
-            header.put("bodyLength", decodedHeader.bodyLength());
-            body.putAll(definition.decodeBody(buffer));
-        } catch (Exception e) {
-            parseError = e.getMessage();
+        if (decoded.header() != null) {
+            header.put("opcode", decoded.header().opcode());
+            header.put("sendTimeEpochMillis", decoded.header().sendTimeEpochMillis());
+            header.put("bodyLength", decoded.header().bodyLength());
         }
+
+        Map<String, Object> body = decoded.bodyFields() != null ? decoded.bodyFields() : new LinkedHashMap<>();
 
         return new ObservedMessage(
                 UUID.randomUUID().toString(),
@@ -167,7 +179,7 @@ public class UdpIngestionRunner {
                 payload.length,
                 payloadText,
                 payloadBase64,
-                parseError
+                decoded.parseError()
         );
     }
 
@@ -183,5 +195,14 @@ public class UdpIngestionRunner {
 
         executor.shutdownNow();
         log.info("UDP ingestion stopped");
+    }
+
+    private record DecodedPacket(
+            MessageDefinition definition,
+            ProtocolHeader header,
+            Map<String, Object> bodyFields,
+            ProtocolMessage typedMessage,
+            String parseError
+    ) {
     }
 }

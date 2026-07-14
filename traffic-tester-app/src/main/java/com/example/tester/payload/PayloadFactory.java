@@ -4,6 +4,8 @@ import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.FruitProtocolCodec;
 import com.example.schemas.fruit.OrangeMessage;
+import com.example.schemas.ping.PingMessage;
+import com.example.schemas.ping.PingProtocolCodec;
 import com.example.schemas.weather.TemperatureReadingMessage;
 import com.example.schemas.weather.WeatherCondition;
 import com.example.schemas.weather.WeatherProtocolCodec;
@@ -16,6 +18,7 @@ import java.util.Base64;
 public class PayloadFactory {
     private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
     private final WeatherProtocolCodec weatherProtocolCodec = new WeatherProtocolCodec();
+    private final PingProtocolCodec pingProtocolCodec = new PingProtocolCodec();
 
     public byte[] create(PayloadConfig config) {
         return switch (config.getMode()) {
@@ -25,6 +28,7 @@ public class PayloadFactory {
             case FRUIT_ORANGE -> createFruitOrange(config);
             case FRUIT_BANANA -> createFruitBanana(config);
             case WEATHER_TEMPERATURE_READING -> createWeatherTemperatureReading(config);
+            case PING -> createPing(config);
         };
     }
 
@@ -54,6 +58,12 @@ public class PayloadFactory {
         );
 
         return weatherProtocolCodec.encodeTemperatureReading(message, Instant.now().toEpochMilli()).payload();
+    }
+
+    private byte[] createPing(PayloadConfig config) {
+        PingMessage pingMessage = new PingMessage(config.getPing().getSequence());
+
+        return pingProtocolCodec.encodePing(pingMessage, Instant.now().toEpochMilli()).payload();
     }
 
     private byte[] parseHex(String hex) {

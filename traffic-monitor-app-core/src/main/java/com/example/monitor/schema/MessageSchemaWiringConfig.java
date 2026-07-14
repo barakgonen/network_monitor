@@ -11,9 +11,12 @@ import java.util.List;
 public class MessageSchemaWiringConfig {
 
     @Bean
-    public MessageDefinitionRegistry messageDefinitionRegistry() throws ReflectiveOperationException {
-        TrafficToolConfig config = new TrafficToolConfigLoader().load();
+    public TrafficToolConfig trafficToolConfig() {
+        return new TrafficToolConfigLoader().load();
+    }
 
+    @Bean
+    public MessageDefinitionRegistry messageDefinitionRegistry(TrafficToolConfig config) throws ReflectiveOperationException {
         List<String> definitionClassNames = new ArrayList<>();
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
             for (MessageConfig message : interfaceConfig.getMessages()) {
