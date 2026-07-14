@@ -1,28 +1,14 @@
 interfaces:
-  - key: fruits
-    name: Fruits Interface
+  - key: fruit
+    name: Fruit Interface
     messages:
+      - type: Orange
+        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
       - type: Banana
-        parserClass: com.example.schemas.demo.BananaParser
-        serializerClass: com.example.schemas.demo.BananaSerializer
-      - type: Mango
-        parserClass: com.example.schemas.demo.MangoParser
-        serializerClass: com.example.schemas.demo.MangoSerializer
+        definitionClass: com.example.schemas.fruit.BananaMessageDefinition
 
-connections:
-  - name: fruits-udp-in
-    protocol: UDP
-    port: 5001
-    interfaceKey: fruits
-
-  - name: fruits-tcp-in
-    protocol: TCP
-    port: 5002
-    interfaceKey: fruits
-
-publishTargets:
-  - name: fruits-monitor-udp
-    protocol: UDP
-    host: traffic-monitor-app
-    port: 5001
-    interfaceKey: fruits
+  - key: weather
+    name: Weather Interface
+    messages:
+      - type: TemperatureReading
+        definitionClass: com.example.schemas.weather.TemperatureReadingMessageDefinition

@@ -7,8 +7,11 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="shared-schemas" />
+        <module name="handler-core" />
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
+        <module name="handler-app" />
+        <module name="schema-core" />
       </profile>
     </annotationProcessing>
   </component>

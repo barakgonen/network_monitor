@@ -1,65 +1,52 @@
 package com.example.schemas.weather;
 
+import com.example.schemacore.ProtocolHeader;
+import com.example.schemacore.ProtocolHeaderCodec;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class WeatherProtocolCodec {
-    private static final int HEADER_SIZE_BYTES = Integer.BYTES + Long.BYTES + Integer.BYTES;
 
     public EncodedWeatherMessage encodeTemperatureReading(
             TemperatureReadingMessage message,
             long sendTimeEpochMillis
     ) {
+        byte[] body = encodeTemperatureReadingBody(message);
+        return new EncodedWeatherMessage(
+                ProtocolHeaderCodec.encodeMessage(WeatherOpcodes.TEMPERATURE_READING, sendTimeEpochMillis, body));
+    }
+
+    public DecodedWeatherMessage decode(byte[] payload) {
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
+
+        String messageType = WeatherOpcodes.messageType(header.opcode());
+        Map<String, Object> bodyFields = new LinkedHashMap<>();
+
+        if (header.opcode() == WeatherOpcodes.TEMPERATURE_READING) {
+            decodeTemperatureReadingBody(buffer, bodyFields);
+        }
+
+        WeatherProtocolHeader weatherHeader = new WeatherProtocolHeader(header.opcode(), header.sendTimeEpochMillis(), header.bodyLength());
+        return new DecodedWeatherMessage("Weather Interface", messageType, weatherHeader, bodyFields);
+    }
+
+    static byte[] encodeTemperatureReadingBody(TemperatureReadingMessage message) {
         byte[] stationIdBytes = message.stationId().getBytes(StandardCharsets.UTF_8);
 
-        int bodyLength = Integer.BYTES + stationIdBytes.length + Double.BYTES + Byte.BYTES;
-        ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE_BYTES + bodyLength);
-
-        buffer.putInt(WeatherOpcodes.TEMPERATURE_READING);
-        buffer.putLong(sendTimeEpochMillis);
-        buffer.putInt(bodyLength);
-
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + stationIdBytes.length + Double.BYTES + Byte.BYTES);
         buffer.putInt(stationIdBytes.length);
         buffer.put(stationIdBytes);
         buffer.putDouble(message.temperatureCelsius());
         buffer.put(message.condition().getCode());
 
-        return new EncodedWeatherMessage(buffer.array());
+        return buffer.array();
     }
 
-    public DecodedWeatherMessage decode(byte[] payload) {
-        if (payload.length < HEADER_SIZE_BYTES) {
-            throw new IllegalArgumentException("Payload too short for Weather header. actual=" + payload.length + ", required=" + HEADER_SIZE_BYTES);
-        }
-
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
-
-        int opcode = buffer.getInt();
-        long sendTimeEpochMillis = buffer.getLong();
-        int bodyLength = buffer.getInt();
-
-        if (bodyLength < 0) {
-            throw new IllegalArgumentException("Invalid negative bodyLength: " + bodyLength);
-        }
-
-        if (buffer.remaining() != bodyLength) {
-            throw new IllegalArgumentException("Invalid bodyLength. header=" + bodyLength + ", actualRemaining=" + buffer.remaining());
-        }
-
-        String messageType = WeatherOpcodes.messageType(opcode);
-        Map<String, Object> bodyFields = new LinkedHashMap<>();
-
-        if (opcode == WeatherOpcodes.TEMPERATURE_READING) {
-            decodeTemperatureReadingBody(buffer, bodyFields);
-        }
-
-        WeatherProtocolHeader header = new WeatherProtocolHeader(opcode, sendTimeEpochMillis, bodyLength);
-        return new DecodedWeatherMessage("Weather Interface", messageType, header, bodyFields);
-    }
-
-    private void decodeTemperatureReadingBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
+    static void decodeTemperatureReadingBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
         if (buffer.remaining() < Integer.BYTES + Double.BYTES + Byte.BYTES) {
             throw new IllegalArgumentException("TemperatureReading body is too short");
         }

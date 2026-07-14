@@ -9,13 +9,24 @@
     <version>1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>shared-schemas</artifactId>
+  <artifactId>handler-app</artifactId>
 
   <dependencies>
     <dependency>
       <groupId>com.example</groupId>
-      <artifactId>schema-core</artifactId>
+      <artifactId>handler-core</artifactId>
       <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>shared-schemas</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
     </dependency>
   </dependencies>
 </project>

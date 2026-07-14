@@ -1,80 +1,65 @@
 package com.example.schemas.fruit;
 
+import com.example.schemacore.ProtocolHeader;
+import com.example.schemacore.ProtocolHeaderCodec;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class FruitProtocolCodec {
-    private static final int HEADER_SIZE_BYTES = Integer.BYTES + Long.BYTES + Integer.BYTES;
 
     public EncodedFruitMessage encodeOrange(OrangeMessage orangeMessage, long sendTimeEpochMillis) {
+        byte[] body = encodeOrangeBody(orangeMessage);
+        return new EncodedFruitMessage(ProtocolHeaderCodec.encodeMessage(FruitOpcodes.ORANGE, sendTimeEpochMillis, body));
+    }
+
+    public EncodedFruitMessage encodeBanana(BananaMessage bananaMessage, long sendTimeEpochMillis) {
+        byte[] body = encodeBananaBody(bananaMessage);
+        return new EncodedFruitMessage(ProtocolHeaderCodec.encodeMessage(FruitOpcodes.BANANA, sendTimeEpochMillis, body));
+    }
+
+    public DecodedFruitMessage decode(byte[] payload) {
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
+
+        String messageType = FruitOpcodes.messageType(header.opcode());
+        Map<String, Object> bodyFields = new LinkedHashMap<>();
+
+        if (header.opcode() == FruitOpcodes.ORANGE) {
+            decodeOrangeBody(buffer, bodyFields);
+        } else if (header.opcode() == FruitOpcodes.BANANA) {
+            decodeBananaBody(buffer, bodyFields);
+        }
+
+        FruitProtocolHeader fruitHeader = new FruitProtocolHeader(header.opcode(), header.sendTimeEpochMillis(), header.bodyLength());
+        return new DecodedFruitMessage("Fruit Interface", messageType, fruitHeader, bodyFields);
+    }
+
+    static byte[] encodeOrangeBody(OrangeMessage orangeMessage) {
         byte[] sourceFarmBytes = orangeMessage.sourceFarm().getBytes(StandardCharsets.UTF_8);
 
-        int bodyLength = Integer.BYTES + sourceFarmBytes.length + Byte.BYTES;
-        ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE_BYTES + bodyLength);
-
-        buffer.putInt(FruitOpcodes.ORANGE);
-        buffer.putLong(sendTimeEpochMillis);
-        buffer.putInt(bodyLength);
-
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + sourceFarmBytes.length + Byte.BYTES);
         buffer.putInt(sourceFarmBytes.length);
         buffer.put(sourceFarmBytes);
         buffer.put(orangeMessage.freshness().getCode());
 
-        return new EncodedFruitMessage(buffer.array());
+        return buffer.array();
     }
 
-    public EncodedFruitMessage encodeBanana(BananaMessage bananaMessage, long sendTimeEpochMillis) {
+    static byte[] encodeBananaBody(BananaMessage bananaMessage) {
         byte[] colorBytes = bananaMessage.color().getBytes(StandardCharsets.UTF_8);
 
-        int bodyLength = Integer.BYTES + colorBytes.length + Double.BYTES;
-        ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE_BYTES + bodyLength);
-
-        buffer.putInt(FruitOpcodes.BANANA);
-        buffer.putLong(sendTimeEpochMillis);
-        buffer.putInt(bodyLength);
-
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + colorBytes.length + Double.BYTES);
         buffer.putInt(colorBytes.length);
         buffer.put(colorBytes);
         buffer.putDouble(bananaMessage.weight());
 
-        return new EncodedFruitMessage(buffer.array());
+        return buffer.array();
     }
 
-    public DecodedFruitMessage decode(byte[] payload) {
-        if (payload.length < HEADER_SIZE_BYTES) {
-            throw new IllegalArgumentException("Payload too short for Fruit header. actual=" + payload.length + ", required=" + HEADER_SIZE_BYTES);
-        }
-
-        ByteBuffer buffer = ByteBuffer.wrap(payload);
-
-        int opcode = buffer.getInt();
-        long sendTimeEpochMillis = buffer.getLong();
-        int bodyLength = buffer.getInt();
-
-        if (bodyLength < 0) {
-            throw new IllegalArgumentException("Invalid negative bodyLength: " + bodyLength);
-        }
-
-        if (buffer.remaining() != bodyLength) {
-            throw new IllegalArgumentException("Invalid bodyLength. header=" + bodyLength + ", actualRemaining=" + buffer.remaining());
-        }
-
-        String messageType = FruitOpcodes.messageType(opcode);
-        Map<String, Object> bodyFields = new LinkedHashMap<>();
-
-        if (opcode == FruitOpcodes.ORANGE) {
-            decodeOrangeBody(buffer, bodyFields);
-        } else if (opcode == FruitOpcodes.BANANA) {
-            decodeBananaBody(buffer, bodyFields);
-        }
-
-        FruitProtocolHeader header = new FruitProtocolHeader(opcode, sendTimeEpochMillis, bodyLength);
-        return new DecodedFruitMessage("Fruit Interface", messageType, header, bodyFields);
-    }
-
-    private void decodeOrangeBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
+    static void decodeOrangeBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
         if (buffer.remaining() < Integer.BYTES + Byte.BYTES) {
             throw new IllegalArgumentException("Orange body is too short");
         }
@@ -94,7 +79,7 @@ public class FruitProtocolCodec {
         bodyFields.put("freshness", freshness.getWireName());
     }
 
-    private void decodeBananaBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
+    static void decodeBananaBody(ByteBuffer buffer, Map<String, Object> bodyFields) {
         if (buffer.remaining() < Integer.BYTES + Double.BYTES) {
             throw new IllegalArgumentException("Banana body is too short");
         }
