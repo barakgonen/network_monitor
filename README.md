@@ -10,21 +10,26 @@ protocol traffic over UDP. It has two runnable apps that talk to each other:
 - **traffic-tester-app** — a standalone CLI app that sends synthetic UDP traffic (defined in a
   YAML scenario file) at the monitor, and can optionally listen for messages sent back.
 
-Six Maven modules make up the system, in two decoupled pairs (a generic "core" plus a
-schema-aware "application" implementation for each concern):
+Seven Maven modules make up the system, split so the "engine" is a generic, distributable SDK
+and everything Fruit/Weather-specific is a swappable, client-suppliable layer on top:
 
-- **schema-core** / **shared-schemas** — wire-format decode/encode. `schema-core` defines the
-  generic `MessageDefinition` contract and header framing; `shared-schemas` implements it once
-  per message type (Orange, Banana, TemperatureReading) and is the only module that knows the
-  actual binary layouts.
-- **handler-core** / **handler-app** — the `onMessageArrived` auto-reply mechanism.
-  `handler-core` defines the generic dispatch contract; `handler-app` implements per-message
-  reaction logic using the real schema types.
-- **traffic-monitor-app** — the Spring Boot service. It depends on all four of the modules
-  above for classpath assembly, but its own source never imports a concrete schema or handler
-  type — it discovers and loads `MessageDefinition`/`MessageArrivedHandler` implementations by
-  fully-qualified class name via reflection (definitions from `config/traffic-tool.yml`,
-  handlers via Spring component scanning), keeping the app itself protocol-agnostic.
+- **schema-core** / **handler-core** — the generic engine's two contracts, zero Fruit/Weather
+  knowledge, zero dependency on anything but the JDK: `schema-core` defines `MessageDefinition`
+  (wire decode/encode) and `handler-core` defines `MessageArrivedHandler` (the `onMessageArrived`
+  auto-reply dispatch contract).
+- **shared-schemas** / **handler-app** — *our* concrete implementations of those two contracts
+  for the Fruit/Weather protocols. Neither is required by the engine — they're supplied by
+  whoever assembles a runnable app, exactly like a plugin.
+- **traffic-monitor-app-core** — the generic engine itself: ingestion, store, REST API, UI
+  resources, publishing, reflection/scan-based wiring. Depends on `schema-core` + `handler-core`
+  only — **not** `shared-schemas`, **not** `handler-app`. This is the module a client would
+  take a dependency on to build their *own* monitor with their *own* protocol and handlers.
+- **traffic-monitor-app** — a thin packaging shell with no source of its own; it's *our*
+  reference assembly of the engine. Depends on `traffic-monitor-app-core` + `shared-schemas` +
+  `handler-app` (all three assembly-only) and holds the `spring-boot-maven-plugin` config that
+  produces the final runnable/deployable jar. A client building their own monitor would write
+  their own thin module shaped exactly like this one, swapping in their own schema/handler
+  modules (or reusing ours).
 
 Two demo protocols currently exist: **Fruit Interface** (Orange, Banana messages) and
 **Weather Interface** (TemperatureReading messages).
@@ -44,28 +49,46 @@ Two demo protocols currently exist: **Fruit Interface** (Orange, Banana messages
 ```
 
 ```
-schema-core  ◄── shared-schemas          handler-core  ◄── handler-app
-   (generic)      (Fruit/Weather impl)      (generic)       (Fruit/Weather impl)
-        ▲                  ▲                     ▲                 ▲
-        └──────────────────┴─────────┬───────────┴─────────────────┘
-                                      │  (assembly-only; zero source imports)
-                             traffic-monitor-app
-                                      ▲
-                                      │ (depends on shared-schemas directly, uses types directly)
-                             traffic-tester-app
+   schema-core          handler-core          <-- the generic engine's contracts (SDK)
+   (generic)             (generic)
+        ▲                     ▲
+        └──────────┬──────────┘
+                    │  (compile dependency; zero schema/handler imports)
+         traffic-monitor-app-core             <-- the generic engine itself (distributable)
+                    ▲
+                    │  (assembly-only; traffic-monitor-app has no src/ of its own)
+                    │
+   shared-schemas ──┼── handler-app           <-- our concrete plugin implementations
+        ▲           │        ▲                    (a client could supply their own instead)
+        └───────────┼────────┘
+                    traffic-monitor-app        <-- our reference assembly (client pattern)
+                    │
+                    │  spring-boot-maven-plugin repackage -> the runnable jar
+                    ▼
+                (Docker image)
+
+  traffic-tester-app ──► shared-schemas (depends on it directly, uses types directly)
 ```
 
 - `schema-core` and `handler-core` have no dependencies beyond the JDK — pure generic
-  contracts, no Fruit/Weather knowledge at all.
+  contracts, no Fruit/Weather knowledge at all. Together they're the reusable "SDK" a client
+  would build against.
 - `shared-schemas` implements `schema-core`'s `MessageDefinition` for each real message type
   and still exposes the original `FruitProtocolCodec`/`WeatherProtocolCodec` classes (used
   directly by `traffic-tester-app`, which is *not* schema-agnostic — it's a test tool that's
   allowed to know the wire format).
 - `handler-app` implements `handler-core`'s `MessageArrivedHandler` using `shared-schemas`
   types directly — it's the deliberate "application layer where schema types are used."
-- `traffic-monitor-app` is the only Spring Boot module; it owns the HTTP API, UI, and ingestion
-  pipeline, and stays generic by only ever referencing the `schema-core`/`handler-core`
-  interfaces, never the concrete `shared-schemas`/`handler-app` classes.
+- `traffic-monitor-app-core` owns the HTTP API, UI, and ingestion pipeline, and stays fully
+  generic by only ever referencing the `schema-core`/`handler-core` interfaces — a Maven-level
+  guarantee (no `shared-schemas` or `handler-app` dependency at all in its `pom.xml`), not just
+  a source-code convention. A client can depend on this module's published jar directly.
+- `traffic-monitor-app` is the only module that depends on `traffic-monitor-app-core` +
+  `shared-schemas` + `handler-app` together, and the only one that runs
+  `spring-boot-maven-plugin`'s `repackage` goal — it's purely an assembly/packaging module (no
+  `src/` of its own), and its final fat jar is what the Dockerfile copies. This module is the
+  *pattern* a client replicates: their own thin shell depending on `traffic-monitor-app-core` +
+  their own schema/handler modules (or ours).
 - `traffic-tester-app` is a plain Java app (no Spring) with its own `main()`.
 
 ## Wire protocols
@@ -157,7 +180,9 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 | `com.example.handlerapp.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
 | `com.example.handlerapp.weather` | `TemperatureReadingMessageHandler` (stub) |
 
-### traffic-monitor-app (`com.example.monitor`)
+### traffic-monitor-app-core (`com.example.monitor`)
+
+All of the monitor's actual Java source and resources (`application.yml`, `static/*`) live here.
 
 | Package | Classes |
 |---|---|
@@ -170,6 +195,14 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 | `com.example.monitor.publishing` | `MonitorPayloadFactory` (fields map → protocol bytes via `MessageDefinitionRegistry`), `UdpMessagePublisher` (send one datagram), `PeriodicPublisherService` (scheduled repeat send) |
 | `com.example.monitor.handler` | `HandlerWiringConfig` — wires the `handler-core` `ReplySender`/`MessageHandlerRegistry`/`MessageArrivedDispatcher` beans on top of `MonitorPayloadFactory`/`UdpMessagePublisher` |
 | `com.example.monitor.api` | `MessageController`, `PublishController`, `PeriodicPublishController` + their request/response records |
+
+### traffic-monitor-app
+
+No `src/` directory — just a `pom.xml` declaring the `traffic-monitor-app-core` +
+`shared-schemas` + `handler-app` dependencies and the `spring-boot-maven-plugin` `repackage`
+config (`mainClass=com.example.monitor.TrafficMonitorApplication`, resolvable at runtime
+because it's on the classpath via `traffic-monitor-app-core`). `docker-compose.yml`/`Dockerfile`
+build and copy this module's jar — everything else is pulled in transitively.
 
 ### traffic-tester-app (`com.example.tester`)
 
@@ -419,12 +452,29 @@ Exposed ports: `8080/tcp` (monitor HTTP+UI), `5001/udp` (Fruit), `5003/udp` (Wea
   mvn clean package
   ```
 
-  builds all six modules (`schema-core`, `shared-schemas`, `handler-core`, `handler-app`,
-  `traffic-monitor-app`, `traffic-tester-app`) in dependency order.
-- Run the monitor locally without Docker: `mvn -pl traffic-monitor-app -am spring-boot:run`
-  (or run the built jar), using `application.yml` for ports and `config/traffic-tool.yml`
-  (via `TRAFFIC_TOOL_CONFIG`, default `config/traffic-tool.yml` relative to the working
-  directory) for message definitions — HTTP on `:8080`, UDP on `:5001`/`:5003`.
+  builds all seven modules (`schema-core`, `shared-schemas`, `handler-core`, `handler-app`,
+  `traffic-monitor-app-core`, `traffic-monitor-app`, `traffic-tester-app`) in dependency order.
+- Run the monitor locally without Docker (simplest — from the repo root, after `mvn clean
+  package`):
+
+  ```bash
+  TRAFFIC_TOOL_CONFIG=config/traffic-tool.yml \
+    java -jar traffic-monitor-app/target/traffic-monitor-app-1.0-SNAPSHOT.jar
+  ```
+
+  Uses `application.yml` for ports and `config/traffic-tool.yml` for message definitions —
+  HTTP on `:8080`, UDP on `:5001`/`:5003`.
+
+  `spring-boot:run` also works, but needs `mvn install` first (not just `package` — direct
+  goal invocation, unlike lifecycle phases, doesn't resolve sibling-module dependencies via
+  `-am`) and an **absolute** `TRAFFIC_TOOL_CONFIG` path (the plugin's working directory is the
+  `traffic-monitor-app/` module folder, not the repo root, so the `config/traffic-tool.yml`
+  relative default won't resolve):
+
+  ```bash
+  mvn install -DskipTests
+  TRAFFIC_TOOL_CONFIG="$(pwd)/config/traffic-tool.yml" mvn -pl traffic-monitor-app spring-boot:run
+  ```
 - Run the tester locally without Docker: see [Standalone run](#standalone-run) above.
 
 ## Known gaps / legacy code

@@ -13,6 +13,7 @@
     <module>shared-schemas</module>
     <module>handler-core</module>
     <module>handler-app</module>
+    <module>traffic-monitor-app-core</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>
   </modules>

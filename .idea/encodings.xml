@@ -11,6 +11,8 @@
     <file url="file://$PROJECT_DIR$/shared-schemas/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/traffic-monitor-app-core/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/traffic-monitor-app-core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/traffic-monitor-app/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/traffic-monitor-app/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/traffic-tester-app/src/main/java" charset="UTF-8" />
