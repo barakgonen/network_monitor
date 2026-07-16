@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PeriodicPublisherService {
     private final MonitorPayloadFactory payloadFactory;
     private final UdpMessagePublisher udpMessagePublisher;
+    private final TcpMessagePublisher tcpMessagePublisher;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -25,9 +26,14 @@ public class PeriodicPublisherService {
     private final AtomicLong sentCount = new AtomicLong(0);
     private volatile String lastError;
 
-    public PeriodicPublisherService(MonitorPayloadFactory payloadFactory, UdpMessagePublisher udpMessagePublisher) {
+    public PeriodicPublisherService(
+            MonitorPayloadFactory payloadFactory,
+            UdpMessagePublisher udpMessagePublisher,
+            TcpMessagePublisher tcpMessagePublisher
+    ) {
         this.payloadFactory = payloadFactory;
         this.udpMessagePublisher = udpMessagePublisher;
+        this.tcpMessagePublisher = tcpMessagePublisher;
     }
 
     public PeriodicPublishStatus start(PeriodicPublishRequest request) {
@@ -105,11 +111,13 @@ public class PeriodicPublisherService {
                     publishRequest.fields()
             );
 
-            udpMessagePublisher.send(
-                    publishRequest.host(),
-                    publishRequest.port(),
-                    payload
-            );
+            String transport = TransportSelector.normalize(publishRequest.transport());
+
+            if ("TCP".equals(transport)) {
+                tcpMessagePublisher.send(publishRequest.host(), publishRequest.port(), payload);
+            } else {
+                udpMessagePublisher.send(publishRequest.host(), publishRequest.port(), payload);
+            }
 
             sentCount.incrementAndGet();
         } catch (Exception e) {

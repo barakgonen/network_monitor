@@ -5,6 +5,7 @@ import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
 import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
+import com.example.tester.tcp.TcpPublisher;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 
@@ -12,6 +13,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 
 public class TesterMain {
     public static void main(String[] args) throws Exception {
@@ -22,6 +24,7 @@ public class TesterMain {
 
         PayloadFactory payloadFactory = new PayloadFactory();
         UdpPublisher udpPublisher = new UdpPublisher();
+        TcpPublisher tcpPublisher = new TcpPublisher();
 
         UdpListener listener = null;
 
@@ -55,8 +58,13 @@ public class TesterMain {
 
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
+                String transport = resolveTransport(messageConfig);
 
-                udpPublisher.send(host, port, payload);
+                if ("TCP".equals(transport)) {
+                    tcpPublisher.send(host, port, payload);
+                } else {
+                    udpPublisher.send(host, port, payload);
+                }
 
                 totalSent++;
 
@@ -66,6 +74,8 @@ public class TesterMain {
                         + messages.size()
                         + " type="
                         + messageConfig.getMode()
+                        + ", transport="
+                        + transport
                         + ", target="
                         + host
                         + ":"
@@ -106,5 +116,15 @@ public class TesterMain {
         }
 
         return scenario.getUdp().getPort();
+    }
+
+    private static String resolveTransport(PayloadConfig messageConfig) {
+        if (messageConfig.getTarget() != null
+                && messageConfig.getTarget().getTransport() != null
+                && !messageConfig.getTarget().getTransport().isBlank()) {
+            return messageConfig.getTarget().getTransport().trim().toUpperCase(Locale.ROOT);
+        }
+
+        return "UDP";
     }
 }

@@ -1,11 +1,35 @@
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+spring:
+  datasource:
+    url: jdbc:h2:file:${TRAFFIC_MONITOR_DB_PATH:./data/traffic-monitor};AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: always
+
 traffic:
   udp:
     enabled: true
     fruit-port: 5001
     weather-port: 5003
     buffer-size-bytes: 65507
+  tcp:
+    enabled: true
+    fruit-port: 5001
+    weather-port: 5003
+    max-body-length-bytes: 65507
   store:
     max-size: 500

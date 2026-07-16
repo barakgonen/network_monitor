@@ -1,0 +1,37 @@
+autoReply:
+  enabled: false
+
+interfaces:
+  - key: fruit
+    name: Fruit Interface
+    messages:
+      - type: Orange
+        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+      - type: Banana
+        definitionClass: com.example.schemas.fruit.BananaMessageDefinition
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
+
+  - key: weather
+    name: Weather Interface
+    messages:
+      - type: TemperatureReading
+        definitionClass: com.example.schemas.weather.TemperatureReadingMessageDefinition
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
+
+  - key: ping
+    name: Ping Interface
+    messages:
+      - type: Ping
+        definitionClass: com.example.schemas.ping.PingMessageDefinition
+      - type: Pong
+        definitionClass: com.example.schemas.ping.PongMessageDefinition
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001

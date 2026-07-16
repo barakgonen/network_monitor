@@ -5,6 +5,8 @@ import com.example.handlercore.MessageArrivedHandler;
 import com.example.handlercore.MessageHandlerRegistry;
 import com.example.handlercore.ReplySender;
 import com.example.monitor.publishing.MonitorPayloadFactory;
+import com.example.monitor.publishing.TcpMessagePublisher;
+import com.example.monitor.publishing.TransportSelector;
 import com.example.monitor.publishing.UdpMessagePublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,10 +17,19 @@ import java.util.List;
 public class HandlerWiringConfig {
 
     @Bean
-    public ReplySender replySender(MonitorPayloadFactory payloadFactory, UdpMessagePublisher udpMessagePublisher) {
-        return (message, host, port) -> {
+    public ReplySender replySender(
+            MonitorPayloadFactory payloadFactory,
+            UdpMessagePublisher udpMessagePublisher,
+            TcpMessagePublisher tcpMessagePublisher
+    ) {
+        return (message, host, port, transport) -> {
             byte[] payload = payloadFactory.create(message);
-            udpMessagePublisher.send(host, port, payload);
+
+            if ("TCP".equals(TransportSelector.normalize(transport))) {
+                tcpMessagePublisher.send(host, port, payload);
+            } else {
+                udpMessagePublisher.send(host, port, payload);
+            }
         };
     }
 

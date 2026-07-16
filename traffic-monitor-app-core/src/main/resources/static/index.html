@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -92,6 +93,7 @@
       <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
       <button class="tab" id="publisherTab" onclick="showTab('publisher')">Sample Publisher</button>
       <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">Auto-Reply</button>
+      <button class="tab" id="historyTab" onclick="showTab('history')">History</button>
     </nav>
 
     <section id="livePanel" class="panel table-panel">
@@ -158,8 +160,16 @@
             </div>
 
             <div class="form-row">
-              <label for="publisherPort">Target UDP Port</label>
+              <label for="publisherPort">Target Port</label>
               <input id="publisherPort" type="number" min="1" max="65535" value="5001">
+            </div>
+
+            <div class="form-row">
+              <label for="publisherTransport">Transport</label>
+              <select id="publisherTransport">
+                <option value="UDP">UDP</option>
+                <option value="TCP">TCP</option>
+              </select>
             </div>
 
             <div id="publisherFields"></div>
@@ -244,6 +254,76 @@
             <h3>Per-Interface Destinations</h3>
           </div>
           <div id="autoReplyAccordion" class="accordion"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="historyPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>History &amp; Analytics</h2>
+      </div>
+
+      <div class="history-filters">
+        <select id="historyInterfaceFilter">
+          <option value="">All interfaces</option>
+          <option value="Fruit Interface">Fruit Interface</option>
+          <option value="Weather Interface">Weather Interface</option>
+          <option value="Ping Interface">Ping Interface</option>
+        </select>
+        <input id="historyMessageTypeFilter" type="text" class="filter-input" placeholder="Message type…">
+        <label class="toggle-switch">
+          <input type="checkbox" id="historyParseErrorOnly">
+          <span class="toggle-slider"></span>
+        </label>
+        <span>Errors only</span>
+        <input id="historyFrom" type="datetime-local">
+        <input id="historyTo" type="datetime-local">
+        <button id="historySearchBtn" class="secondary-btn" onclick="onHistoryFiltersChanged()">Search</button>
+      </div>
+
+      <div class="publisher-layout">
+        <div class="publisher-card chart-card">
+          <div class="publisher-card-header">
+            <h3>Message Volume Over Time</h3>
+          </div>
+          <div class="chart-body">
+            <canvas id="historyTimeSeriesChart"></canvas>
+          </div>
+        </div>
+
+        <div class="publisher-card chart-card">
+          <div class="publisher-card-header">
+            <h3>Breakdown by Interface</h3>
+          </div>
+          <div class="chart-body">
+            <canvas id="historyBreakdownChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+          <tr>
+            <th>Observed At</th>
+            <th>Protocol</th>
+            <th>Port</th>
+            <th>Interface</th>
+            <th>Message Name</th>
+            <th>Message Body</th>
+            <th>Parse Error</th>
+          </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+        <div id="historyEmptyState" class="empty-state" style="display:none;">No historical messages match these filters.</div>
+      </div>
+
+      <div class="pagination-row">
+        <span id="historyPageInfo">0 results</span>
+        <div>
+          <button class="secondary-btn" id="historyPrevBtn" onclick="changeHistoryPage(-1)">Prev</button>
+          <button class="secondary-btn" id="historyNextBtn" onclick="changeHistoryPage(1)">Next</button>
         </div>
       </div>
     </section>
@@ -349,13 +429,19 @@
     document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
     document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
     document.getElementById('autoReplyPanel').style.display = tab === 'autoreply' ? '' : 'none';
+    document.getElementById('historyPanel').style.display = tab === 'history' ? '' : 'none';
 
     document.getElementById('liveTab').classList.toggle('active', tab === 'live');
     document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
     document.getElementById('autoReplyTab').classList.toggle('active', tab === 'autoreply');
+    document.getElementById('historyTab').classList.toggle('active', tab === 'history');
 
     if (tab === 'autoreply') {
       loadAutoReplySettings();
+    }
+
+    if (tab === 'history') {
+      onHistoryFiltersChanged();
     }
   }
 
@@ -416,6 +502,7 @@
     const messageType = document.getElementById('publisherMessage').value;
     const host = document.getElementById('publisherHost').value;
     const port = Number(document.getElementById('publisherPort').value);
+    const transport = document.getElementById('publisherTransport').value;
     const fields = {};
 
     const definitions = messageDefinitions[interfaceName].messages[messageType];
@@ -425,7 +512,7 @@
       fields[field.name] = field.type === 'number' ? Number(input.value) : input.value;
     }
 
-    return { interfaceName, messageType, host, port, fields };
+    return { interfaceName, messageType, host, port, transport, fields };
   }
 
   async function publishMessage() {
@@ -533,7 +620,7 @@
             <span class="toggle-slider"></span>
           </label>
           <span class="accordion-title">${escapeHtml(interfaceName)}</span>
-          <span class="accordion-summary">${escapeHtml(destination.host)}:${escapeHtml(destination.port)}</span>
+          <span class="accordion-summary">${escapeHtml(destination.host)}:${escapeHtml(destination.port)} (${escapeHtml(destination.transport || 'UDP')})</span>
         </div>
         <div class="accordion-body">
           <div class="form-row">
@@ -543,6 +630,13 @@
           <div class="form-row">
             <label>Port</label>
             <input class="interface-port" type="number" min="1" max="65535" value="${escapeHtml(destination.port)}">
+          </div>
+          <div class="form-row">
+            <label>Transport</label>
+            <select class="interface-transport">
+              <option value="UDP" ${(destination.transport || 'UDP') === 'UDP' ? 'selected' : ''}>UDP</option>
+              <option value="TCP" ${destination.transport === 'TCP' ? 'selected' : ''}>TCP</option>
+            </select>
           </div>
           <button class="primary-btn interface-save">Save</button>
         </div>
@@ -577,14 +671,146 @@
     const enabled = row.querySelector('.interface-toggle').checked;
     const host = row.querySelector('.interface-host').value;
     const port = Number(row.querySelector('.interface-port').value);
+    const transport = row.querySelector('.interface-transport').value;
 
     const response = await fetch('/api/autoreply/interface', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interfaceName, enabled, host, port })
+      body: JSON.stringify({ interfaceName, enabled, host, port, transport })
     });
 
     renderAutoReplyPanel(await response.json());
+  }
+
+  let historyOffset = 0;
+  const historyLimit = 50;
+  let historyTotalCount = 0;
+  let timeSeriesChartInstance = null;
+  let breakdownChartInstance = null;
+
+  function buildHistoryQueryParams(extra) {
+    const params = new URLSearchParams();
+    const interfaceName = document.getElementById('historyInterfaceFilter').value;
+    const messageType = document.getElementById('historyMessageTypeFilter').value;
+    const parseErrorOnly = document.getElementById('historyParseErrorOnly').checked;
+    const from = document.getElementById('historyFrom').value;
+    const to = document.getElementById('historyTo').value;
+
+    if (interfaceName) params.set('interfaceName', interfaceName);
+    if (messageType) params.set('messageType', messageType);
+    if (parseErrorOnly) params.set('parseErrorOnly', 'true');
+    if (from) params.set('from', new Date(from).toISOString());
+    if (to) params.set('to', new Date(to).toISOString());
+
+    if (extra) {
+      Object.keys(extra).forEach(key => params.set(key, extra[key]));
+    }
+
+    return params;
+  }
+
+  async function loadHistory() {
+    const params = buildHistoryQueryParams({ limit: historyLimit, offset: historyOffset });
+    const response = await fetch(`/api/messages/history?${params.toString()}`);
+    const data = await response.json();
+
+    historyTotalCount = data.totalCount;
+    renderHistoryTable(data.items);
+    renderHistoryPagination();
+  }
+
+  function renderHistoryTable(items) {
+    const tbody = document.getElementById('historyTableBody');
+    const emptyState = document.getElementById('historyEmptyState');
+
+    tbody.innerHTML = '';
+    emptyState.style.display = items.length === 0 ? 'block' : 'none';
+
+    for (const msg of items) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${escapeHtml(formatTime(msg.observedAt))}</td>
+        <td><span class="protocol-pill">${escapeHtml(msg.transportProtocol || '')}</span></td>
+        <td>${escapeHtml(msg.localPort)}</td>
+        <td>${escapeHtml(msg.interfaceName || '')}</td>
+        <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
+        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
+        <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
+      `;
+      tbody.appendChild(row);
+    }
+  }
+
+  function renderHistoryPagination() {
+    const pageInfo = document.getElementById('historyPageInfo');
+    const start = historyTotalCount === 0 ? 0 : historyOffset + 1;
+    const end = Math.min(historyOffset + historyLimit, historyTotalCount);
+    pageInfo.innerText = `${start}-${end} of ${historyTotalCount}`;
+
+    document.getElementById('historyPrevBtn').disabled = historyOffset === 0;
+    document.getElementById('historyNextBtn').disabled = historyOffset + historyLimit >= historyTotalCount;
+  }
+
+  function changeHistoryPage(direction) {
+    const nextOffset = historyOffset + direction * historyLimit;
+
+    if (nextOffset < 0 || nextOffset >= historyTotalCount) {
+      return;
+    }
+
+    historyOffset = nextOffset;
+    loadHistory();
+  }
+
+  async function loadTimeSeriesChart() {
+    const params = buildHistoryQueryParams({ bucket: 'hour' });
+    const response = await fetch(`/api/analytics/timeseries?${params.toString()}`);
+    const data = await response.json();
+
+    const labels = data.points.map(p => formatTime(p.bucketStart));
+    const counts = data.points.map(p => p.count);
+
+    if (timeSeriesChartInstance) {
+      timeSeriesChartInstance.destroy();
+    }
+
+    timeSeriesChartInstance = new Chart(document.getElementById('historyTimeSeriesChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: 'Messages', data: counts, backgroundColor: '#5ee6d0' }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+  }
+
+  async function loadBreakdownChart() {
+    const params = buildHistoryQueryParams({ groupBy: 'interfaceName' });
+    const response = await fetch(`/api/analytics/breakdown?${params.toString()}`);
+    const data = await response.json();
+
+    const labels = data.entries.map(e => e.key);
+    const counts = data.entries.map(e => e.count);
+
+    if (breakdownChartInstance) {
+      breakdownChartInstance.destroy();
+    }
+
+    breakdownChartInstance = new Chart(document.getElementById('historyBreakdownChart'), {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: counts, backgroundColor: ['#5ee6d0', '#f5a962', '#e26d7b', '#8fb8f6', '#c792ea'] }]
+      },
+      options: { responsive: true }
+    });
+  }
+
+  function onHistoryFiltersChanged() {
+    historyOffset = 0;
+    loadHistory();
+    loadTimeSeriesChart();
+    loadBreakdownChart();
   }
 
   function formatTime(value) {

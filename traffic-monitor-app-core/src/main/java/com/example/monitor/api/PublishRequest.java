@@ -7,6 +7,7 @@ public record PublishRequest(
         String messageType,
         String host,
         int port,
+        String transport,
         Map<String, Object> fields
 ) {
 }

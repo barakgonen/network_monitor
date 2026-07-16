@@ -24,7 +24,7 @@ public class OrangeMessageHandler implements MessageArrivedHandler<OrangeMessage
     @Override
     public void onMessageArrived(OrangeMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         if (message.freshness() == FruitFreshness.NOT_FRESH && destinationConfig != null) {
-            replySender.reply(new BananaMessage("yellow", 100.0), destinationConfig.host(), destinationConfig.port());
+            replySender.reply(new BananaMessage("yellow", 100.0), destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         }
     }
 }

@@ -23,7 +23,7 @@ public class PingMessageHandler implements MessageArrivedHandler<PingMessage> {
     @Override
     public void onMessageArrived(PingMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         if (destinationConfig != null) {
-            replySender.reply(new PongMessage(message.sequence()), destinationConfig.host(), destinationConfig.port());
+            replySender.reply(new PongMessage(message.sequence()), destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         }
     }
 }

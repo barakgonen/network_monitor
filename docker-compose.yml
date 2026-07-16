@@ -8,10 +8,14 @@ services:
       - "8080:8080"
       - "5001:5001/udp"
       - "5003:5003/udp"
+      - "5001:5001/tcp"
+      - "5003:5003/tcp"
     volumes:
       - ./config:/app/config:ro
+      - ./data:/app/data
     environment:
       TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
+      TRAFFIC_MONITOR_DB_PATH: /app/data/traffic-monitor
     networks:
       - traffic-tool-net
 

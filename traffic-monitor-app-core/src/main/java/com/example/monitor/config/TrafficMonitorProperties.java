@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "traffic")
 public class TrafficMonitorProperties {
     private Udp udp = new Udp();
+    private Tcp tcp = new Tcp();
     private Store store = new Store();
 
     public Udp getUdp() {
@@ -13,6 +14,14 @@ public class TrafficMonitorProperties {
 
     public void setUdp(Udp udp) {
         this.udp = udp;
+    }
+
+    public Tcp getTcp() {
+        return tcp;
+    }
+
+    public void setTcp(Tcp tcp) {
+        this.tcp = tcp;
     }
 
     public Store getStore() {
@@ -59,6 +68,45 @@ public class TrafficMonitorProperties {
 
         public void setBufferSizeBytes(int bufferSizeBytes) {
             this.bufferSizeBytes = bufferSizeBytes;
+        }
+    }
+
+    public static class Tcp {
+        private boolean enabled = true;
+        private int fruitPort = 5001;
+        private int weatherPort = 5003;
+        private int maxBodyLengthBytes = 65507;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getFruitPort() {
+            return fruitPort;
+        }
+
+        public void setFruitPort(int fruitPort) {
+            this.fruitPort = fruitPort;
+        }
+
+        public int getWeatherPort() {
+            return weatherPort;
+        }
+
+        public void setWeatherPort(int weatherPort) {
+            this.weatherPort = weatherPort;
+        }
+
+        public int getMaxBodyLengthBytes() {
+            return maxBodyLengthBytes;
+        }
+
+        public void setMaxBodyLengthBytes(int maxBodyLengthBytes) {
+            this.maxBodyLengthBytes = maxBodyLengthBytes;
         }
     }
 

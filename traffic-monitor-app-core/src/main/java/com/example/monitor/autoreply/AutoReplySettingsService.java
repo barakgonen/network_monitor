@@ -1,5 +1,6 @@
 package com.example.monitor.autoreply;
 
+import com.example.monitor.publishing.TransportSelector;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.schema.TrafficToolConfig;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,8 @@ public class AutoReplySettingsService {
             byInterface.put(interfaceConfig.getName(), new InterfaceAutoReplySettings(
                     interfaceConfig.getAutoReply().isEnabled(),
                     interfaceConfig.getAutoReply().getHost(),
-                    interfaceConfig.getAutoReply().getPort()
+                    interfaceConfig.getAutoReply().getPort(),
+                    TransportSelector.normalize(interfaceConfig.getAutoReply().getTransport())
             ));
         }
     }
@@ -47,10 +49,10 @@ public class AutoReplySettingsService {
         return Map.copyOf(byInterface);
     }
 
-    public void updateInterfaceSettings(String interfaceName, boolean enabled, String host, int port) {
-        byInterface.put(interfaceName, new InterfaceAutoReplySettings(enabled, host, port));
+    public void updateInterfaceSettings(String interfaceName, boolean enabled, String host, int port, String transport) {
+        byInterface.put(interfaceName, new InterfaceAutoReplySettings(enabled, host, port, TransportSelector.normalize(transport)));
     }
 
-    public record InterfaceAutoReplySettings(boolean enabled, String host, int port) {
+    public record InterfaceAutoReplySettings(boolean enabled, String host, int port, String transport) {
     }
 }

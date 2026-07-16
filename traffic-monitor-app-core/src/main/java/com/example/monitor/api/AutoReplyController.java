@@ -31,7 +31,8 @@ public class AutoReplyController {
                 request.interfaceName(),
                 request.enabled(),
                 request.host(),
-                request.port()
+                request.port(),
+                request.transport()
         );
         return toResponse();
     }

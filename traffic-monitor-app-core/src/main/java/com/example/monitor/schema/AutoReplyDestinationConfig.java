@@ -4,6 +4,7 @@ public class AutoReplyDestinationConfig {
     private boolean enabled = false;
     private String host = "localhost";
     private int port = 7001;
+    private String transport;
 
     public boolean isEnabled() {
         return enabled;
@@ -27,5 +28,13 @@ public class AutoReplyDestinationConfig {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public String getTransport() {
+        return transport;
+    }
+
+    public void setTransport(String transport) {
+        this.transport = transport;
     }
 }
