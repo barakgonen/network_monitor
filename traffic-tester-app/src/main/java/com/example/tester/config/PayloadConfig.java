@@ -8,6 +8,7 @@ public class PayloadConfig {
     private FruitPayloadConfig fruit = new FruitPayloadConfig();
     private WeatherPayloadConfig weather = new WeatherPayloadConfig();
     private PingPayloadConfig ping = new PingPayloadConfig();
+    private CandyPayloadConfig candy = new CandyPayloadConfig();
 
     /**
      * Optional per-message target override.
@@ -69,6 +70,14 @@ public class PayloadConfig {
 
     public void setPing(PingPayloadConfig ping) {
         this.ping = ping;
+    }
+
+    public CandyPayloadConfig getCandy() {
+        return candy;
+    }
+
+    public void setCandy(CandyPayloadConfig candy) {
+        this.candy = candy;
     }
 
     public PayloadTargetConfig getTarget() {

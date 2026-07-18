@@ -24,19 +24,22 @@ and everything Fruit/Weather-specific is a swappable, client-suppliable layer on
 - **shared-schemas** / **handler-app** — *our* concrete implementations of those two contracts
   for the Fruit/Weather protocols. Neither is required by the engine — they're supplied by
   whoever assembles a runnable app, exactly like a plugin.
-- **traffic-monitor-app-core** — the generic engine itself: ingestion, store, REST API, UI
-  resources, publishing, reflection/scan-based wiring. Depends on `schema-core` + `handler-core`
-  only — **not** `shared-schemas`, **not** `handler-app`. This is the module a client would
-  take a dependency on to build their *own* monitor with their *own* protocol and handlers.
-- **traffic-monitor-app** — a thin packaging shell with no source of its own; it's *our*
-  reference assembly of the engine. Depends on `traffic-monitor-app-core` + `shared-schemas` +
-  `handler-app` (all three assembly-only) and holds the `spring-boot-maven-plugin` config that
-  produces the final runnable/deployable jar. A client building their own monitor would write
-  their own thin module shaped exactly like this one, swapping in their own schema/handler
-  modules (or reusing ours).
+- **traffic-monitor-app-core** — the generic engine itself, as a plain library: ingestion,
+  store, REST API, UI resources, publishing, reflection/scan-based wiring. Depends on
+  `schema-core` + `handler-core` only — **not** `shared-schemas`, **not** `handler-app` — and
+  has no bootable `main()`/`spring-boot-maven-plugin` of its own. This is the module a client
+  would take a dependency on to build their *own* monitor with their *own* protocol and
+  handlers.
+- **traffic-monitor-app** — the runnable application. Holds the `TrafficMonitorApplication`
+  Spring Boot entrypoint (`main()`), depends on `traffic-monitor-app-core` + `shared-schemas` +
+  `handler-app`, and holds the `spring-boot-maven-plugin` config that produces the final
+  runnable/deployable jar. A client building their own monitor would write their own thin `-app`
+  module shaped exactly like this one, swapping in their own schema/handler modules (or reusing
+  ours).
 
-Two demo protocols currently exist: **Fruit Interface** (Orange, Banana messages) and
-**Weather Interface** (TemperatureReading messages).
+Four demo protocols currently exist: **Fruit Interface** (Orange, Banana messages),
+**Weather Interface** (TemperatureReading messages), **Ping Interface** (Ping, Pong messages),
+and **Candy Interface** (Candy messages).
 
 ## Architecture
 
@@ -66,15 +69,14 @@ to the in-memory recent-message ring buffer, and exposes `/api/messages/history`
         ▲                     ▲
         └──────────┬──────────┘
                     │  (compile dependency; zero schema/handler imports)
-         traffic-monitor-app-core             <-- the generic engine itself (distributable)
-                    ▲
-                    │  (assembly-only; traffic-monitor-app has no src/ of its own)
+         traffic-monitor-app-core             <-- the generic engine itself, a plain library
+                    ▲                             (no main(), no spring-boot-maven-plugin)
                     │
    shared-schemas ──┼── handler-app           <-- our concrete plugin implementations
         ▲           │        ▲                    (a client could supply their own instead)
         └───────────┼────────┘
-                    traffic-monitor-app        <-- our reference assembly (client pattern)
-                    │
+                    traffic-monitor-app        <-- the runnable app (client pattern);
+                    │                              holds TrafficMonitorApplication's main()
                     │  spring-boot-maven-plugin repackage -> the runnable jar
                     ▼
                 (Docker image)
@@ -94,13 +96,17 @@ to the in-memory recent-message ring buffer, and exposes `/api/messages/history`
 - `traffic-monitor-app-core` owns the HTTP API, UI, and ingestion pipeline, and stays fully
   generic by only ever referencing the `schema-core`/`handler-core` interfaces — a Maven-level
   guarantee (no `shared-schemas` or `handler-app` dependency at all in its `pom.xml`), not just
-  a source-code convention. A client can depend on this module's published jar directly.
+  a source-code convention. It has no bootable `main()` of its own — it's a library. A client
+  can depend on this module's published jar directly. (Its own integration tests boot a
+  test-scoped `TrafficMonitorTestApplication` in `src/test/java`, since the module has nothing
+  bootable in `src/main`.)
 - `traffic-monitor-app` is the only module that depends on `traffic-monitor-app-core` +
   `shared-schemas` + `handler-app` together, and the only one that runs
-  `spring-boot-maven-plugin`'s `repackage` goal — it's purely an assembly/packaging module (no
-  `src/` of its own), and its final fat jar is what the Dockerfile copies. This module is the
-  *pattern* a client replicates: their own thin shell depending on `traffic-monitor-app-core` +
-  their own schema/handler modules (or ours).
+  `spring-boot-maven-plugin`'s `repackage` goal — it owns the `TrafficMonitorApplication`
+  entrypoint (`main()`), and its final fat jar is what the Dockerfile copies. This module is the
+  *pattern* a client replicates: their own thin `-app` module depending on
+  `traffic-monitor-app-core` + their own schema/handler modules (or ours), with their own
+  entrypoint class.
 - `traffic-tester-app` is a plain Java app (no Spring) with its own `main()`.
 
 ## Wire protocols
@@ -177,6 +183,25 @@ adding a brand-new interface with zero changes to `schema-core`/`handler-core`/
 |---|---|
 | `sequence` | int32 |
 
+### Candy Interface
+
+A second extensibility example, this time with a string+double body (rather than Ping's bare
+int32): send a Candy message, the monitor decodes and archives it. No auto-reply — the handler is
+a no-op stub, same as `BananaMessageHandler`. Also demonstrates the tester sending over **TCP**
+(`target.transport: TCP` in `config/tester-scenario.yml`), reusing the monitor's Fruit TCP port
+(`:5001`) since TCP ingestion decodes generically by opcode, independent of interface.
+
+| Message | Opcode |
+|---|---|
+| Candy | 4001 |
+
+**Candy body:**
+
+| Field | Type |
+|---|---|
+| `name` | UTF-8 string |
+| `calories` | float64 |
+
 `handler-app`'s `PingMessageHandler` replies to every Ping with a Pong echoing the same
 `sequence`, sent back to the sender's address:port — see
 [Auto-reply message handlers](#auto-reply-message-handlers).
@@ -204,6 +229,7 @@ Codecs validate header size (≥12 bytes) and that `bodyLength` matches the rema
 | `com.example.schemas.fruit` | `FruitOpcodes`, `FruitProtocolHeader`, `FruitProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `FruitFreshness` (enum), `OrangeMessage`, `BananaMessage`, `OrangeMessageDefinition`, `BananaMessageDefinition` (the `schema-core` implementations, loaded reflectively by `traffic-monitor-app`) |
 | `com.example.schemas.weather` | `WeatherOpcodes`, `WeatherProtocolHeader`, `WeatherProtocolCodec`, `WeatherCondition` (enum), `TemperatureReadingMessage`, `TemperatureReadingMessageDefinition` |
 | `com.example.schemas.ping` | `PingOpcodes`, `PingMessage`, `PongMessage`, `PingProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `PingMessageDefinition`, `PongMessageDefinition` — the extensibility proof interface |
+| `com.example.schemas.candy` | `CandyOpcodes`, `CandyMessage`, `CandyProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `CandyMessageDefinition` — the string+double, TCP-send extensibility example |
 
 ### handler-core (`com.example.handlercore`)
 
@@ -225,14 +251,15 @@ zero Fruit/Weather knowledge.
 | `com.example.handlerapp.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
 | `com.example.handlerapp.weather` | `TemperatureReadingMessageHandler` (stub) |
 | `com.example.handlerapp.ping` | `PingMessageHandler` — always auto-replies with a Pong echoing the same `sequence` |
+| `com.example.handlerapp.candy` | `CandyMessageHandler` (stub) |
 
 ### traffic-monitor-app-core (`com.example.monitor`)
 
-All of the monitor's actual Java source and resources (`application.yml`, `static/*`) live here.
+Almost all of the monitor's Java source and resources (`application.yml`, `static/*`) live here,
+as a plain library — no bootable `main()`.
 
 | Package | Classes |
 |---|---|
-| `com.example.monitor` | `TrafficMonitorApplication` — Spring Boot entrypoint; `scanBasePackages` widened to also pick up `com.example.handlerapp` beans |
 | `com.example.monitor.config` | `TrafficMonitorProperties` — binds `traffic.*` properties from `application.yml` (`udp.*`, `tcp.*`, `store.*`) |
 | `com.example.monitor.schema` | `TrafficToolConfig`/`InterfaceConfig`/`MessageConfig`/`AutoReplyConfig`/`AutoReplyDestinationConfig` (POJOs for `config/traffic-tool.yml`, the latter carrying the optional per-interface `transport`), `TrafficToolConfigLoader` (SnakeYAML), `MessageSchemaWiringConfig` (`@Bean MessageDefinitionRegistry`, loaded via reflection at startup) |
 | `com.example.monitor.model` | `ObservedMessage` — record capturing one decoded/failed inbound packet, transport-tagged (`transportProtocol` is `"UDP"` or `"TCP"`) |
@@ -246,20 +273,23 @@ All of the monitor's actual Java source and resources (`application.yml`, `stati
 | `com.example.monitor.autoreply` | `AutoReplySettingsService` — runtime-mutable global + per-interface auto-reply enabled/destination/**transport** state, seeded from `TrafficToolConfig` (transport always normalized to `UDP`/`TCP`, never left null) |
 | `com.example.monitor.api` | `MessageController` (`/api/messages/recent`), `PublishController` (`/api/publish/udp`, UDP or TCP per request), `PeriodicPublishController`, `AutoReplyController` (settings + global/interface toggles, transport-aware), `HistoryController` (`/api/messages/history`), `AnalyticsController` (`/api/analytics/timeseries`, `/api/analytics/breakdown`) + their request/response records |
 
-### traffic-monitor-app
+### traffic-monitor-app (`com.example.monitor`)
 
-No `src/` directory — just a `pom.xml` declaring the `traffic-monitor-app-core` +
-`shared-schemas` + `handler-app` dependencies and the `spring-boot-maven-plugin` `repackage`
-config (`mainClass=com.example.monitor.TrafficMonitorApplication`, resolvable at runtime
-because it's on the classpath via `traffic-monitor-app-core`). `docker-compose.yml`/`Dockerfile`
+The runnable application. `pom.xml` declares the `traffic-monitor-app-core` + `shared-schemas` +
+`handler-app` dependencies and the `spring-boot-maven-plugin` `repackage` config
+(`mainClass=com.example.monitor.TrafficMonitorApplication`). `docker-compose.yml`/`Dockerfile`
 build and copy this module's jar — everything else is pulled in transitively.
+
+| Package | Classes |
+|---|---|
+| `com.example.monitor` | `TrafficMonitorApplication` — Spring Boot entrypoint (`main()`); `scanBasePackages` widened to also pick up `com.example.handlerapp` beans |
 
 ### traffic-tester-app (`com.example.tester`)
 
 | Package | Classes |
 |---|---|
 | `com.example.tester` | `TesterMain` — entrypoint; loads scenario, runs send loop, starts listener |
-| `com.example.tester.config` | `ScenarioLoader` (SnakeYAML), `TesterScenario`, `PayloadConfig`, `PayloadMode` (enum), `FruitPayloadConfig`, `WeatherPayloadConfig`, `PingPayloadConfig`, `UdpConfig`, `UdpListenerConfig`, `PayloadTargetConfig` (`host`/`port`/`transport` override) |
+| `com.example.tester.config` | `ScenarioLoader` (SnakeYAML), `TesterScenario`, `PayloadConfig`, `PayloadMode` (enum), `FruitPayloadConfig`, `WeatherPayloadConfig`, `PingPayloadConfig`, `CandyPayloadConfig`, `UdpConfig`, `UdpListenerConfig`, `PayloadTargetConfig` (`host`/`port`/`transport` override) |
 | `com.example.tester.payload` | `PayloadFactory` — dispatches on `PayloadMode` to the shared-schemas codecs (or raw text/base64/hex) |
 | `com.example.tester.udp` | `UdpPublisher` (send), `UdpListener` (background receive + best-effort Fruit/Weather decode + log) — UDP only, no TCP listener |
 | `com.example.tester.tcp` | `TcpPublisher` — opens a short-lived TCP connection, writes one message, closes; used when `target.transport: TCP` |
@@ -774,9 +804,9 @@ curl http://localhost:8080/actuator/health
   (`target.transport: TCP` in a scenario message — see [Scenario configuration](#scenario-configuration)),
   but `UdpListener` only binds a UDP socket, so it can't receive a TCP auto-reply from the
   monitor. There is no `TcpListener` counterpart yet.
-- **`BananaMessageHandler`/`TemperatureReadingMessageHandler` are still empty stubs** (`// TODO`)
-  — see [Auto-reply message handlers](#auto-reply-message-handlers). Only `OrangeMessageHandler`
-  and `PingMessageHandler` do anything on arrival.
+- **`BananaMessageHandler`/`TemperatureReadingMessageHandler`/`CandyMessageHandler` are still
+  empty stubs** (`// TODO`) — see [Auto-reply message handlers](#auto-reply-message-handlers).
+  Only `OrangeMessageHandler` and `PingMessageHandler` do anything on arrival.
 - **`network_monitor.tcp.connections.active` is a single combined gauge**, not split per port
   (Fruit vs Weather) — a deliberate simplicity choice, see
   [Metrics and observability](#metrics-and-observability).

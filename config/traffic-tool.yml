@@ -35,3 +35,13 @@ interfaces:
       enabled: false
       host: localhost
       port: 7001
+
+  - key: candy
+    name: Candy Interface
+    messages:
+      - type: Candy
+        definitionClass: com.example.schemas.candy.CandyMessageDefinition
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001

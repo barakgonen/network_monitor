@@ -7,5 +7,6 @@ public enum PayloadMode {
     FRUIT_ORANGE,
     FRUIT_BANANA,
     WEATHER_TEMPERATURE_READING,
-    PING
+    PING,
+    CANDY
 }

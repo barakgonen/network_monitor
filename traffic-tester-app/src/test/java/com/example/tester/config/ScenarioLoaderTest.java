@@ -187,6 +187,23 @@ class ScenarioLoaderTest {
     }
 
     @Test
+    void load_withCandyModeMissingCandySection_throwsIllegalArgumentException() throws Exception {
+        Path file = tempDir.resolve("scenario.yml");
+        Files.writeString(file, """
+                udp:
+                  host: 127.0.0.1
+                  port: 5001
+                messages:
+                  - mode: CANDY
+                    candy: null
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("candy is required");
+    }
+
+    @Test
     void load_withZeroRepeat_throwsIllegalArgumentException() throws Exception {
         Path file = tempDir.resolve("scenario.yml");
         Files.writeString(file, """

@@ -1,5 +1,7 @@
 package com.example.tester.payload;
 
+import com.example.schemas.candy.CandyMessage;
+import com.example.schemas.candy.CandyProtocolCodec;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.FruitProtocolCodec;
@@ -19,6 +21,7 @@ public class PayloadFactory {
     private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
     private final WeatherProtocolCodec weatherProtocolCodec = new WeatherProtocolCodec();
     private final PingProtocolCodec pingProtocolCodec = new PingProtocolCodec();
+    private final CandyProtocolCodec candyProtocolCodec = new CandyProtocolCodec();
 
     public byte[] create(PayloadConfig config) {
         return switch (config.getMode()) {
@@ -29,6 +32,7 @@ public class PayloadFactory {
             case FRUIT_BANANA -> createFruitBanana(config);
             case WEATHER_TEMPERATURE_READING -> createWeatherTemperatureReading(config);
             case PING -> createPing(config);
+            case CANDY -> createCandy(config);
         };
     }
 
@@ -64,6 +68,15 @@ public class PayloadFactory {
         PingMessage pingMessage = new PingMessage(config.getPing().getSequence());
 
         return pingProtocolCodec.encodePing(pingMessage, Instant.now().toEpochMilli()).payload();
+    }
+
+    private byte[] createCandy(PayloadConfig config) {
+        CandyMessage candyMessage = new CandyMessage(
+                config.getCandy().getName(),
+                config.getCandy().getCalories()
+        );
+
+        return candyProtocolCodec.encodeCandy(candyMessage, Instant.now().toEpochMilli()).payload();
     }
 
     private byte[] parseHex(String hex) {

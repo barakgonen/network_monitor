@@ -1,8 +1,10 @@
 package com.example.tester.payload;
 
+import com.example.schemas.candy.CandyProtocolCodec;
 import com.example.schemas.fruit.FruitProtocolCodec;
 import com.example.schemas.ping.PingProtocolCodec;
 import com.example.schemas.weather.WeatherProtocolCodec;
+import com.example.tester.config.CandyPayloadConfig;
 import com.example.tester.config.FruitPayloadConfig;
 import com.example.tester.config.PayloadConfig;
 import com.example.tester.config.PayloadMode;
@@ -122,5 +124,22 @@ class PayloadFactoryTest {
         PingProtocolCodec.DecodedPingMessage decoded = new PingProtocolCodec().decode(payload);
         assertThat(decoded.messageType()).isEqualTo("Ping");
         assertThat(decoded.bodyFields().get("sequence")).isEqualTo(77);
+    }
+
+    @Test
+    void create_withCandyMode_producesDecodableCandyPayload() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.CANDY);
+        CandyPayloadConfig candy = new CandyPayloadConfig();
+        candy.setName("chocolate-bar");
+        candy.setCalories(250.5);
+        config.setCandy(candy);
+
+        byte[] payload = factory.create(config);
+
+        CandyProtocolCodec.DecodedCandyMessage decoded = new CandyProtocolCodec().decode(payload);
+        assertThat(decoded.messageType()).isEqualTo("Candy");
+        assertThat(decoded.bodyFields().get("name")).isEqualTo("chocolate-bar");
+        assertThat(decoded.bodyFields().get("calories")).isEqualTo(250.5);
     }
 }
