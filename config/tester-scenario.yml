@@ -50,5 +50,10 @@ messages:
       name: "chocolate-bar"
       calories: 250.5
 
+  - mode: RADA_STATUS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
 repeat: 1231
 intervalMillis: 1000

@@ -5,12 +5,16 @@ import com.example.handlercore.MessageArrivedDispatcher;
 import com.example.monitor.autoreply.AutoReplySettingsService;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
+import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.ProtocolHeader;
 import com.example.schemacore.ProtocolHeaderCodec;
 import com.example.schemacore.ProtocolMessage;
+import com.example.schemacore.ReflectiveFieldExtractor;
+import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemacore.StructSizeCalculator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -75,6 +79,28 @@ public class MessageIngestionPipeline {
 
     public ObservedMessage ingest(byte[] payload, String transportProtocol, String remoteAddress, int localPort) {
         DecodedPacket decoded = decode(payload);
+        return finishIngest(payload, transportProtocol, remoteAddress, localPort, decoded);
+    }
+
+    /**
+     * Decodes a packet against a single {@link InterfaceConfig} (its own header type, byte order,
+     * and opcode field) rather than the legacy shared fixed envelope + global opcode registry.
+     * Used for interfaces configured with their own dedicated port.
+     */
+    public ObservedMessage ingestForInterface(
+            byte[] payload,
+            String transportProtocol,
+            String remoteAddress,
+            int localPort,
+            InterfaceConfig interfaceConfig,
+            MessageDefinitionRegistry scopedRegistry
+    ) {
+        DecodedPacket decoded = decodeForInterface(payload, interfaceConfig, scopedRegistry);
+        return finishIngest(payload, transportProtocol, remoteAddress, localPort, decoded);
+    }
+
+    private ObservedMessage finishIngest(
+            byte[] payload, String transportProtocol, String remoteAddress, int localPort, DecodedPacket decoded) {
         ObservedMessage message = toObservedMessage(transportProtocol, remoteAddress, localPort, payload, decoded);
         recordMetrics(message);
         recentMessageStore.add(message);
@@ -110,7 +136,45 @@ public class MessageIngestionPipeline {
             ProtocolMessage typedMessage = definition.decodeMessage(
                     ByteBuffer.wrap(payload, bodyStart, payload.length - bodyStart));
 
-            return new DecodedPacket(definition, header, bodyFields, typedMessage, null);
+            return new DecodedPacket(definition, ReflectiveFieldExtractor.extractFields(header), bodyFields, typedMessage, null);
+        } catch (Exception e) {
+            return new DecodedPacket(null, null, null, null, e.getMessage());
+        }
+    }
+
+    /**
+     * Mirrors {@link #decode(byte[])} but resolves the header type, opcode field, and message
+     * registry from a single {@link InterfaceConfig} instead of the global fixed envelope.
+     */
+    private DecodedPacket decodeForInterface(
+            byte[] payload, InterfaceConfig interfaceConfig, MessageDefinitionRegistry scopedRegistry) {
+        try {
+            Class<?> headerType = Class.forName(interfaceConfig.getHeaderType());
+            int headerSize = StructSizeCalculator.calculateStructSize(headerType);
+
+            if (payload.length < headerSize) {
+                throw new IllegalArgumentException(
+                        "Payload shorter than configured header. payloadBytes=" + payload.length
+                                + ", headerBytes=" + headerSize);
+            }
+
+            byte[] headerBytes = java.util.Arrays.copyOfRange(payload, 0, headerSize);
+            Object header = ReflectiveStructCodec.decode(headerType, headerBytes);
+            Map<String, Object> headerFields = ReflectiveFieldExtractor.extractFields(header);
+
+            Object opcodeValue = headerFields.get(interfaceConfig.getOpcodeFieldName());
+            int opcode = Integer.parseInt(String.valueOf(opcodeValue));
+
+            MessageDefinition definition = scopedRegistry.findByOpcode(opcode)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Unknown opcode " + opcode + " for interface " + interfaceConfig.getName()));
+
+            // Message classes for dedicated-port interfaces (e.g. rada) parse their own header as
+            // part of decoding themselves, so they need the full payload, not just the body.
+            Map<String, Object> bodyFields = definition.decodeBody(ByteBuffer.wrap(payload));
+            ProtocolMessage typedMessage = definition.decodeMessage(ByteBuffer.wrap(payload));
+
+            return new DecodedPacket(definition, headerFields, bodyFields, typedMessage, null);
         } catch (Exception e) {
             return new DecodedPacket(null, null, null, null, e.getMessage());
         }
@@ -167,13 +231,7 @@ public class MessageIngestionPipeline {
         String interfaceName = decoded.definition() != null ? decoded.definition().interfaceName() : "Unknown";
         String messageType = decoded.definition() != null ? decoded.definition().messageType() : "Unknown";
 
-        Map<String, Object> header = new LinkedHashMap<>();
-        if (decoded.header() != null) {
-            header.put("opcode", decoded.header().opcode());
-            header.put("sendTimeEpochMillis", decoded.header().sendTimeEpochMillis());
-            header.put("bodyLength", decoded.header().bodyLength());
-        }
-
+        Map<String, Object> header = decoded.header() != null ? decoded.header() : new LinkedHashMap<>();
         Map<String, Object> body = decoded.bodyFields() != null ? decoded.bodyFields() : new LinkedHashMap<>();
 
         return new ObservedMessage(
@@ -200,7 +258,7 @@ public class MessageIngestionPipeline {
 
     private record DecodedPacket(
             MessageDefinition definition,
-            ProtocolHeader header,
+            Map<String, Object> header,
             Map<String, Object> bodyFields,
             ProtocolMessage typedMessage,
             String parseError

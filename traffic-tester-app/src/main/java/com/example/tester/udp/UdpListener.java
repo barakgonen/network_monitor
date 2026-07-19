@@ -1,22 +1,35 @@
 package com.example.tester.udp;
 
-import com.example.schemas.fruit.FruitProtocolCodec;
-import com.example.schemas.ping.PingProtocolCodec;
-import com.example.schemas.weather.WeatherProtocolCodec;
+import com.example.schemacore.ProtocolHeader;
+import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.ReflectiveFieldExtractor;
+import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemas.candy.CandyMessage;
+import com.example.schemas.fruit.BananaMessage;
+import com.example.schemas.fruit.OrangeMessage;
+import com.example.schemas.ping.PingMessage;
+import com.example.schemas.ping.PongMessage;
+import com.example.schemas.weather.TemperatureReadingMessage;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class UdpListener implements AutoCloseable {
-    private final FruitProtocolCodec fruitProtocolCodec = new FruitProtocolCodec();
-    private final WeatherProtocolCodec weatherProtocolCodec = new WeatherProtocolCodec();
-    private final PingProtocolCodec pingProtocolCodec = new PingProtocolCodec();
+    private static final Map<Integer, Class<?>> KNOWN_MESSAGE_CLASSES_BY_OPCODE = Map.of(
+            1001, OrangeMessage.class,
+            1002, BananaMessage.class,
+            2001, TemperatureReadingMessage.class,
+            3001, PingMessage.class,
+            3002, PongMessage.class,
+            4001, CandyMessage.class);
 
     private final int port;
     private final int bufferSizeBytes;
@@ -70,9 +83,7 @@ public class UdpListener implements AutoCloseable {
                 System.out.println("Hex: " + HexFormat.of().formatHex(payload));
                 System.out.println("Text: " + new String(payload, StandardCharsets.UTF_8));
 
-                tryDecodeFruit(payload);
-                tryDecodeWeather(payload);
-                tryDecodePing(payload);
+                tryDecodeKnownMessage(payload);
 
                 System.out.println("=====================================");
                 System.out.println();
@@ -85,54 +96,29 @@ public class UdpListener implements AutoCloseable {
         }
     }
 
-    private void tryDecodeFruit(byte[] payload) {
+    private void tryDecodeKnownMessage(byte[] payload) {
         try {
-            FruitProtocolCodec.DecodedFruitMessage decoded = fruitProtocolCodec.decode(payload);
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
 
-            if (!"Unknown".equals(decoded.messageType())) {
-                System.out.println("Decoded as Fruit Interface:");
-                System.out.println("  messageType: " + decoded.messageType());
-                System.out.println("  header: opcode=" + decoded.header().opcode()
-                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
-                        + ", bodyLength=" + decoded.header().bodyLength());
-                System.out.println("  body: " + decoded.bodyFields());
+            Class<?> messageClass = KNOWN_MESSAGE_CLASSES_BY_OPCODE.get(header.opcode());
+            if (messageClass == null) {
+                return;
             }
+
+            byte[] body = new byte[buffer.remaining()];
+            buffer.get(body);
+
+            Object message = ReflectiveStructCodec.decode(messageClass, body);
+            Map<String, Object> fields = ReflectiveFieldExtractor.extractFields(message);
+
+            System.out.println("Decoded as " + messageClass.getSimpleName() + ":");
+            System.out.println("  header: opcode=" + header.opcode()
+                    + ", sendTimeEpochMillis=" + header.sendTimeEpochMillis()
+                    + ", bodyLength=" + header.bodyLength());
+            System.out.println("  body: " + fields);
         } catch (Exception ignored) {
-            // Not a fruit payload, or invalid fruit payload.
-        }
-    }
-
-    private void tryDecodeWeather(byte[] payload) {
-        try {
-            WeatherProtocolCodec.DecodedWeatherMessage decoded = weatherProtocolCodec.decode(payload);
-
-            if (!"Unknown".equals(decoded.messageType())) {
-                System.out.println("Decoded as Weather Interface:");
-                System.out.println("  messageType: " + decoded.messageType());
-                System.out.println("  header: opcode=" + decoded.header().opcode()
-                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
-                        + ", bodyLength=" + decoded.header().bodyLength());
-                System.out.println("  body: " + decoded.bodyFields());
-            }
-        } catch (Exception ignored) {
-            // Not a weather payload, or invalid weather payload.
-        }
-    }
-
-    private void tryDecodePing(byte[] payload) {
-        try {
-            PingProtocolCodec.DecodedPingMessage decoded = pingProtocolCodec.decode(payload);
-
-            if (!"Unknown".equals(decoded.messageType())) {
-                System.out.println("Decoded as Ping Interface:");
-                System.out.println("  messageType: " + decoded.messageType());
-                System.out.println("  header: opcode=" + decoded.header().opcode()
-                        + ", sendTimeEpochMillis=" + decoded.header().sendTimeEpochMillis()
-                        + ", bodyLength=" + decoded.header().bodyLength());
-                System.out.println("  body: " + decoded.bodyFields());
-            }
-        } catch (Exception ignored) {
-            // Not a ping payload, or invalid ping payload.
+            // Not a known message, or invalid payload.
         }
     }
 

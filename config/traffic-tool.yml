@@ -6,9 +6,11 @@ interfaces:
     name: Fruit Interface
     messages:
       - type: Orange
-        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+        messageClass: com.example.schemas.fruit.OrangeMessage
+        opcode: 1001
       - type: Banana
-        definitionClass: com.example.schemas.fruit.BananaMessageDefinition
+        messageClass: com.example.schemas.fruit.BananaMessage
+        opcode: 1002
     autoReply:
       enabled: false
       host: localhost
@@ -18,7 +20,8 @@ interfaces:
     name: Weather Interface
     messages:
       - type: TemperatureReading
-        definitionClass: com.example.schemas.weather.TemperatureReadingMessageDefinition
+        messageClass: com.example.schemas.weather.TemperatureReadingMessage
+        opcode: 2001
     autoReply:
       enabled: false
       host: localhost
@@ -28,9 +31,11 @@ interfaces:
     name: Ping Interface
     messages:
       - type: Ping
-        definitionClass: com.example.schemas.ping.PingMessageDefinition
+        messageClass: com.example.schemas.ping.PingMessage
+        opcode: 3001
       - type: Pong
-        definitionClass: com.example.schemas.ping.PongMessageDefinition
+        messageClass: com.example.schemas.ping.PongMessage
+        opcode: 3002
     autoReply:
       enabled: false
       host: localhost
@@ -40,8 +45,32 @@ interfaces:
     name: Candy Interface
     messages:
       - type: Candy
-        definitionClass: com.example.schemas.candy.CandyMessageDefinition
+        messageClass: com.example.schemas.candy.CandyMessage
+        opcode: 4001
     autoReply:
       enabled: false
       host: localhost
       port: 7001
+
+  - key: rada
+    name: Rada Interface
+    protocol: UDP
+    port: 5050
+    byteOrder: BIG_ENDIAN
+    headerType: com.example.schemas.rada.struct.RadaHeader
+    opcodeFieldName: msgType
+    messages:
+      - type: RadaExtendedStatus
+        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+        opcode: 1
+      - type: RadaExtendedStatusMrs
+        messageClass: com.example.schemas.rada.messages.RadaExtendedStatusMrs
+        opcode: 2
+      - type: RadaStatus
+        messageClass: com.example.schemas.rada.messages.RadaStatus
+        opcode: 3
+      - type: RadaTracksExtended
+        messageClass: com.example.schemas.rada.messages.RadaTracksExtended
+        opcode: 4
+    autoReply:
+      enabled: false

@@ -6,9 +6,11 @@ interfaces:
     name: Fruit Interface
     messages:
       - type: Orange
-        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+        messageClass: com.example.schemas.fruit.OrangeMessage
+        opcode: 1001
       - type: Banana
-        definitionClass: com.example.schemas.fruit.BananaMessageDefinition
+        messageClass: com.example.schemas.fruit.BananaMessage
+        opcode: 1002
     autoReply:
       enabled: false
       host: localhost
@@ -18,7 +20,8 @@ interfaces:
     name: Weather Interface
     messages:
       - type: TemperatureReading
-        definitionClass: com.example.schemas.weather.TemperatureReadingMessageDefinition
+        messageClass: com.example.schemas.weather.TemperatureReadingMessage
+        opcode: 2001
     autoReply:
       enabled: false
       host: localhost
@@ -28,10 +31,29 @@ interfaces:
     name: Ping Interface
     messages:
       - type: Ping
-        definitionClass: com.example.schemas.ping.PingMessageDefinition
+        messageClass: com.example.schemas.ping.PingMessage
+        opcode: 3001
       - type: Pong
-        definitionClass: com.example.schemas.ping.PongMessageDefinition
+        messageClass: com.example.schemas.ping.PongMessage
+        opcode: 3002
     autoReply:
       enabled: false
       host: localhost
       port: 7001
+
+  - key: rada
+    name: Rada Interface
+    enabled: false
+    protocol: UDP
+    port: 25050
+    headerType: com.example.schemas.rada.struct.RadaHeader
+    opcodeFieldName: msgType
+    messages:
+      - type: RadaStatus
+        messageClass: com.example.schemas.rada.messages.RadaStatus
+        opcode: 3
+      - type: RadaTracksExtended
+        messageClass: com.example.schemas.rada.messages.RadaTracksExtended
+        opcode: 4
+    autoReply:
+      enabled: false

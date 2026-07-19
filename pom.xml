@@ -9,6 +9,7 @@
   <packaging>pom</packaging>
 
   <modules>
+    <module>schema-annotations</module>
     <module>schema-core</module>
     <module>shared-schemas</module>
     <module>handler-core</module>

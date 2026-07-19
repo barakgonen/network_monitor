@@ -39,22 +39,7 @@
       <div class="sidebar-panel-header">
         <span class="sidebar-panel-title">Interfaces</span>
       </div>
-      <div class="topic-chip">Fruit Interface</div>
-      <div class="sidebar-note">Port 5001 / UDP</div>
-      <div class="topic-chip">Weather Interface</div>
-      <div class="sidebar-note">Port 5003 / UDP</div>
-    </section>
-
-    <section class="sidebar-panel">
-      <div class="sidebar-panel-header">
-        <span class="sidebar-panel-title">Supported Messages</span>
-      </div>
-      <div class="topic-chip">Orange</div>
-      <div class="sidebar-note">sourceFarm, freshness</div>
-      <div class="topic-chip">Banana</div>
-      <div class="sidebar-note">color, weight</div>
-      <div class="topic-chip">TemperatureReading</div>
-      <div class="sidebar-note">stationId, temperatureCelsius, condition</div>
+      <div id="sidebarInterfaces"></div>
     </section>
   </aside>
 
@@ -91,6 +76,7 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
+      <button class="tab" id="interfacesTab" onclick="showTab('interfaces')">Interfaces</button>
       <button class="tab" id="publisherTab" onclick="showTab('publisher')">Sample Publisher</button>
       <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">Auto-Reply</button>
       <button class="tab" id="historyTab" onclick="showTab('history')">History</button>
@@ -126,6 +112,36 @@
           </div>
           <pre id="eventDetails">Select a message to inspect details.</pre>
         </aside>
+      </div>
+    </section>
+
+    <section id="interfacesPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>Interfaces</h2>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+          <tr>
+            <th>Key</th>
+            <th>Name</th>
+            <th>Protocol</th>
+            <th>Port</th>
+            <th>Status</th>
+            <th>Received</th>
+            <th>Parse Errors</th>
+            <th>Last Observed</th>
+            <th>Actions</th>
+          </tr>
+          </thead>
+          <tbody id="interfacesTableBody"></tbody>
+        </table>
+        <div id="interfacesEmptyState" class="empty-state" style="display:none;">
+          No dedicated-port interfaces are configured. Legacy interfaces sharing the fixed UDP/TCP
+          ports are controlled by the global <code>traffic.udp.enabled</code> / <code>traffic.tcp.enabled</code>
+          settings, not individually here.
+        </div>
       </div>
     </section>
 
@@ -218,6 +234,52 @@
             - Weather Interface → localhost:5003
           </div>
         </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Generic Publisher (all interfaces)</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row">
+              <label for="genericPublisherInterface">Interface</label>
+              <select id="genericPublisherInterface" onchange="onGenericPublisherInterfaceChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="genericPublisherMessage">Message</label>
+              <select id="genericPublisherMessage" onchange="onGenericPublisherMessageChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="genericPublisherHost">Target Host</label>
+              <input id="genericPublisherHost" value="localhost">
+            </div>
+
+            <div class="form-row">
+              <label for="genericPublisherPort">Target Port</label>
+              <input id="genericPublisherPort" type="number" min="1" max="65535">
+            </div>
+
+            <div class="form-row">
+              <label for="genericPublisherTransport">Transport</label>
+              <select id="genericPublisherTransport">
+                <option value="UDP">UDP</option>
+                <option value="TCP">TCP</option>
+              </select>
+            </div>
+
+            <div id="genericPublisherFields"></div>
+
+            <button class="primary-btn" onclick="sendGenericPublish()">Send</button>
+          </div>
+
+          <div id="genericPublisherResult" class="publisher-result">
+            Fields are built from the message class's own fields via reflection - no hardcoded
+            per-message forms. Leave host/port blank to rely on the interface's configured
+            broadcast targets, if any.
+          </div>
+        </div>
       </div>
     </section>
 
@@ -266,9 +328,6 @@
       <div class="history-filters">
         <select id="historyInterfaceFilter">
           <option value="">All interfaces</option>
-          <option value="Fruit Interface">Fruit Interface</option>
-          <option value="Weather Interface">Weather Interface</option>
-          <option value="Ping Interface">Ping Interface</option>
         </select>
         <input id="historyMessageTypeFilter" type="text" class="filter-input" placeholder="Message type…">
         <label class="toggle-switch">
@@ -427,14 +486,20 @@
 
   function showTab(tab) {
     document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
+    document.getElementById('interfacesPanel').style.display = tab === 'interfaces' ? '' : 'none';
     document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
     document.getElementById('autoReplyPanel').style.display = tab === 'autoreply' ? '' : 'none';
     document.getElementById('historyPanel').style.display = tab === 'history' ? '' : 'none';
 
     document.getElementById('liveTab').classList.toggle('active', tab === 'live');
+    document.getElementById('interfacesTab').classList.toggle('active', tab === 'interfaces');
     document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
     document.getElementById('autoReplyTab').classList.toggle('active', tab === 'autoreply');
     document.getElementById('historyTab').classList.toggle('active', tab === 'history');
+
+    if (tab === 'interfaces') {
+      loadInterfaceStatuses();
+    }
 
     if (tab === 'autoreply') {
       loadAutoReplySettings();
@@ -834,9 +899,208 @@
       .replaceAll("'", '&#039;');
   }
 
+  // --- Sidebar: dynamic interfaces list (backed by the generic publisher metadata endpoint,
+  // which already reflects every configured interface, legacy and dedicated-port alike) ---
+
+  let publisherInterfacesCache = [];
+
+  async function loadSidebarInterfaces() {
+    const response = await fetch('/api/publisher/interfaces');
+    publisherInterfacesCache = await response.json();
+
+    const container = document.getElementById('sidebarInterfaces');
+    container.innerHTML = '';
+
+    for (const iface of publisherInterfacesCache) {
+      const chip = document.createElement('div');
+      chip.className = 'topic-chip';
+      chip.innerText = iface.name;
+      container.appendChild(chip);
+
+      const note = document.createElement('div');
+      note.className = 'sidebar-note';
+      note.innerText = iface.messages.map(m => m.type).join(', ') || 'no messages configured';
+      container.appendChild(note);
+    }
+
+    populateHistoryInterfaceFilter();
+  }
+
+  function populateHistoryInterfaceFilter() {
+    const select = document.getElementById('historyInterfaceFilter');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">All interfaces</option>';
+
+    for (const iface of publisherInterfacesCache) {
+      const option = document.createElement('option');
+      option.value = iface.name;
+      option.innerText = iface.name;
+      select.appendChild(option);
+    }
+
+    select.value = currentValue;
+  }
+
+  // --- Interfaces tab: per-interface runtime start/stop for dedicated-port interfaces ---
+
+  async function loadInterfaceStatuses() {
+    const response = await fetch('/api/interfaces');
+    const statuses = await response.json();
+    renderInterfaceStatuses(statuses);
+  }
+
+  function renderInterfaceStatuses(statuses) {
+    const tbody = document.getElementById('interfacesTableBody');
+    const emptyState = document.getElementById('interfacesEmptyState');
+
+    tbody.innerHTML = '';
+    emptyState.style.display = statuses.length === 0 ? 'block' : 'none';
+
+    for (const status of statuses) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${escapeHtml(status.key)}</td>
+        <td>${escapeHtml(status.name)}</td>
+        <td><span class="protocol-pill">${escapeHtml(status.protocol)}</span></td>
+        <td>${escapeHtml(status.port)}</td>
+        <td><span class="status-badge ${status.listening ? 'status-on' : 'status-off'}">${status.listening ? 'Listening' : 'Stopped'}</span></td>
+        <td>${escapeHtml(status.receivedCount)}</td>
+        <td class="${status.parseErrorCount > 0 ? 'error-text' : ''}">${escapeHtml(status.parseErrorCount)}</td>
+        <td>${escapeHtml(formatTime(status.lastObservedAt))}</td>
+        <td>
+          <button class="secondary-btn interface-start-btn" ${status.listening ? 'disabled' : ''}>Start</button>
+          <button class="stop-btn interface-stop-btn" ${status.listening ? '' : 'disabled'}>Stop</button>
+        </td>
+      `;
+
+      row.querySelector('.interface-start-btn').addEventListener('click', () => startInterface(status.key));
+      row.querySelector('.interface-stop-btn').addEventListener('click', () => stopInterface(status.key));
+
+      tbody.appendChild(row);
+    }
+  }
+
+  async function startInterface(key) {
+    const response = await fetch(`/api/interfaces/${encodeURIComponent(key)}/start`, { method: 'POST' });
+    renderInterfaceStatuses(await response.json());
+  }
+
+  async function stopInterface(key) {
+    const response = await fetch(`/api/interfaces/${encodeURIComponent(key)}/stop`, { method: 'POST' });
+    renderInterfaceStatuses(await response.json());
+  }
+
+  // --- Generic publisher: works for any configured interface/message via reflection, no
+  // hardcoded per-message form definitions ---
+
+  async function loadGenericPublisherInterfaces() {
+    const response = await fetch('/api/publisher/interfaces');
+    const interfaces = await response.json();
+
+    const select = document.getElementById('genericPublisherInterface');
+    select.innerHTML = '';
+
+    for (const iface of interfaces) {
+      const option = document.createElement('option');
+      option.value = iface.key;
+      option.innerText = iface.name;
+      option.dataset.messages = JSON.stringify(iface.messages);
+      select.appendChild(option);
+    }
+
+    onGenericPublisherInterfaceChanged();
+  }
+
+  function onGenericPublisherInterfaceChanged() {
+    const select = document.getElementById('genericPublisherInterface');
+    const selectedOption = select.options[select.selectedIndex];
+    const messages = selectedOption ? JSON.parse(selectedOption.dataset.messages || '[]') : [];
+
+    const messageSelect = document.getElementById('genericPublisherMessage');
+    messageSelect.innerHTML = '';
+
+    for (const message of messages) {
+      const option = document.createElement('option');
+      option.value = message.type;
+      option.innerText = `${message.type} (opcode ${message.opcode})`;
+      option.dataset.messageClass = message.messageClass;
+      messageSelect.appendChild(option);
+    }
+
+    onGenericPublisherMessageChanged();
+  }
+
+  async function onGenericPublisherMessageChanged() {
+    const messageSelect = document.getElementById('genericPublisherMessage');
+    const selectedOption = messageSelect.options[messageSelect.selectedIndex];
+    const fieldsContainer = document.getElementById('genericPublisherFields');
+    fieldsContainer.innerHTML = '';
+
+    if (!selectedOption) {
+      return;
+    }
+
+    const response = await fetch(`/api/publisher/fields?messageClass=${encodeURIComponent(selectedOption.dataset.messageClass)}`);
+    const fields = await response.json();
+
+    for (const field of fields) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      row.innerHTML = `
+        <label for="generic-field-${field.name}">${escapeHtml(field.name)} <span class="field-type">${escapeHtml(field.type)}</span></label>
+        <input id="generic-field-${field.name}" data-field-name="${escapeHtml(field.name)}">
+      `;
+      fieldsContainer.appendChild(row);
+    }
+  }
+
+  async function sendGenericPublish() {
+    const interfaceKey = document.getElementById('genericPublisherInterface').value;
+    const messageSelect = document.getElementById('genericPublisherMessage');
+    const messageType = messageSelect.value;
+    const host = document.getElementById('genericPublisherHost').value;
+    const portValue = document.getElementById('genericPublisherPort').value;
+    const transport = document.getElementById('genericPublisherTransport').value;
+
+    const fields = {};
+    document.querySelectorAll('#genericPublisherFields [data-field-name]').forEach(input => {
+      fields[input.dataset.fieldName] = input.value;
+    });
+
+    const result = document.getElementById('genericPublisherResult');
+    result.className = 'publisher-result';
+    result.innerText = 'Sending...';
+
+    const response = await fetch('/api/publisher/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        interfaceKey,
+        messageType,
+        host: host || null,
+        port: portValue ? Number(portValue) : null,
+        transport,
+        fields
+      })
+    });
+
+    const responseBody = await response.json();
+
+    if (responseBody.success) {
+      result.className = 'publisher-result ok';
+      result.innerText = `Sent ${responseBody.bytesSent} bytes to ${responseBody.targets.join(', ')}`;
+      setTimeout(loadMessages, 300);
+    } else {
+      result.className = 'publisher-result error';
+      result.innerText = `Failed: ${responseBody.error}`;
+    }
+  }
+
   onPublisherInterfaceChanged();
   loadPeriodicStatus();
   loadMessages();
+  loadSidebarInterfaces();
+  loadGenericPublisherInterfaces();
   setInterval(loadMessages, 2000);
 </script>
 </body>

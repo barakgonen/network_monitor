@@ -5,7 +5,9 @@ import com.example.handlercore.MessageArrivedDispatcher;
 import com.example.monitor.autoreply.AutoReplySettingsService;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
+import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
+import com.example.schemacore.DefaultEnvelopeHeader;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.ProtocolHeaderCodec;
 import com.example.schemacore.ProtocolMessage;
@@ -158,6 +160,52 @@ class MessageIngestionPipelineTest {
         pipeline.ingest(stubPayload(), "UDP", "127.0.0.1:9000", 5001);
 
         verifyNoInteractions(messageArrivedDispatcher);
+    }
+
+    @Test
+    void ingestForInterface_withValidPayload_decodesUsingInterfaceScopedHeaderAndRegistry(
+            @org.mockito.Mock MessageDefinitionRegistry scopedRegistry) {
+        StubDefinition definition = new StubDefinition();
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
+
+        InterfaceConfig interfaceConfig = new InterfaceConfig();
+        interfaceConfig.setName("Rada Interface");
+        interfaceConfig.setPort(5050);
+        interfaceConfig.setHeaderType(DefaultEnvelopeHeader.class.getName());
+        interfaceConfig.setOpcodeFieldName("opcode");
+
+        byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                payload, "UDP", "127.0.0.1:9000", 5050, interfaceConfig, scopedRegistry);
+
+        assertThat(message.interfaceName()).isEqualTo("Stub Interface");
+        assertThat(message.messageType()).isEqualTo("Stub");
+        assertThat(message.parseError()).isNull();
+        assertThat(message.header()).containsEntry("opcode", STUB_OPCODE);
+
+        verify(recentMessageStore).add(message);
+        verify(messageArchiveRepository).save(message);
+    }
+
+    @Test
+    void ingestForInterface_withUnknownOpcode_setsParseError(@org.mockito.Mock MessageDefinitionRegistry scopedRegistry) {
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.empty());
+
+        InterfaceConfig interfaceConfig = new InterfaceConfig();
+        interfaceConfig.setName("Rada Interface");
+        interfaceConfig.setPort(5050);
+        interfaceConfig.setHeaderType(DefaultEnvelopeHeader.class.getName());
+        interfaceConfig.setOpcodeFieldName("opcode");
+
+        byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                payload, "UDP", "127.0.0.1:9000", 5050, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).isNotNull();
+        assertThat(message.interfaceName()).isEqualTo("Unknown");
     }
 
     private static final class StubMessage implements ProtocolMessage {

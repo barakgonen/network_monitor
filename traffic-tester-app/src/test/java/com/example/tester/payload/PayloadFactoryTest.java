@@ -1,9 +1,14 @@
 package com.example.tester.payload;
 
-import com.example.schemas.candy.CandyProtocolCodec;
-import com.example.schemas.fruit.FruitProtocolCodec;
-import com.example.schemas.ping.PingProtocolCodec;
-import com.example.schemas.weather.WeatherProtocolCodec;
+import com.example.schemacore.ProtocolHeader;
+import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemas.candy.CandyMessage;
+import com.example.schemas.fruit.BananaMessage;
+import com.example.schemas.fruit.OrangeMessage;
+import com.example.schemas.ping.PingMessage;
+import com.example.schemas.rada.messages.RadaStatus;
+import com.example.schemas.weather.TemperatureReadingMessage;
 import com.example.tester.config.CandyPayloadConfig;
 import com.example.tester.config.FruitPayloadConfig;
 import com.example.tester.config.PayloadConfig;
@@ -12,6 +17,7 @@ import com.example.tester.config.PingPayloadConfig;
 import com.example.tester.config.WeatherPayloadConfig;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,10 +76,9 @@ class PayloadFactoryTest {
 
         byte[] payload = factory.create(config);
 
-        FruitProtocolCodec.DecodedFruitMessage decoded = new FruitProtocolCodec().decode(payload);
-        assertThat(decoded.messageType()).isEqualTo("Orange");
-        assertThat(decoded.bodyFields().get("sourceFarm")).isEqualTo("farm-x");
-        assertThat(decoded.bodyFields().get("freshness")).isEqualTo("very_fresh");
+        OrangeMessage decoded = (OrangeMessage) decodeBody(payload, 1001, OrangeMessage.class);
+        assertThat(decoded.sourceFarm()).isEqualTo("farm-x");
+        assertThat(decoded.freshness().getWireName()).isEqualTo("very_fresh");
     }
 
     @Test
@@ -87,10 +92,9 @@ class PayloadFactoryTest {
 
         byte[] payload = factory.create(config);
 
-        FruitProtocolCodec.DecodedFruitMessage decoded = new FruitProtocolCodec().decode(payload);
-        assertThat(decoded.messageType()).isEqualTo("Banana");
-        assertThat(decoded.bodyFields().get("color")).isEqualTo("green");
-        assertThat(decoded.bodyFields().get("weight")).isEqualTo(42.0);
+        BananaMessage decoded = (BananaMessage) decodeBody(payload, 1002, BananaMessage.class);
+        assertThat(decoded.color()).isEqualTo("green");
+        assertThat(decoded.weight()).isEqualTo(42.0);
     }
 
     @Test
@@ -105,10 +109,10 @@ class PayloadFactoryTest {
 
         byte[] payload = factory.create(config);
 
-        WeatherProtocolCodec.DecodedWeatherMessage decoded = new WeatherProtocolCodec().decode(payload);
-        assertThat(decoded.messageType()).isEqualTo("TemperatureReading");
-        assertThat(decoded.bodyFields().get("stationId")).isEqualTo("station-z");
-        assertThat(decoded.bodyFields().get("condition")).isEqualTo("rainy");
+        TemperatureReadingMessage decoded =
+                (TemperatureReadingMessage) decodeBody(payload, 2001, TemperatureReadingMessage.class);
+        assertThat(decoded.stationId()).isEqualTo("station-z");
+        assertThat(decoded.condition().getWireName()).isEqualTo("rainy");
     }
 
     @Test
@@ -121,9 +125,8 @@ class PayloadFactoryTest {
 
         byte[] payload = factory.create(config);
 
-        PingProtocolCodec.DecodedPingMessage decoded = new PingProtocolCodec().decode(payload);
-        assertThat(decoded.messageType()).isEqualTo("Ping");
-        assertThat(decoded.bodyFields().get("sequence")).isEqualTo(77);
+        PingMessage decoded = (PingMessage) decodeBody(payload, 3001, PingMessage.class);
+        assertThat(decoded.sequence()).isEqualTo(77);
     }
 
     @Test
@@ -137,9 +140,32 @@ class PayloadFactoryTest {
 
         byte[] payload = factory.create(config);
 
-        CandyProtocolCodec.DecodedCandyMessage decoded = new CandyProtocolCodec().decode(payload);
-        assertThat(decoded.messageType()).isEqualTo("Candy");
-        assertThat(decoded.bodyFields().get("name")).isEqualTo("chocolate-bar");
-        assertThat(decoded.bodyFields().get("calories")).isEqualTo(250.5);
+        CandyMessage decoded = (CandyMessage) decodeBody(payload, 4001, CandyMessage.class);
+        assertThat(decoded.name()).isEqualTo("chocolate-bar");
+        assertThat(decoded.calories()).isEqualTo(250.5);
+    }
+
+    @Test
+    void create_withRadaStatusMode_producesDecodableRandomizedPayloadWithFixedOpcode() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.RADA_STATUS);
+
+        byte[] payload = factory.create(config);
+
+        // Rada messages embed their own header, so decode directly rather than via the shared
+        // fixed-envelope ProtocolHeaderCodec used by the legacy message types above.
+        RadaStatus decoded = ReflectiveStructCodec.decode(RadaStatus.class, payload);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(3);
+    }
+
+    private Object decodeBody(byte[] payload, int expectedOpcode, Class<?> messageClass) {
+        ByteBuffer buffer = ByteBuffer.wrap(payload);
+        ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
+        assertThat(header.opcode()).isEqualTo(expectedOpcode);
+
+        byte[] body = new byte[buffer.remaining()];
+        buffer.get(body);
+
+        return ReflectiveStructCodec.decode(messageClass, body);
     }
 }

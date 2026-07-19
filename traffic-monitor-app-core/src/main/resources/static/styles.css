@@ -774,3 +774,37 @@ tbody tr.selected-row {
 .accordion-row.expanded .accordion-header {
     border-bottom: 1px solid var(--border);
 }
+
+/* Interfaces tab: per-interface runtime start/stop status badges */
+
+.status-badge.status-off {
+    border: 1px solid rgba(255, 92, 106, 0.30);
+    background: var(--red-dim);
+    color: var(--red);
+}
+
+.status-badge.status-off::before {
+    background: var(--red);
+    box-shadow: 0 0 5px var(--red);
+}
+
+.status-badge.status-on {
+    border: 1px solid rgba(61, 219, 160, 0.30);
+    background: var(--green-dim);
+    color: var(--green);
+}
+
+.status-badge.status-on::before {
+    background: var(--green);
+    box-shadow: 0 0 5px var(--green);
+}
+
+/* Generic publisher: field type hint shown next to reflected field labels */
+
+.field-type {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: lowercase;
+}

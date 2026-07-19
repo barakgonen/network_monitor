@@ -46,10 +46,19 @@ public class TrafficToolConfigLoader {
             }
 
             for (MessageConfig message : interfaceConfig.getMessages()) {
-                if (message.getDefinitionClass() == null || message.getDefinitionClass().isBlank()) {
+                boolean hasDefinitionClass = message.getDefinitionClass() != null && !message.getDefinitionClass().isBlank();
+                boolean hasMessageClass = message.getMessageClass() != null && !message.getMessageClass().isBlank();
+
+                if (!hasDefinitionClass && !hasMessageClass) {
                     throw new IllegalArgumentException(
                             "interfaces[key=" + interfaceConfig.getKey() + "].messages[type=" + message.getType()
-                                    + "] is missing definitionClass");
+                                    + "] must define either definitionClass or messageClass");
+                }
+
+                if (hasMessageClass && message.getOpcode() == null) {
+                    throw new IllegalArgumentException(
+                            "interfaces[key=" + interfaceConfig.getKey() + "].messages[type=" + message.getType()
+                                    + "] defines messageClass but is missing opcode");
                 }
             }
         }

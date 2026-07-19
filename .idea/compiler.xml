@@ -7,6 +7,7 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="handler-core" />
+        <module name="schema-annotations" />
         <module name="traffic-monitor-app-core" />
         <module name="schema-core" />
         <module name="shared-schemas" />
