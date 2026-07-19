@@ -10,7 +10,7 @@ says "seven modules" / "four protocols" — both are now wrong). Don't trust it 
 counts or class names; this file and the code are the source of truth. It should be
 regenerated/updated at some point.
 
-## Module graph (5 modules)
+## Module graph (3 modules)
 
 ```
 traffic-monitor-app-core   The generic engine, plus what used to be two separate modules
@@ -31,16 +31,24 @@ traffic-monitor-app-core   The generic engine, plus what used to be two separate
                       below) — its own test tree only holds pure unit/slice tests; the real
                       end-to-end integration-test suite lives in traffic-monitor-app instead
                       (see "IT suite lives in traffic-monitor-app" below).
-shared-schemas       Concrete message classes (fruit/weather/ping/candy/rada). Depends on:
-                      traffic-monitor-app-core only (for ProtocolMessage/the annotations).
-handler-app          Concrete MessageArrivedHandler implementations, one per message type,
-                      including handler-app/rada/RadaTracksExtendedHandler. Depends on:
-                      traffic-monitor-app-core, shared-schemas.
-traffic-monitor-app  The runnable app. Holds TrafficMonitorApplication's main(), depends on
-                      traffic-monitor-app-core + shared-schemas + handler-app, holds the
-                      spring-boot-maven-plugin config and the module's integration-test suite.
-traffic-tester-app   Standalone CLI tester, depends on shared-schemas directly (it's a test
-                      tool, allowed to know the wire format) + Instancio for random payloads.
+traffic-monitor-app  The runnable app, and also what used to be two more separate modules
+                      (shared-schemas, handler-app) folded directly into it — merged the same
+                      way, since neither has any other consumer besides this module and
+                      traffic-tester-app (which now depends on this module instead; see the
+                      exec-jar note below). Package layout adds two more top-level packages
+                      alongside `com.example.monitor` (the app's own code, holding
+                      TrafficMonitorApplication's main()):
+                        - `com.example.schemas` — concrete message classes
+                          (fruit/weather/ping/candy/rada).
+                        - `com.example.handlerapp` — concrete MessageArrivedHandler
+                          implementations, one per message type, including
+                          handlerapp/rada/RadaTracksExtendedHandler.
+                      Holds the spring-boot-maven-plugin config and the module's
+                      integration-test suite.
+traffic-tester-app   Standalone CLI tester, depends on traffic-monitor-app (for the message
+                      classes — it's a test tool, allowed to know the wire format) +
+                      Instancio for random payloads. See the exec-jar note below for why this
+                      dependency resolves to plain classes rather than the fat Spring Boot jar.
 ```
 
 Build/test a module + its deps: `mvn -pl <module> -am test`. Full repo: `mvn clean verify`
@@ -48,11 +56,21 @@ from the root. Integration tests (`*IT.java`, real Spring context + real sockets
 `failsafe`, bound to the `test` phase in traffic-monitor-app specifically (see the comment on
 that module's failsafe execution — repackage/failsafe ordering gotcha below).
 
+**Exec-jar classifier**: traffic-monitor-app's spring-boot-maven-plugin repackage execution
+uses `<classifier>exec</classifier>`, so `mvn package` produces both
+`traffic-monitor-app-<version>.jar` (plain classes, the resolvable Maven dependency
+traffic-tester-app consumes) and `traffic-monitor-app-<version>-exec.jar` (the runnable fat
+jar — nested `BOOT-INF/classes/...`, not consumable as a library). Without the classifier,
+repackage replaces the main artifact in place with the fat jar, silently breaking any other
+module that depends on this one for its plain classes. Run the app via the `-exec` jar (or
+`mvn -pl traffic-monitor-app spring-boot:run`), not the plain one.
+
 ## Core architectural invariant: engine has zero schema dependency
 
 `traffic-monitor-app-core` never imports `com.example.schemas.*` or `com.example.handlerapp.*`
-in main code — enforced by the pom (it has no dependency on shared-schemas/handler-app at all,
-not even test-scope; see "IT suite lives in traffic-monitor-app" below for why). All wiring from
+in main code — enforced by the pom (it has no dependency on traffic-monitor-app, the module
+those packages now live in, at all, not even test-scope; see "IT suite lives in
+traffic-monitor-app" below for why). All wiring from
 generic engine to concrete protocol classes happens by fully-qualified class name string, read
 from YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at startup
 (`MessageSchemaWiringConfig`). This means new protocols never require touching the engine.
@@ -64,10 +82,10 @@ traffic-monitor-app-core's test Spring context boots the full app wiring (its tr
 can only host tests that don't need concrete message/handler classes on the classpath — plain
 unit tests and Spring slice tests (`@WebMvcTest`, `@JdbcTest`). The real end-to-end integration
 suite (`*IT.java`, real UDP/TCP sockets + real Spring context wired to real interfaces) lives in
-`traffic-monitor-app` instead, which already compile-depends on shared-schemas + handler-app and
-has a real bootable `TrafficMonitorApplication` (scanning `com.example.handlerapp` too) for the
-tests to boot against. Test config: `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`
-+ `application.yml`.
+`traffic-monitor-app` instead, which holds `com.example.schemas`/`com.example.handlerapp`
+directly and has a real bootable `TrafficMonitorApplication` (scanning `com.example.handlerapp`
+too) for the tests to boot against. Test config:
+`traffic-monitor-app/src/test/resources/traffic-tool-test.yml` + `application.yml`.
 
 ## The reflective codec convention (traffic-monitor-app-core's com.example.schemacore)
 
@@ -201,4 +219,6 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   `HistoryController`/`AnalyticsController` to accept a repeatable `interfaceName` param.
 - No standalone Spring-free ingestion library module or a second thin deployable app module
   for customer-specific handler bundles — that capability exists conceptually (extend
-  `handler-app`-shaped modules) but isn't split into separate reusable artifacts.
+  `com.example.handlerapp`-shaped classes) but isn't split into a separate reusable artifact;
+  after the shared-schemas/handler-app merge, extracting one would mean pulling packages back
+  out of traffic-monitor-app rather than depending on an existing standalone module.

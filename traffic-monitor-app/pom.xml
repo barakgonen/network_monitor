@@ -19,18 +19,6 @@
     </dependency>
 
     <dependency>
-      <groupId>com.example</groupId>
-      <artifactId>shared-schemas</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>com.example</groupId>
-      <artifactId>handler-app</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
@@ -50,6 +38,14 @@
         <version>${spring.boot.version}</version>
         <configuration>
           <mainClass>com.example.monitor.TrafficMonitorApplication</mainClass>
+          <!--
+            traffic-tester-app depends on this module's plain classes (com.example.schemas.*).
+            Without a classifier, repackage replaces the main jar artifact in place with the
+            fat/executable jar (classes nested under BOOT-INF/classes/), which isn't consumable
+            as a normal library dependency. The classifier keeps the thin jar as the resolvable
+            main artifact; the executable jar is `traffic-monitor-app-<version>-exec.jar`.
+          -->
+          <classifier>exec</classifier>
         </configuration>
         <executions>
           <execution>
