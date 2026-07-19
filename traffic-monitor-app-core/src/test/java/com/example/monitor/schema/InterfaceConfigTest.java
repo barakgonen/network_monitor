@@ -15,7 +15,7 @@ class InterfaceConfigTest {
         assertThat(config.getPort()).isNull();
         assertThat(config.hasDedicatedPort()).isFalse();
         assertThat(config.getByteOrder()).isEqualTo("BIG_ENDIAN");
-        assertThat(config.getHeaderType()).isEqualTo("com.example.schemacore.DefaultEnvelopeHeader");
+        assertThat(config.getHeaderType()).isEqualTo("com.example.schemacore.envelope.DefaultEnvelopeHeader");
         assertThat(config.getOpcodeFieldName()).isEqualTo("opcode");
     }
 

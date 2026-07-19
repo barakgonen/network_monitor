@@ -1,6 +1,6 @@
 package com.example.schemas.weather;
 
-import com.example.schemacore.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;

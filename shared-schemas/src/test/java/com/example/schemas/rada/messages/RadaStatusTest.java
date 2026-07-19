@@ -1,8 +1,8 @@
 package com.example.schemas.rada.messages;
 
-import com.example.schemacore.ReflectiveMessageDefinition;
-import com.example.schemacore.ReflectiveStructCodec;
-import com.example.schemacore.StructSizeCalculator;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
+import com.example.schemacore.reflect.StructSizeCalculator;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

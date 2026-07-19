@@ -1,9 +1,9 @@
 package com.example.tester.udp;
 
-import com.example.schemacore.ProtocolHeader;
-import com.example.schemacore.ProtocolHeaderCodec;
-import com.example.schemacore.ReflectiveFieldExtractor;
-import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemacore.envelope.ProtocolHeader;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.schemacore.reflect.ReflectiveFieldExtractor;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.OrangeMessage;

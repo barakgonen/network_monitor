@@ -1,7 +1,7 @@
 package com.example.tester.payload;
 
-import com.example.schemacore.ProtocolHeaderCodec;
-import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;

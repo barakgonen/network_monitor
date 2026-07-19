@@ -3,7 +3,7 @@ package com.example.monitor.schema;
 import java.util.List;
 
 public class InterfaceConfig {
-    public static final String DEFAULT_HEADER_TYPE = "com.example.schemacore.DefaultEnvelopeHeader";
+    public static final String DEFAULT_HEADER_TYPE = "com.example.schemacore.envelope.DefaultEnvelopeHeader";
     public static final String DEFAULT_OPCODE_FIELD_NAME = "opcode";
 
     private String key;

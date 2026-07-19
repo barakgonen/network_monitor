@@ -1,4 +1,6 @@
-package com.example.schemacore;
+package com.example.schemacore.reflect;
+
+import com.example.schemacore.ProtocolMessage;
 
 import org.junit.jupiter.api.Test;
 

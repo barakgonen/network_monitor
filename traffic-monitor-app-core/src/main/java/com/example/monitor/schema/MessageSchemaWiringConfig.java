@@ -3,7 +3,7 @@ package com.example.monitor.schema;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.ProtocolMessage;
-import com.example.schemacore.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

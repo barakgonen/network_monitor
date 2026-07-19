@@ -1,6 +1,6 @@
 package com.example.schemas.fruit;
 
-import com.example.schemacore.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

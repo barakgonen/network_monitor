@@ -4,8 +4,8 @@ import com.example.monitor.publishing.TcpMessagePublisher;
 import com.example.monitor.publishing.UdpMessagePublisher;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolHeaderCodec;
-import com.example.schemacore.ReflectiveMessageDefinition;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.rada.messages.RadaStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,7 +99,7 @@ class PublisherServiceTest {
         verify(udpMessagePublisher).send(eq("localhost"), eq(5050), captor.capture());
 
         // RadaStatus embeds its own 16-byte header directly (no ProtocolHeaderCodec envelope).
-        RadaStatus decoded = com.example.schemacore.ReflectiveStructCodec.decode(RadaStatus.class, captor.getValue());
+        RadaStatus decoded = com.example.schemacore.reflect.ReflectiveStructCodec.decode(RadaStatus.class, captor.getValue());
         assertThat(decoded).isNotNull();
     }
 

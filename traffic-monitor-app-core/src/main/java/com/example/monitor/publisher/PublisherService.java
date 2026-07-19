@@ -6,7 +6,7 @@ import com.example.monitor.publishing.UdpMessagePublisher;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;

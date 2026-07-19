@@ -1,4 +1,7 @@
-package com.example.schemacore;
+package com.example.schemacore.reflect;
+
+import com.example.schemacore.MessageDefinition;
+import com.example.schemacore.ProtocolMessage;
 
 import java.nio.ByteBuffer;
 import java.util.Map;

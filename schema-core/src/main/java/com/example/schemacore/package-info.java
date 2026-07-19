@@ -1,0 +1,12 @@
+/**
+ * Core, protocol-agnostic message model: {@link com.example.schemacore.ProtocolMessage} (the
+ * marker every concrete message implements), {@link com.example.schemacore.MessageDefinition}
+ * (per-message opcode/codec contract), and {@link com.example.schemacore.MessageDefinitionRegistry}
+ * (lookup by opcode / interface+type / message class).
+ *
+ * <p>Sibling packages build on these types: {@link com.example.schemacore.annotation} declares the
+ * wire-layout annotations, {@link com.example.schemacore.envelope} implements the legacy fixed
+ * envelope, and {@link com.example.schemacore.reflect} implements the reflective codec engine that
+ * produces {@code MessageDefinition} instances from plain message classes.
+ */
+package com.example.schemacore;

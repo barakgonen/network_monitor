@@ -4,7 +4,7 @@ import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.schema.MessageConfig;
 import com.example.monitor.schema.TrafficToolConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.rada.messages.RadaStatus;
 import org.junit.jupiter.api.Test;

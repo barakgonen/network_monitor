@@ -1,4 +1,4 @@
-package com.example.schemacore;
+package com.example.schemacore.envelope;
 
 import java.nio.ByteBuffer;
 

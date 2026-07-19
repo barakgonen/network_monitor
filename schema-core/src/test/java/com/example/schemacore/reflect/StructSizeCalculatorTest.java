@@ -1,7 +1,7 @@
-package com.example.schemacore;
+package com.example.schemacore.reflect;
 
-import com.example.schemaannotations.EnumWireSize;
-import com.example.schemaannotations.FixedArrayLength;
+import com.example.schemacore.annotation.EnumWireSize;
+import com.example.schemacore.annotation.FixedArrayLength;
 
 import org.junit.jupiter.api.Test;
 

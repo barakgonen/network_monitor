@@ -1,4 +1,4 @@
-package com.example.schemaannotations;
+package com.example.schemacore.annotation;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
@@ -7,17 +7,23 @@ import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Defines the fixed number of elements for a binary-schema array field.
+ * Defines the fixed wire size, in bytes, of an enum field.
+ *
+ * Valid values:
+ * - 1 byte
+ * - 2 bytes
+ * - 4 bytes
+ * - 8 bytes
  *
  * Example:
  *
  * {@code
- * @FixedArrayLength(10)
- * private TrackData[] tracks;
+ * @EnumWireSize(1)
+ * private Status status;
  * }
  */
 @Target(FIELD)
 @Retention(RUNTIME)
-public @interface FixedArrayLength {
+public @interface EnumWireSize {
     int value();
 }

@@ -1,7 +1,7 @@
 package com.example.monitor;
 
-import com.example.schemacore.ProtocolHeader;
-import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.envelope.ProtocolHeader;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

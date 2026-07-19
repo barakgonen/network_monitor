@@ -2,7 +2,7 @@ package com.example.monitor;
 
 import com.example.monitor.interfaces.InterfaceStatusDto;
 import com.example.monitor.model.ObservedMessage;
-import com.example.schemacore.ReflectiveStructCodec;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.schemas.rada.messages.RadaStatus;
 import com.example.schemas.rada.struct.RadaHeader;
 import org.junit.jupiter.api.AfterEach;

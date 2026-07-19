@@ -1,6 +1,6 @@
 package com.example.schemas.rada.struct;
 
-import com.example.schemaannotations.FixedArrayLength;
+import com.example.schemacore.annotation.FixedArrayLength;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

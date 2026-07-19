@@ -6,6 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Immutable lookup of {@link MessageDefinition}s by opcode, by (interfaceName, messageType), and
+ * by message class. One registry is built per ingestion path (the legacy global registry, plus
+ * one per dedicated-port interface) via {@link #loadFromClassNames(List)}, which resolves each
+ * configured definition class name with {@code Class.forName} and instantiates it with a no-arg
+ * constructor.
+ */
 public final class MessageDefinitionRegistry {
     private final Map<Integer, MessageDefinition> byOpcode;
     private final Map<String, MessageDefinition> byInterfaceAndType;

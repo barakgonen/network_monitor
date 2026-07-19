@@ -10,13 +10,14 @@ says "seven modules" / "four protocols" — both are now wrong). Don't trust it 
 counts or class names; this file and the code are the source of truth. It should be
 regenerated/updated at some point.
 
-## Module graph (8 modules)
+## Module graph (7 modules)
 
 ```
-schema-annotations   @FixedArrayLength, @EnumWireSize. Zero deps.
-schema-core          MessageDefinition/Registry, ProtocolMessage marker, ProtocolHeaderCodec
-                      (legacy fixed envelope), + the reflective codec engine (see below).
-                      Depends on: schema-annotations.
+schema-core          Zero deps. Root package: MessageDefinition/Registry, ProtocolMessage marker.
+                      Sub-packages: `annotation` (@FixedArrayLength, @EnumWireSize — formerly the
+                      separate schema-annotations module, merged in), `envelope`
+                      (ProtocolHeaderCodec, the legacy fixed envelope, + DefaultEnvelopeHeader),
+                      `reflect` (the reflective codec engine, see below).
 handler-core         MessageArrivedHandler<T>, MessageHandlerRegistry, MessageArrivedDispatcher,
                       ReplySender, DestinationConfig. Depends on: schema-core.
 shared-schemas       Concrete message classes (fruit/weather/ping/candy/rada). Depends on:
@@ -60,7 +61,7 @@ Messages don't need a hand-written `MessageDefinition` + separate codec class pa
   a field is variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) —
   else `public void toByteArray(ByteBuffer)`, buffer pre-sized via
   `StructSizeCalculator.calculateStructSize(class)` (used for fixed-layout messages; array
-  fields need `@FixedArrayLength(n)` from `schema-annotations` for this to work).
+  fields need `@FixedArrayLength(n)` from `schema-core`'s `annotation` package for this to work).
 
 `ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass)` wraps this
 into a `MessageDefinition` — one line of config replaces one hand-written Java class. Config

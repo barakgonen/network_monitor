@@ -1,4 +1,4 @@
-package com.example.schemacore;
+package com.example.schemacore.reflect;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;

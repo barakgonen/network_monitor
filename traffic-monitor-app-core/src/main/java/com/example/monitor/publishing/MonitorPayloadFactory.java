@@ -2,7 +2,7 @@ package com.example.monitor.publishing;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.ProtocolMessage;
 import org.springframework.stereotype.Component;
 

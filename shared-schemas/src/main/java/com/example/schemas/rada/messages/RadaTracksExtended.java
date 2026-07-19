@@ -1,6 +1,6 @@
 package com.example.schemas.rada.messages;
 
-import com.example.schemaannotations.FixedArrayLength;
+import com.example.schemacore.annotation.FixedArrayLength;
 import com.example.schemacore.ProtocolMessage;
 import com.example.schemas.rada.struct.RadaHeader;
 import com.example.schemas.rada.struct.RadaPlotData;

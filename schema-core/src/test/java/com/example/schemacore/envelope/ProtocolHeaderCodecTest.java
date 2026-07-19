@@ -1,4 +1,4 @@
-package com.example.schemacore;
+package com.example.schemacore.envelope;
 
 import org.junit.jupiter.api.Test;
 

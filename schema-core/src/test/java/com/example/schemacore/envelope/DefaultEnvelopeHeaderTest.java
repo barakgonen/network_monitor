@@ -1,4 +1,6 @@
-package com.example.schemacore;
+package com.example.schemacore.envelope;
+
+import com.example.schemacore.reflect.ReflectiveStructCodec;
 
 import org.junit.jupiter.api.Test;
 

@@ -1,7 +1,13 @@
-package com.example.schemacore;
+package com.example.schemacore.envelope;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Codec for the legacy fixed 16-byte envelope (opcode:int, sendTimeEpochMillis:long,
+ * bodyLength:int, big-endian) shared by the fruit/weather/ping/candy interfaces. This is the one
+ * place that framing is implemented for that path; dedicated-port interfaces use their own header
+ * class decoded via {@code com.example.schemacore.reflect.ReflectiveStructCodec} instead.
+ */
 public final class ProtocolHeaderCodec {
     public static final int HEADER_SIZE_BYTES = Integer.BYTES + Long.BYTES + Integer.BYTES;
 

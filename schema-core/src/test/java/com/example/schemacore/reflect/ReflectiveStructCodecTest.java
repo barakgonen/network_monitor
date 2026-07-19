@@ -1,4 +1,4 @@
-package com.example.schemacore;
+package com.example.schemacore.reflect;
 
 import org.junit.jupiter.api.Test;
 

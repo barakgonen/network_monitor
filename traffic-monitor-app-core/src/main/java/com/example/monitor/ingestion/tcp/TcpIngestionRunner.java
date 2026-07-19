@@ -3,7 +3,7 @@ package com.example.monitor.ingestion.tcp;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.ingestion.MessageIngestionPipeline;
 import com.example.monitor.model.ObservedMessage;
-import com.example.schemacore.ProtocolHeaderCodec;
+import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
