@@ -1,5 +1,7 @@
 package com.example.monitor.api.publisher;
 
+import java.util.List;
+
 public record PublisherSendResponse(
         boolean success,
         String interfaceName,
@@ -7,6 +9,7 @@ public record PublisherSendResponse(
         String messageClass,
         String host,
         int port,
+        List<String> targets,
         int bytesSent,
         String error
 ) {

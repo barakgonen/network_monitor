@@ -102,6 +102,8 @@ public class TrafficMonitorProperties {
         private boolean enabled = true;
         private String protocol = "UDP";
         private int port;
+        private boolean shouldBroadcast;
+        private List<String> broadcastTargets = new ArrayList<>();
         private String headerType;
         private String opcodeFieldName;
         private String byteOrder = "BIG_ENDIAN";
@@ -142,6 +144,22 @@ public class TrafficMonitorProperties {
 
         public void setPort(int port) {
             this.port = port;
+        }
+
+        public boolean isShouldBroadcast() {
+            return shouldBroadcast;
+        }
+
+        public void setShouldBroadcast(boolean shouldBroadcast) {
+            this.shouldBroadcast = shouldBroadcast;
+        }
+
+        public List<String> getBroadcastTargets() {
+            return broadcastTargets;
+        }
+
+        public void setBroadcastTargets(List<String> broadcastTargets) {
+            this.broadcastTargets = broadcastTargets == null ? new ArrayList<>() : broadcastTargets;
         }
 
         public String getHeaderType() {

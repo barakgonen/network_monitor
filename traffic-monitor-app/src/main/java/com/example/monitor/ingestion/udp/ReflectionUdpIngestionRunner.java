@@ -1,8 +1,7 @@
 package com.example.monitor.ingestion.udp;
 
-import com.example.messagereader.api.ParsedTrafficMessage;
-import com.example.messagereader.api.TrafficReader;
-import com.example.messagereader.api.TrafficReaderFactory;
+import com.example.messagereader.api.*;
+import com.example.messagereader.publisher.udp.UdpTrafficPublisher;
 import com.example.monitor.callback.EventDispatcher;
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
@@ -35,6 +34,7 @@ public class ReflectionUdpIngestionRunner {
     private final TrafficReaderFactory trafficReaderFactory;
     private final TrafficInterfaceDefinitionMapper definitionMapper;
     private final EventDispatcher eventDispatcher;
+    private final UdpTrafficPublisher udpTrafficPublisher;
 
     private volatile boolean running;
 
@@ -45,8 +45,7 @@ public class ReflectionUdpIngestionRunner {
             InterfaceRuntimeRegistry registry,
             TrafficReaderFactory trafficReaderFactory,
             TrafficInterfaceDefinitionMapper definitionMapper,
-            EventDispatcher eventDispatcher
-    ) {
+            EventDispatcher eventDispatcher) {
         this.properties = properties;
         this.recentMessageStore = recentMessageStore;
         this.observedTimeFormatter = observedTimeFormatter;
@@ -54,6 +53,7 @@ public class ReflectionUdpIngestionRunner {
         this.trafficReaderFactory = trafficReaderFactory;
         this.definitionMapper = definitionMapper;
         this.eventDispatcher = eventDispatcher;
+        this.udpTrafficPublisher = new UdpTrafficPublisher();
     }
 
     @PostConstruct
@@ -107,11 +107,21 @@ public class ReflectionUdpIngestionRunner {
         }
 
         triggerCallbackForEvent(parsed);
-
+        var configuration = state.configuration();
+        if (configuration.isShouldBroadcast()) {
+            configuration.getBroadcastTargets().forEach(target -> {
+                var host = target.split(":")[0];
+                var port = Integer.parseInt(target.split(":")[1]);
+                PublishTarget publishTarget = new PublishTarget(TransportProtocol.UDP, host, port);
+                udpTrafficPublisher.publish(publishTarget, parsed.rawPacket().payload());
+                log.info("Broadcasting message to target {}:{}", host, port);
+            });
+        }
         ObservedMessage observedMessage = toObservedMessage(parsed);
         state.markReceived(observedMessage.parseError() != null);
 
         recentMessageStore.add(observedMessage);
+
 
         log.info("Received {} packet on port {} from {} - message={} - parseError={}",
                 parsed.rawPacket().protocol(),

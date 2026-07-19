@@ -16,6 +16,10 @@ traffic:
   #     enabled: true
   #     protocol: UDP
   #     port: 5050
+  #     broadcast: true
+  #     broadcast-targets:
+  #       - 192.168.10.255:5050
+  #       - 10.0.0.25:6060
   #     byte-order: BIG_ENDIAN
   #     header-type: com.example.schemas.rada.struct.RadaHeader
   #     opcode-field-name: msgType

@@ -7,28 +7,15 @@ traffic:
   udp:
     buffer-size-bytes: 65507
 
-  # Put your own protocol classes here.
-  #
-  # Example:
-  #
-  # reflection-interfaces:
-  #   - name: Rada Interface
-  #     enabled: true
-  #     protocol: UDP
-  #     port: 5050
-  #     byte-order: BIG_ENDIAN
-  #     header-type: com.example.schemas.rada.struct.RadaHeader
-  #     opcode-field-name: msgType
-  #     supported-messages:
-  #       "4444":
-  #         message-class: com.example.schemas.rada.messages.RadaExtendedStatus
-  #         display-name: RadaExtendedStatus
-  #
   reflection-interfaces:
     - name: BG First Reflection
       enabled: true
       protocol: UDP
       port: 5001
+      should-broadcast: true
+      broadcast-targets:
+        - "192.168.10.255:5001"
+        - "10.0.0.25:5001"
       byte-order: BIG_ENDIAN
       header-type: com.example.schemas.rada.struct.RadaHeader
       opcode-field-name: msgType
@@ -85,6 +72,5 @@ traffic:
         "4":
           message-class: com.example.schemas.rada.messages.RadaTracksExtended
           display-name: RadaTracksExtended
-
   store:
     max-size: 500

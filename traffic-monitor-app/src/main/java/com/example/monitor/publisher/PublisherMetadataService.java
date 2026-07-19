@@ -67,8 +67,11 @@ public class PublisherMetadataService {
 
         return new PublisherInterfaceDto(
                 reflectionInterface.getName(),
+                reflectionInterface.isEnabled(),
                 reflectionInterface.getProtocol(),
                 reflectionInterface.getPort(),
+                reflectionInterface.isShouldBroadcast(),
+                List.copyOf(reflectionInterface.getBroadcastTargets()),
                 reflectionInterface.getByteOrder(),
                 reflectionInterface.getHeaderType(),
                 reflectionInterface.getOpcodeFieldName(),

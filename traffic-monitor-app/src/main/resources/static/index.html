@@ -1508,7 +1508,7 @@
       emptyState.innerText =
         'No publishable interfaces are configured.\n\n' +
         'Add entries under traffic.reflection-interfaces in application.yml.\n\n' +
-        'Each interface should define: name, port, header-type, opcode-field-name, and supported-messages.';
+        'Each interface should define: name, port, header-type, opcode-field-name, and supported-messages. Optional broadcast interfaces can also define broadcast=true and broadcast-targets.';
       list.style.display = 'none';
       setPublisherFormEnabled(false);
       return;
@@ -1540,7 +1540,10 @@
       row.innerHTML = `
         <div class="publisher-interface-title" onclick="selectPublisherInterface('${escapeJs(item.name)}')">${escapeHtml(item.name)}</div>
         <div class="publisher-interface-meta">
+          Enabled: ${item.enabled ? 'Yes' : 'No'}<br>
           ${escapeHtml(item.protocol || 'UDP')} : ${escapeHtml(item.port)}<br>
+          Mode: ${item.broadcast ? 'Broadcast' : 'Single target'}<br>
+          ${item.broadcast ? `Broadcast targets: ${escapeHtml(formatBroadcastTargets(item.broadcastTargets || []))}<br>` : ''}
           Header: ${escapeHtml(item.headerType || '')}<br>
           Opcode field: ${escapeHtml(item.opcodeFieldName || '')}<br>
           Messages: ${(item.messages || []).length}
@@ -1617,6 +1620,8 @@
       portInput.dataset.clearedOnce = 'false';
     }
 
+    applyPublisherTargetDefaults(selectedInterface);
+
     const summary = document.getElementById('publisherSelectedSummary');
     if (summary) {
       summary.innerText = `${selectedInterface.name} / ${selectedMessage.displayName} [${selectedMessage.opcode}]`;
@@ -1672,6 +1677,67 @@
       "header": {
         [selectedInterface.opcodeFieldName || "opcode"]: Number(selectedMessage.opcode)
       }
+    };
+  }
+
+  function applyPublisherTargetDefaults(selectedInterface) {
+    const hostInput = document.getElementById('publisherHost');
+    const portInput = document.getElementById('publisherPort');
+
+    if (!hostInput || !portInput || !selectedInterface) {
+      return;
+    }
+
+    hostInput.dataset.manualDefaultValue = hostInput.dataset.manualDefaultValue || hostInput.dataset.defaultValue || 'localhost';
+
+    if (selectedInterface.broadcast) {
+      hostInput.value = formatBroadcastTargets(selectedInterface.broadcastTargets || []);
+      hostInput.disabled = true;
+      hostInput.dataset.defaultValue = hostInput.value;
+      hostInput.dataset.clearedOnce = 'true';
+
+      const firstTarget = firstBroadcastTarget(selectedInterface.broadcastTargets || []);
+      portInput.value = firstTarget ? String(firstTarget.port) : String(selectedInterface.port || '');
+      portInput.disabled = true;
+      portInput.dataset.defaultValue = portInput.value;
+      portInput.dataset.clearedOnce = 'true';
+      return;
+    }
+
+    hostInput.disabled = false;
+    hostInput.value = hostInput.dataset.manualDefaultValue || 'localhost';
+    hostInput.dataset.defaultValue = hostInput.dataset.manualDefaultValue || 'localhost';
+    hostInput.dataset.clearedOnce = 'false';
+
+    portInput.disabled = false;
+    portInput.value = String(selectedInterface.port);
+    portInput.dataset.defaultValue = String(selectedInterface.port);
+    portInput.dataset.clearedOnce = 'false';
+  }
+
+  function formatBroadcastTargets(targets) {
+    if (!targets || targets.length === 0) {
+      return 'No configured targets';
+    }
+
+    return targets.join(', ');
+  }
+
+  function firstBroadcastTarget(targets) {
+    if (!targets || targets.length === 0) {
+      return null;
+    }
+
+    const value = String(targets[0] || '');
+    const separatorIndex = value.lastIndexOf(':');
+
+    if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+      return null;
+    }
+
+    return {
+      host: value.substring(0, separatorIndex),
+      port: Number(value.substring(separatorIndex + 1))
     };
   }
 
@@ -2302,9 +2368,13 @@
 
     if (responseBody.success) {
       result.className = 'publisher-result ok';
+      const targets = Array.isArray(responseBody.targets) ? responseBody.targets : [];
+      const targetLabel = targets.length > 0
+        ? targets.join(', ')
+        : `${responseBody.host}:${responseBody.port}`;
       result.innerText =
         `Sent ${metadata.selectedMessage.displayName}\n` +
-        `Target: ${responseBody.host}:${responseBody.port}\n` +
+        `${targets.length > 1 ? 'Targets' : 'Target'}: ${targetLabel}\n` +
         `Bytes: ${responseBody.bytesSent}`;
       setTimeout(loadMessages, 400);
     } else {

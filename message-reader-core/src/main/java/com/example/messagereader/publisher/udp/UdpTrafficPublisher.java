@@ -19,6 +19,7 @@ public class UdpTrafficPublisher implements TrafficPublisher {
         byte[] safePayload = payload == null ? new byte[0] : payload;
 
         try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setBroadcast(true);
             InetAddress address = InetAddress.getByName(target.host());
             DatagramPacket packet = new DatagramPacket(safePayload, safePayload.length, address, target.port());
             socket.send(packet);
