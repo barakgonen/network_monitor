@@ -14,7 +14,7 @@
   <dependencies>
     <dependency>
       <groupId>com.example</groupId>
-      <artifactId>handler-core</artifactId>
+      <artifactId>traffic-monitor-app-core</artifactId>
       <version>${project.version}</version>
     </dependency>
 

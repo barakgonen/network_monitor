@@ -5,8 +5,8 @@ import com.example.monitor.schema.MessageConfig;
 import com.example.monitor.schema.TrafficToolConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
-import com.example.schemas.candy.CandyMessage;
-import com.example.schemas.rada.messages.RadaStatus;
+import com.example.monitor.publisher.StubMessages.StubDedicatedPortMessage;
+import com.example.monitor.publisher.StubMessages.StubLegacyMessage;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -30,7 +30,7 @@ class PublisherMetadataServiceTest {
         config.setInterfaces(List.of(candy));
 
         MessageDefinitionRegistry globalRegistry = new MessageDefinitionRegistry(
-                List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, CandyMessage.class)));
+                List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, StubLegacyMessage.class)));
 
         PublisherMetadataService service = new PublisherMetadataService(config, globalRegistry, Map.of());
 
@@ -38,7 +38,7 @@ class PublisherMetadataServiceTest {
 
         assertThat(interfaces).hasSize(1);
         assertThat(interfaces.get(0).messages()).containsExactly(
-                new PublisherMessageDto("Candy", CandyMessage.class.getName(), 4001));
+                new PublisherMessageDto("Candy", StubLegacyMessage.class.getName(), 4001));
     }
 
     @Test
@@ -55,7 +55,7 @@ class PublisherMetadataServiceTest {
         config.setInterfaces(List.of(rada));
 
         MessageDefinitionRegistry scopedRegistry = new MessageDefinitionRegistry(
-                List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, RadaStatus.class)));
+                List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, StubDedicatedPortMessage.class)));
 
         PublisherMetadataService service =
                 new PublisherMetadataService(config, new MessageDefinitionRegistry(List.of()), Map.of("rada", scopedRegistry));
@@ -63,7 +63,7 @@ class PublisherMetadataServiceTest {
         List<PublisherInterfaceDto> interfaces = service.interfaces();
 
         assertThat(interfaces.get(0).messages()).containsExactly(
-                new PublisherMessageDto("RadaStatus", RadaStatus.class.getName(), 3));
+                new PublisherMessageDto("RadaStatus", StubDedicatedPortMessage.class.getName(), 3));
     }
 
     @Test

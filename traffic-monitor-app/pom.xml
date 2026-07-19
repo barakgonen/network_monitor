@@ -29,6 +29,17 @@
       <artifactId>handler-app</artifactId>
       <version>${project.version}</version>
     </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -44,6 +55,33 @@
           <execution>
             <goals>
               <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <environmentVariables>
+            <TRAFFIC_TOOL_CONFIG>${project.basedir}/src/test/resources/traffic-tool-test.yml</TRAFFIC_TOOL_CONFIG>
+          </environmentVariables>
+        </configuration>
+        <executions>
+          <!--
+            Bound to the `test` phase (before `package`), not the default integration-test/verify
+            phases. spring-boot-maven-plugin:repackage runs during `package`, and running it in the
+            same lifecycle pass immediately before Failsafe's forked JVM starts corrupts Spring's
+            test-context annotation resolution ("Failed to find merged annotation for
+            BootstrapWith(...)"), reproducible even with zero Surefire tests in this module and
+            confirmed absent when Failsafe runs before `package` (or as a fully separate mvn
+            invocation). Running Failsafe before repackage sidesteps the interaction entirely.
+          -->
+          <execution>
+            <phase>test</phase>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
             </goals>
           </execution>
         </executions>

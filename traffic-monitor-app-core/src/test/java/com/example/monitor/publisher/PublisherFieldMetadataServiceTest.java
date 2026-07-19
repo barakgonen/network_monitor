@@ -1,7 +1,7 @@
 package com.example.monitor.publisher;
 
-import com.example.schemas.candy.CandyMessage;
-import com.example.schemas.rada.messages.RadaStatus;
+import com.example.monitor.publisher.StubMessages.StubDedicatedPortMessage;
+import com.example.monitor.publisher.StubMessages.StubLegacyMessage;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,7 +14,7 @@ class PublisherFieldMetadataServiceTest {
 
     @Test
     void describeFields_forRecord_usesComponentNamesAndTypes() {
-        List<PublisherFieldDto> fields = service.describeFields(CandyMessage.class);
+        List<PublisherFieldDto> fields = service.describeFields(StubLegacyMessage.class);
 
         assertThat(fields).contains(
                 new PublisherFieldDto("name", "String"),
@@ -23,7 +23,7 @@ class PublisherFieldMetadataServiceTest {
 
     @Test
     void describeFields_forGetterBasedClass_usesGetterNamesAndTypes() {
-        List<PublisherFieldDto> fields = service.describeFields(RadaStatus.class);
+        List<PublisherFieldDto> fields = service.describeFields(StubDedicatedPortMessage.class);
 
         assertThat(fields).extracting(PublisherFieldDto::name).contains("radarSoftwareVersion", "statusFlags", "header");
     }

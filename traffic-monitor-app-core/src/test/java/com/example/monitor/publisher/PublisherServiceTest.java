@@ -6,8 +6,8 @@ import com.example.monitor.schema.InterfaceConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
-import com.example.schemas.candy.CandyMessage;
-import com.example.schemas.rada.messages.RadaStatus;
+import com.example.monitor.publisher.StubMessages.StubDedicatedPortMessage;
+import com.example.monitor.publisher.StubMessages.StubLegacyMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,9 +51,9 @@ class PublisherServiceTest {
         radaConfig.setPort(5050);
 
         MessageDefinitionRegistry candyRegistry = new MessageDefinitionRegistry(
-                List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, CandyMessage.class)));
+                List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, StubLegacyMessage.class)));
         MessageDefinitionRegistry radaRegistry = new MessageDefinitionRegistry(
-                List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, RadaStatus.class)));
+                List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, StubDedicatedPortMessage.class)));
 
         PublisherMetadataService metadataService = new PublisherMetadataService(
                 buildConfig(), candyRegistry, Map.of("rada", radaRegistry));
@@ -98,8 +98,9 @@ class PublisherServiceTest {
         var captor = org.mockito.ArgumentCaptor.forClass(byte[].class);
         verify(udpMessagePublisher).send(eq("localhost"), eq(5050), captor.capture());
 
-        // RadaStatus embeds its own 16-byte header directly (no ProtocolHeaderCodec envelope).
-        RadaStatus decoded = com.example.schemacore.reflect.ReflectiveStructCodec.decode(RadaStatus.class, captor.getValue());
+        // StubDedicatedPortMessage embeds its own header directly (no ProtocolHeaderCodec envelope).
+        StubDedicatedPortMessage decoded =
+                com.example.schemacore.reflect.ReflectiveStructCodec.decode(StubDedicatedPortMessage.class, captor.getValue());
         assertThat(decoded).isNotNull();
     }
 

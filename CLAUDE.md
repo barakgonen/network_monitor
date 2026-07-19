@@ -10,46 +10,66 @@ says "seven modules" / "four protocols" — both are now wrong). Don't trust it 
 counts or class names; this file and the code are the source of truth. It should be
 regenerated/updated at some point.
 
-## Module graph (7 modules)
+## Module graph (5 modules)
 
 ```
-schema-core          Zero deps. Root package: MessageDefinition/Registry, ProtocolMessage marker.
-                      Sub-packages: `annotation` (@FixedArrayLength, @EnumWireSize — formerly the
-                      separate schema-annotations module, merged in), `envelope`
-                      (ProtocolHeaderCodec, the legacy fixed envelope, + DefaultEnvelopeHeader),
-                      `reflect` (the reflective codec engine, see below).
-handler-core         MessageArrivedHandler<T>, MessageHandlerRegistry, MessageArrivedDispatcher,
-                      ReplySender, DestinationConfig. Depends on: schema-core.
+traffic-monitor-app-core   The generic engine, plus what used to be two separate modules
+                      (schema-core, handler-core) folded directly into it — merged because
+                      handler-core and shared-schemas both compile-depended on schema-core, and
+                      this module already compile-depended on handler-core, so schema-core
+                      couldn't move here alone without a cycle. Package layout:
+                        - `com.example.schemacore` (+ `.annotation`/`.envelope`/`.reflect`
+                          sub-packages) — MessageDefinition/Registry, ProtocolMessage marker,
+                          the legacy fixed envelope codec, the reflective codec engine.
+                        - `com.example.handlercore` — MessageArrivedHandler<T>,
+                          MessageHandlerRegistry, MessageArrivedDispatcher, ReplySender,
+                          DestinationConfig.
+                        - `com.example.monitor` — the engine itself: ingestion, persistence,
+                          analytics, auto-reply, publisher, interface runtime control, REST API,
+                          UI resources.
+                      Has zero compile dependency on shared-schemas/handler-app (see invariant
+                      below) — its own test tree only holds pure unit/slice tests; the real
+                      end-to-end integration-test suite lives in traffic-monitor-app instead
+                      (see "IT suite lives in traffic-monitor-app" below).
 shared-schemas       Concrete message classes (fruit/weather/ping/candy/rada). Depends on:
-                      schema-core only.
+                      traffic-monitor-app-core only (for ProtocolMessage/the annotations).
 handler-app          Concrete MessageArrivedHandler implementations, one per message type,
                       including handler-app/rada/RadaTracksExtendedHandler. Depends on:
-                      handler-core, shared-schemas.
-traffic-monitor-app-core   The generic engine: ingestion, persistence, analytics, auto-reply,
-                      publisher, interface runtime control, REST API, UI resources. Depends on
-                      schema-core + handler-core ONLY at compile scope — shared-schemas and
-                      handler-app are test-scope deps only. This is a hard architectural
-                      invariant (see "Core has zero schema dependency" below), not just style.
+                      traffic-monitor-app-core, shared-schemas.
 traffic-monitor-app  The runnable app. Holds TrafficMonitorApplication's main(), depends on
                       traffic-monitor-app-core + shared-schemas + handler-app, holds the
-                      spring-boot-maven-plugin config.
+                      spring-boot-maven-plugin config and the module's integration-test suite.
 traffic-tester-app   Standalone CLI tester, depends on shared-schemas directly (it's a test
                       tool, allowed to know the wire format) + Instancio for random payloads.
 ```
 
 Build/test a module + its deps: `mvn -pl <module> -am test`. Full repo: `mvn clean verify`
 from the root. Integration tests (`*IT.java`, real Spring context + real sockets) run via
-`failsafe` during `verify`/`integration-test`, not plain `test`.
+`failsafe`, bound to the `test` phase in traffic-monitor-app specifically (see the comment on
+that module's failsafe execution — repackage/failsafe ordering gotcha below).
 
 ## Core architectural invariant: engine has zero schema dependency
 
 `traffic-monitor-app-core` never imports `com.example.schemas.*` or `com.example.handlerapp.*`
-in main code — enforced by the pom (those are test-scope deps only). All wiring from generic
-engine to concrete protocol classes happens by fully-qualified class name string, read from
-YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at startup
+in main code — enforced by the pom (it has no dependency on shared-schemas/handler-app at all,
+not even test-scope; see "IT suite lives in traffic-monitor-app" below for why). All wiring from
+generic engine to concrete protocol classes happens by fully-qualified class name string, read
+from YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at startup
 (`MessageSchemaWiringConfig`). This means new protocols never require touching the engine.
 
-## The reflective codec convention (schema-core)
+## IT suite lives in traffic-monitor-app, not traffic-monitor-app-core
+
+traffic-monitor-app-core's test Spring context boots the full app wiring (its trimmed
+`TrafficMonitorTestApplication` only scans `com.example.monitor`, no handler packages), so it
+can only host tests that don't need concrete message/handler classes on the classpath — plain
+unit tests and Spring slice tests (`@WebMvcTest`, `@JdbcTest`). The real end-to-end integration
+suite (`*IT.java`, real UDP/TCP sockets + real Spring context wired to real interfaces) lives in
+`traffic-monitor-app` instead, which already compile-depends on shared-schemas + handler-app and
+has a real bootable `TrafficMonitorApplication` (scanning `com.example.handlerapp` too) for the
+tests to boot against. Test config: `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`
++ `application.yml`.
+
+## The reflective codec convention (traffic-monitor-app-core's com.example.schemacore)
 
 Messages don't need a hand-written `MessageDefinition` + separate codec class pair anymore.
 `ReflectiveStructCodec` reflectively invokes methods/constructors that follow a convention:
@@ -61,7 +81,7 @@ Messages don't need a hand-written `MessageDefinition` + separate codec class pa
   a field is variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) —
   else `public void toByteArray(ByteBuffer)`, buffer pre-sized via
   `StructSizeCalculator.calculateStructSize(class)` (used for fixed-layout messages; array
-  fields need `@FixedArrayLength(n)` from `schema-core`'s `annotation` package for this to work).
+  fields need `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
 
 `ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass)` wraps this
 into a `MessageDefinition` — one line of config replaces one hand-written Java class. Config
@@ -118,7 +138,7 @@ dedicated-port TCP isn't implemented, but will matter if that gap ever gets fill
   `TrafficToolConfigLoader` (env var `TRAFFIC_TOOL_CONFIG`, default path
   `config/traffic-tool.yml` relative to CWD — run from repo root). This is where
   `messageClass:`/`definitionClass:`, dedicated ports, `headerType:`, broadcast targets, etc.
-  live. Test equivalent: `traffic-monitor-app-core/src/test/resources/traffic-tool-test.yml`.
+  live. Test equivalent: `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`.
 - `traffic-monitor-app-core/src/main/resources/application.yml` — Spring config: server port,
   H2 datasource, `traffic.udp`/`traffic.tcp`/`traffic.store` (legacy fixed-port settings).
 - `config/tester-scenario.yml` — traffic-tester-app's scenario definition (what to send, how
@@ -158,6 +178,19 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   wired into the tester app's Instancio generation for this reason — only `RadaStatus`
   (scalar-only) is. Fixing this needs explicit `Instancio.of(...).generate(field(...), gen ->
   gen.array().length(n))` per annotated array field.
+- **`spring-boot-maven-plugin:repackage` running immediately before Failsafe in the same
+  lifecycle pass breaks Spring's test-context bootstrapping**: in traffic-monitor-app,
+  `mvn verify` (or any invocation where `package` and `integration-test` both run in one
+  process) made every `*IT.java` fail with `IllegalStateException: Failed to find merged
+  annotation for @BootstrapWith(SpringBootTestContextBootstrapper.class)` — reproducible even
+  with zero Surefire tests in the module, and confirmed absent when Failsafe runs before
+  `package`, or as a fully separate `mvn` invocation from repackage. Root cause not fully
+  isolated (looks like repackage leaves some JVM-process-level state that corrupts annotation
+  merging for Failsafe's forked test JVM), but the fix is straightforward: traffic-monitor-app's
+  failsafe execution binds its `integration-test`/`verify` goals to the `test` phase instead of
+  their defaults, so it completes before `package`/repackage ever runs. This never surfaced when
+  the IT suite lived in traffic-monitor-app-core because that module has no
+  spring-boot-maven-plugin at all.
 
 ## Known gaps / natural follow-ups
 
