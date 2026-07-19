@@ -1,4 +1,4 @@
-package com.example.handlerapp.weather;
+package com.example.messagehandlers.weather;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedHandler;

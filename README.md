@@ -244,14 +244,14 @@ zero Fruit/Weather knowledge.
 | `MessageHandlerRegistry` | Keyed by interfaceName/messageType; fail-fast on duplicates |
 | `MessageArrivedDispatcher` | Looks up the registry and invokes the matching handler, if any |
 
-### handler-app (`com.example.handlerapp`)
+### handler-app (`com.example.messagehandlers`)
 
 | Package | Classes |
 |---|---|
-| `com.example.handlerapp.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
-| `com.example.handlerapp.weather` | `TemperatureReadingMessageHandler` (stub) |
-| `com.example.handlerapp.ping` | `PingMessageHandler` — always auto-replies with a Pong echoing the same `sequence` |
-| `com.example.handlerapp.candy` | `CandyMessageHandler` (stub) |
+| `com.example.messagehandlers.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
+| `com.example.messagehandlers.weather` | `TemperatureReadingMessageHandler` (stub) |
+| `com.example.messagehandlers.ping` | `PingMessageHandler` — always auto-replies with a Pong echoing the same `sequence` |
+| `com.example.messagehandlers.candy` | `CandyMessageHandler` (stub) |
 
 ### traffic-monitor-app-core (`com.example.monitor`)
 
@@ -282,7 +282,7 @@ build and copy this module's jar — everything else is pulled in transitively.
 
 | Package | Classes |
 |---|---|
-| `com.example.monitor` | `TrafficMonitorApplication` — Spring Boot entrypoint (`main()`); `scanBasePackages` widened to also pick up `com.example.handlerapp` beans |
+| `com.example.monitor` | `TrafficMonitorApplication` — Spring Boot entrypoint (`main()`); `scanBasePackages` widened to also pick up `com.example.messagehandlers` beans |
 
 ### traffic-tester-app (`com.example.tester`)
 
@@ -761,6 +761,161 @@ Check the monitor is healthy:
 
 ```bash
 curl http://localhost:8080/actuator/health
+```
+
+## Adding a new message
+
+A new message type needs two things: a **message class** (defines the wire encoding) and an
+entry in **`config/traffic-tool.yml`** (wires an opcode to that class). If you want the monitor
+to react to it on arrival (e.g. auto-reply), add a third thing, a **handler class**. No changes
+to `traffic-monitor-app-core` are ever required — it decodes/encodes every message generically by
+reflection; see `com.example.schemacore.reflect.ReflectiveStructCodec` for the exact convention
+it looks for.
+
+This walks through adding a `Discount` message to the existing Candy interface: opcode `4002`, a
+`String code` field and an `int percentOff` field. Adding a brand-new interface (rather than a
+new message on an existing one) is the same process, just with a new top-level entry under
+`interfaces:` in step 2 instead of appending to an existing one — copy the `candy` entry's shape,
+or `rada`'s if you also want your own dedicated UDP port instead of sharing the legacy one.
+
+### 1. Write the message class
+
+Message classes live in `traffic-monitor-app/src/main/java/com/example/schemas/<protocol>/` and
+implement `ProtocolMessage` (from `com.example.schemacore`). The shape depends on whether the
+layout is fixed-size or has a variable-length field:
+
+- **Any variable-length field** (a `String`, most commonly) → a self-sizing no-arg
+  `toByteArray()` — `StructSizeCalculator` can't size a `String`, so the class must size its own
+  buffer. This is the common case, and what `CandyMessage` already does:
+
+  ```java
+  package com.example.schemas.candy;
+
+  import com.example.schemacore.ProtocolMessage;
+
+  import java.nio.ByteBuffer;
+  import java.nio.charset.StandardCharsets;
+
+  public record DiscountMessage(String code, int percentOff) implements ProtocolMessage {
+      public static DiscountMessage fromByteBuffer(ByteBuffer buffer) {
+          int codeLength = buffer.getInt();
+          byte[] codeBytes = new byte[codeLength];
+          buffer.get(codeBytes);
+          int percentOff = buffer.getInt();
+          return new DiscountMessage(new String(codeBytes, StandardCharsets.UTF_8), percentOff);
+      }
+
+      public byte[] toByteArray() {
+          byte[] codeBytes = code.getBytes(StandardCharsets.UTF_8);
+          ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + codeBytes.length + Integer.BYTES);
+          buffer.putInt(codeBytes.length);
+          buffer.put(codeBytes);
+          buffer.putInt(percentOff);
+          return buffer.array();
+      }
+  }
+  ```
+
+- **Fixed-size fields only** (no `String`) → a `toByteArray(ByteBuffer)` instead, with the buffer
+  pre-sized via `StructSizeCalculator.calculateStructSize(class)`; array fields additionally need
+  `@FixedArrayLength(n)` from `com.example.schemacore.annotation` (see
+  `com.example.schemas.rada.messages.RadaStatus` for a worked fixed-layout example — it also
+  shows the mutable-class-with-a-`(byte[])`-constructor alternative to a record, used when the
+  class needs to parse itself in place rather than via a static factory).
+
+`ReflectiveStructCodec` finds `fromByteBuffer(ByteBuffer)`/`toByteArray()` (or
+`toByteArray(ByteBuffer)`) by name and signature alone — there's no interface to implement beyond
+`ProtocolMessage`, and no separate hand-written codec or `MessageDefinition` class to write.
+
+### 2. Register it in `config/traffic-tool.yml`
+
+Add a `messages` entry under the interface it belongs to, giving it a `messageClass:` (the
+class's fully-qualified name) and a unique `opcode:`:
+
+```yaml
+  - key: candy
+    name: Candy Interface
+    messages:
+      - type: Candy
+        messageClass: com.example.schemas.candy.CandyMessage
+        opcode: 4001
+      - type: Discount
+        messageClass: com.example.schemas.candy.DiscountMessage
+        opcode: 4002
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
+```
+
+`MessageSchemaWiringConfig` reads this at startup and resolves `messageClass:` via
+`Class.forName(...)`, wrapping it in a `ReflectiveMessageDefinition` — a duplicate opcode or a
+class that doesn't follow the convention above fails Spring context startup immediately
+(fail-fast). If you're testing locally, make the same edit to
+`traffic-monitor-app/src/test/resources/traffic-tool-test.yml` too, so the integration-test suite
+picks it up.
+
+### 3. (Optional) React to it with a handler
+
+Handler classes live in `traffic-monitor-app/src/main/java/com/example/handlers/<protocol>/`,
+are Spring `@Component`s (picked up by `TrafficMonitorApplication`'s `scanBasePackages`), and
+implement `MessageArrivedHandler<T>` where `T` is your new message class — the message arrives
+already decoded into its real type, no `Map` unpacking or casting needed:
+
+```java
+package com.example.messagehandlers.candy;
+
+import com.example.handlercore.DestinationConfig;
+import com.example.handlercore.MessageArrivedHandler;
+import com.example.handlercore.ReplySender;
+import com.example.schemas.candy.DiscountMessage;
+import org.springframework.stereotype.Component;
+
+@Component
+public class DiscountMessageHandler implements MessageArrivedHandler<DiscountMessage> {
+    @Override
+    public String interfaceName() {
+        return "Candy Interface"; // must match config/traffic-tool.yml's `name:`
+    }
+
+    @Override
+    public String messageType() {
+        return "Discount"; // must match config/traffic-tool.yml's `type:`
+    }
+
+    @Override
+    public void onMessageArrived(DiscountMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
+        // no-op is fine if you don't need to react — see CandyMessageHandler for the pattern.
+        // To reply: if (destinationConfig != null) {
+        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
+        // }
+    }
+}
+```
+
+If you skip this step, the message still decodes, gets stored, and shows up in the Live/History
+UI — it just won't trigger anything on arrival.
+
+### 4. Write tests
+
+At minimum, a round-trip encode/decode test on the message class itself (see
+`CandyMessageTest.toByteArray_thenFromByteBuffer_roundTripsNameAndCalories` for the pattern), and
+if you added a handler, a test asserting `interfaceName()`/`messageType()` and whatever behavior
+`onMessageArrived` has (see `CandyMessageHandlerTest`). Both live next to their counterparts under
+`traffic-monitor-app/src/test/java/com/example/schemas/<protocol>/` and
+`.../com/example/handlers/<protocol>/`.
+
+### 5. Rebuild and verify
+
+```bash
+mvn -pl traffic-monitor-app -am test
+```
+
+runs the new unit tests. To also exercise the full startup wiring (catches config typos and
+duplicate-opcode mistakes before you'd hit them at runtime), run the integration suite too:
+
+```bash
+mvn -pl traffic-monitor-app -am verify
 ```
 
 ## Development

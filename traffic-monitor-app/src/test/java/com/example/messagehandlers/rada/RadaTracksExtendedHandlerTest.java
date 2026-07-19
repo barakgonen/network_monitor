@@ -1,4 +1,4 @@
-package com.example.handlerapp.rada;
+package com.example.messagehandlers.rada;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.ReplySender;

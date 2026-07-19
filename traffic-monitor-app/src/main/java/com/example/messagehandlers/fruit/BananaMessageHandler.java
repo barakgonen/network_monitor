@@ -1,4 +1,4 @@
-package com.example.handlerapp.fruit;
+package com.example.messagehandlers.fruit;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedHandler;

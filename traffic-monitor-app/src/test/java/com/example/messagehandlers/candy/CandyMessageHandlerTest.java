@@ -1,4 +1,4 @@
-package com.example.handlerapp.candy;
+package com.example.messagehandlers.candy;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.ReplySender;

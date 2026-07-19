@@ -40,9 +40,9 @@ traffic-monitor-app  The runnable app, and also what used to be two more separat
                       TrafficMonitorApplication's main()):
                         - `com.example.schemas` — concrete message classes
                           (fruit/weather/ping/candy/rada).
-                        - `com.example.handlerapp` — concrete MessageArrivedHandler
+                        - `com.example.messagehandlers` — concrete MessageArrivedHandler
                           implementations, one per message type, including
-                          handlerapp/rada/RadaTracksExtendedHandler.
+                          messagehandlers/rada/RadaTracksExtendedHandler.
                       Holds the spring-boot-maven-plugin config and the module's
                       integration-test suite.
 traffic-tester-app   Standalone CLI tester, depends on traffic-monitor-app (for the message
@@ -67,7 +67,7 @@ module that depends on this one for its plain classes. Run the app via the `-exe
 
 ## Core architectural invariant: engine has zero schema dependency
 
-`traffic-monitor-app-core` never imports `com.example.schemas.*` or `com.example.handlerapp.*`
+`traffic-monitor-app-core` never imports `com.example.schemas.*` or `com.example.messagehandlers.*`
 in main code — enforced by the pom (it has no dependency on traffic-monitor-app, the module
 those packages now live in, at all, not even test-scope; see "IT suite lives in
 traffic-monitor-app" below for why). All wiring from
@@ -82,8 +82,8 @@ traffic-monitor-app-core's test Spring context boots the full app wiring (its tr
 can only host tests that don't need concrete message/handler classes on the classpath — plain
 unit tests and Spring slice tests (`@WebMvcTest`, `@JdbcTest`). The real end-to-end integration
 suite (`*IT.java`, real UDP/TCP sockets + real Spring context wired to real interfaces) lives in
-`traffic-monitor-app` instead, which holds `com.example.schemas`/`com.example.handlerapp`
-directly and has a real bootable `TrafficMonitorApplication` (scanning `com.example.handlerapp`
+`traffic-monitor-app` instead, which holds `com.example.schemas`/`com.example.messagehandlers`
+directly and has a real bootable `TrafficMonitorApplication` (scanning `com.example.messagehandlers`
 too) for the tests to boot against. Test config:
 `traffic-monitor-app/src/test/resources/traffic-tool-test.yml` + `application.yml`.
 
@@ -219,6 +219,6 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   `HistoryController`/`AnalyticsController` to accept a repeatable `interfaceName` param.
 - No standalone Spring-free ingestion library module or a second thin deployable app module
   for customer-specific handler bundles — that capability exists conceptually (extend
-  `com.example.handlerapp`-shaped classes) but isn't split into a separate reusable artifact;
+  `com.example.messagehandlers`-shaped classes) but isn't split into a separate reusable artifact;
   after the shared-schemas/handler-app merge, extracting one would mean pulling packages back
   out of traffic-monitor-app rather than depending on an existing standalone module.

@@ -1,4 +1,4 @@
-package com.example.handlerapp.ping;
+package com.example.messagehandlers.ping;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.ReplySender;
