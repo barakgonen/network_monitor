@@ -277,7 +277,7 @@ as a plain library — no bootable `main()`.
 
 The runnable application. `pom.xml` declares the `traffic-monitor-app-core` + `shared-schemas` +
 `handler-app` dependencies and the `spring-boot-maven-plugin` `repackage` config
-(`mainClass=com.example.monitor.TrafficMonitorApplication`). `docker-compose.yml`/`Dockerfile`
+(`mainClass=com.example.TrafficMonitorApplication`). `docker-compose.yml`/`Dockerfile`
 build and copy this module's jar — everything else is pulled in transitively.
 
 | Package | Classes |

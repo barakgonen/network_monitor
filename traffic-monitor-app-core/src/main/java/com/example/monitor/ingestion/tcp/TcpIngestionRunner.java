@@ -67,10 +67,7 @@ public class TcpIngestionRunner {
             while (running) {
                 Socket connection = serverSocket.accept();
                 activeConnections.add(connection);
-                Counter.builder("network_monitor.tcp.connections.accepted")
-                        .tag("port", String.valueOf(port))
-                        .register(meterRegistry)
-                        .increment();
+                incrementAcceptedCounter(port);
                 executor.submit(() -> handleConnection(connection, port));
             }
         } catch (Exception e) {
@@ -105,14 +102,25 @@ public class TcpIngestionRunner {
         } catch (Exception e) {
             if (running) {
                 log.warn("TCP connection handling failed on port {}", port, e);
-                Counter.builder("network_monitor.tcp.connections.errors")
-                        .tag("port", String.valueOf(port))
-                        .register(meterRegistry)
-                        .increment();
+                incrementConnectionErrorCounter(port);
             }
         } finally {
             activeConnections.remove(connection);
         }
+    }
+
+    private void incrementAcceptedCounter(int port) {
+        Counter.builder("network_monitor.tcp.connections.accepted")
+                .tag("port", String.valueOf(port))
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private void incrementConnectionErrorCounter(int port) {
+        Counter.builder("network_monitor.tcp.connections.errors")
+                .tag("port", String.valueOf(port))
+                .register(meterRegistry)
+                .increment();
     }
 
     private byte[] readOneMessage(DataInputStream in) throws IOException {

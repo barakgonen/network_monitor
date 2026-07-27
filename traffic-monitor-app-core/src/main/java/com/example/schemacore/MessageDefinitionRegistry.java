@@ -9,9 +9,10 @@ import java.util.Optional;
 /**
  * Immutable lookup of {@link MessageDefinition}s by opcode, by (interfaceName, messageType), and
  * by message class. One registry is built per ingestion path (the legacy global registry, plus
- * one per dedicated-port interface) via {@link #loadFromClassNames(List)}, which resolves each
- * configured definition class name with {@code Class.forName} and instantiates it with a no-arg
- * constructor.
+ * one per dedicated-port interface) by {@code MessageSchemaWiringConfig}, which resolves each
+ * configured message/definition class name from YAML with {@code Class.forName}. {@link
+ * #loadFromClassNames(List)} is an alternate, simpler construction path (definition classes only,
+ * no reflective message classes) kept for direct programmatic/test use.
  */
 public final class MessageDefinitionRegistry {
     private final Map<Integer, MessageDefinition> byOpcode;
@@ -24,19 +25,11 @@ public final class MessageDefinitionRegistry {
         Map<Class<?>, MessageDefinition> classMap = new HashMap<>();
 
         for (MessageDefinition definition : definitions) {
-            if (opcodeMap.putIfAbsent(definition.opcode(), definition) != null) {
-                throw new IllegalStateException("Duplicate MessageDefinition registered for opcode " + definition.opcode());
-            }
-
             String typeKey = key(definition.interfaceName(), definition.messageType());
-            if (typeMap.putIfAbsent(typeKey, definition) != null) {
-                throw new IllegalStateException("Duplicate MessageDefinition registered for " + typeKey);
-            }
 
-            if (classMap.putIfAbsent(definition.messageClass(), definition) != null) {
-                throw new IllegalStateException(
-                        "Duplicate MessageDefinition registered for message class " + definition.messageClass());
-            }
+            putUnique(opcodeMap, definition.opcode(), definition, "opcode " + definition.opcode());
+            putUnique(typeMap, typeKey, definition, typeKey);
+            putUnique(classMap, definition.messageClass(), definition, "message class " + definition.messageClass());
         }
 
         this.byOpcode = Map.copyOf(opcodeMap);
@@ -70,5 +63,11 @@ public final class MessageDefinitionRegistry {
 
     private static String key(String interfaceName, String messageType) {
         return interfaceName + "::" + messageType;
+    }
+
+    private static <K> void putUnique(Map<K, MessageDefinition> map, K key, MessageDefinition definition, String description) {
+        if (map.putIfAbsent(key, definition) != null) {
+            throw new IllegalStateException("Duplicate MessageDefinition registered for " + description);
+        }
     }
 }

@@ -25,9 +25,7 @@ public class MessageSchemaWiringConfig {
         List<MessageDefinition> definitions = new ArrayList<>();
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
-            for (MessageConfig message : interfaceConfig.getMessages()) {
-                definitions.add(resolveDefinition(interfaceConfig, message));
-            }
+            definitions.addAll(buildDefinitions(interfaceConfig));
         }
 
         return new MessageDefinitionRegistry(definitions);
@@ -47,15 +45,20 @@ public class MessageSchemaWiringConfig {
                 continue;
             }
 
-            List<MessageDefinition> definitions = new ArrayList<>();
-            for (MessageConfig message : interfaceConfig.getMessages()) {
-                definitions.add(resolveDefinition(interfaceConfig, message));
-            }
-
-            registries.put(interfaceConfig.getKey(), new MessageDefinitionRegistry(definitions));
+            registries.put(interfaceConfig.getKey(), new MessageDefinitionRegistry(buildDefinitions(interfaceConfig)));
         }
 
         return registries;
+    }
+
+    private List<MessageDefinition> buildDefinitions(InterfaceConfig interfaceConfig) throws ReflectiveOperationException {
+        List<MessageDefinition> definitions = new ArrayList<>();
+
+        for (MessageConfig message : interfaceConfig.getMessages()) {
+            definitions.add(resolveDefinition(interfaceConfig, message));
+        }
+
+        return definitions;
     }
 
     private MessageDefinition resolveDefinition(InterfaceConfig interfaceConfig, MessageConfig message)

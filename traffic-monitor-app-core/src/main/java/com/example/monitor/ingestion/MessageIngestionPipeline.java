@@ -186,12 +186,16 @@ public class MessageIngestionPipeline {
                 messageArchiveRepository.save(message);
             } catch (Exception e) {
                 log.warn("Failed to archive message {} ({}): {}", message.id(), message.messageType(), e.getMessage(), e);
-                Counter.builder("network_monitor.archive.failures")
-                        .tag("transport", message.transportProtocol())
-                        .register(meterRegistry)
-                        .increment();
+                incrementArchiveFailureCounter(message);
             }
         });
+    }
+
+    private void incrementArchiveFailureCounter(ObservedMessage message) {
+        Counter.builder("network_monitor.archive.failures")
+                .tag("transport", message.transportProtocol())
+                .register(meterRegistry)
+                .increment();
     }
 
     private void dispatchIfEligible(DecodedPacket decoded) {
@@ -215,12 +219,16 @@ public class MessageIngestionPipeline {
                 messageArrivedDispatcher.dispatch(interfaceName, messageType, decoded.typedMessage(), destinationConfig);
             } catch (Exception e) {
                 log.warn("onMessageArrived handler failed for {}/{}: {}", interfaceName, messageType, e.getMessage(), e);
-                Counter.builder("network_monitor.dispatch.failures")
-                        .tag("interfaceName", interfaceName)
-                        .register(meterRegistry)
-                        .increment();
+                incrementDispatchFailureCounter(interfaceName);
             }
         });
+    }
+
+    private void incrementDispatchFailureCounter(String interfaceName) {
+        Counter.builder("network_monitor.dispatch.failures")
+                .tag("interfaceName", interfaceName)
+                .register(meterRegistry)
+                .increment();
     }
 
     private ObservedMessage toObservedMessage(

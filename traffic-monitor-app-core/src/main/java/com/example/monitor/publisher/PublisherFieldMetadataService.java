@@ -1,5 +1,6 @@
 package com.example.monitor.publisher;
 
+import com.example.schemacore.reflect.AccessorNames;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -37,26 +38,12 @@ public class PublisherFieldMetadataService {
                 continue;
             }
 
-            String fieldName = accessorFieldName(method.getName());
+            String fieldName = AccessorNames.fromAccessor(method.getName());
             if (fieldName != null) {
                 fields.add(new PublisherFieldDto(fieldName, method.getReturnType().getSimpleName()));
             }
         }
 
         return fields;
-    }
-
-    private String accessorFieldName(String methodName) {
-        if (methodName.startsWith("get") && methodName.length() > 3) {
-            return decapitalize(methodName.substring(3));
-        }
-        if (methodName.startsWith("is") && methodName.length() > 2) {
-            return decapitalize(methodName.substring(2));
-        }
-        return null;
-    }
-
-    private String decapitalize(String value) {
-        return Character.toLowerCase(value.charAt(0)) + value.substring(1);
     }
 }

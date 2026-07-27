@@ -177,34 +177,11 @@ public final class StructSizeCalculator {
     }
 
     public static boolean isFixedScalar(Class<?> type) {
-        return type == byte.class || type == Byte.class
-                || type == short.class || type == Short.class
-                || type == int.class || type == Integer.class
-                || type == long.class || type == Long.class
-                || type == float.class || type == Float.class
-                || type == double.class || type == Double.class
-                || type == boolean.class || type == Boolean.class
-                || type == char.class || type == Character.class;
+        return PrimitiveWireTypes.isFixedScalar(type);
     }
 
     public static int fixedScalarSize(Class<?> type) {
-        if (type == byte.class || type == Byte.class || type == boolean.class || type == Boolean.class) {
-            return 1;
-        }
-
-        if (type == short.class || type == Short.class || type == char.class || type == Character.class) {
-            return 2;
-        }
-
-        if (type == int.class || type == Integer.class || type == float.class || type == Float.class) {
-            return 4;
-        }
-
-        if (type == long.class || type == Long.class || type == double.class || type == Double.class) {
-            return 8;
-        }
-
-        throw new IllegalArgumentException("Unsupported fixed scalar type: " + type.getName());
+        return PrimitiveWireTypes.fixedScalarSize(type);
     }
 
     private static String fieldDescription(Field field) {

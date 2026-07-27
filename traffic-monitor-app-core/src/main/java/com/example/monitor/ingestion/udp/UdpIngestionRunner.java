@@ -16,8 +16,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 @Component
 public class UdpIngestionRunner {
@@ -126,33 +130,12 @@ public class UdpIngestionRunner {
             sockets.add(socket);
             log.info("UDP ingestion started on port {}", port);
 
-            int bufferSize = properties.getUdp().getBufferSizeBytes();
-
-            while (running) {
-                byte[] buffer = new byte[bufferSize];
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-
-                byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
-                String remoteAddress = packet.getAddress().getHostAddress() + ":" + packet.getPort();
-                ObservedMessage message = pipeline.ingest(payload, "UDP", remoteAddress, port);
-
-                log.info("Received UDP {} message from {}:{} on port {} - {} bytes - type={} - parseError={}",
-                        message.interfaceName(),
-                        packet.getAddress().getHostAddress(),
-                        packet.getPort(),
-                        port,
-                        payload.length,
-                        message.messageType(),
-                        message.parseError());
-            }
+            receiveLoop(socket, port, () -> running,
+                    received -> pipeline.ingest(received.payload(), "UDP", received.remoteAddress(), port));
         } catch (Exception e) {
             if (running) {
                 log.error("UDP ingestion failed on port {}", port, e);
-                Counter.builder("network_monitor.udp.listener.errors")
-                        .tag("port", String.valueOf(port))
-                        .register(meterRegistry)
-                        .increment();
+                incrementListenerErrorCounter(port);
             }
         }
     }
@@ -165,39 +148,64 @@ public class UdpIngestionRunner {
         try {
             log.info("UDP ingestion started on port {} for interface {}", port, interfaceConfig.getName());
 
-            int bufferSize = properties.getUdp().getBufferSizeBytes();
-
-            while (!socket.isClosed()) {
-                byte[] buffer = new byte[bufferSize];
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-
-                byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
-                String remoteAddress = packet.getAddress().getHostAddress() + ":" + packet.getPort();
+            receiveLoop(socket, port, () -> !socket.isClosed(), received -> {
                 ObservedMessage message = pipeline.ingestForInterface(
-                        payload, "UDP", remoteAddress, port, interfaceConfig, scopedRegistry);
-
+                        received.payload(), "UDP", received.remoteAddress(), port, interfaceConfig, scopedRegistry);
                 interfaceRuntimeRegistry.state(key)
                         .ifPresent(state -> state.recordObserved(message.parseError() != null));
-
-                log.info("Received UDP {} message from {}:{} on port {} - {} bytes - type={} - parseError={}",
-                        message.interfaceName(),
-                        packet.getAddress().getHostAddress(),
-                        packet.getPort(),
-                        port,
-                        payload.length,
-                        message.messageType(),
-                        message.parseError());
-            }
+                return message;
+            });
         } catch (Exception e) {
             if (!socket.isClosed()) {
                 log.error("UDP ingestion failed on port {} for interface {}", port, interfaceConfig.getName(), e);
-                Counter.builder("network_monitor.udp.listener.errors")
-                        .tag("port", String.valueOf(port))
-                        .register(meterRegistry)
-                        .increment();
+                incrementListenerErrorCounter(port);
             }
         }
+    }
+
+    /**
+     * Shared receive-decode-log loop for both the legacy shared-port listener and the
+     * dedicated-port listener: identical packet plumbing and logging, differing only in how the
+     * received bytes get ingested (and, for dedicated ports, in runtime state bookkeeping).
+     */
+    private void receiveLoop(
+            DatagramSocket socket, int port, BooleanSupplier keepRunning, Function<ReceivedPacket, ObservedMessage> ingest)
+            throws IOException {
+        int bufferSize = properties.getUdp().getBufferSizeBytes();
+
+        while (keepRunning.getAsBoolean()) {
+            ReceivedPacket received = receivePacket(socket, bufferSize);
+            ObservedMessage message = ingest.apply(received);
+
+            log.info("Received UDP {} message from {}:{} on port {} - {} bytes - type={} - parseError={}",
+                    message.interfaceName(),
+                    received.address().getHostAddress(),
+                    received.remotePort(),
+                    port,
+                    received.payload().length,
+                    message.messageType(),
+                    message.parseError());
+        }
+    }
+
+    private ReceivedPacket receivePacket(DatagramSocket socket, int bufferSize) throws IOException {
+        byte[] buffer = new byte[bufferSize];
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        socket.receive(packet);
+
+        byte[] payload = Arrays.copyOf(packet.getData(), packet.getLength());
+        String remoteAddress = packet.getAddress().getHostAddress() + ":" + packet.getPort();
+        return new ReceivedPacket(payload, remoteAddress, packet.getAddress(), packet.getPort());
+    }
+
+    private void incrementListenerErrorCounter(int port) {
+        Counter.builder("network_monitor.udp.listener.errors")
+                .tag("port", String.valueOf(port))
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private record ReceivedPacket(byte[] payload, String remoteAddress, InetAddress address, int remotePort) {
     }
 
     @PreDestroy

@@ -1,5 +1,6 @@
 package com.example.monitor;
 
+import com.example.TrafficMonitorApplication;
 import com.example.monitor.autoreply.AutoReplySettingsService;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.HistoryQuery;

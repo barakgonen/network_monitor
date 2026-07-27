@@ -41,26 +41,31 @@ public class TrafficToolConfigLoader {
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
             if (interfaceConfig.getMessages() == null || interfaceConfig.getMessages().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "interfaces[key=" + interfaceConfig.getKey() + "] must define at least one message");
+                throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define at least one message");
             }
 
             for (MessageConfig message : interfaceConfig.getMessages()) {
-                boolean hasDefinitionClass = message.getDefinitionClass() != null && !message.getDefinitionClass().isBlank();
-                boolean hasMessageClass = message.getMessageClass() != null && !message.getMessageClass().isBlank();
+                boolean hasDefinitionClass = hasText(message.getDefinitionClass());
+                boolean hasMessageClass = hasText(message.getMessageClass());
+                String messageContext = interfaceContext(interfaceConfig) + ".messages[type=" + message.getType() + "]";
 
                 if (!hasDefinitionClass && !hasMessageClass) {
                     throw new IllegalArgumentException(
-                            "interfaces[key=" + interfaceConfig.getKey() + "].messages[type=" + message.getType()
-                                    + "] must define either definitionClass or messageClass");
+                            messageContext + " must define either definitionClass or messageClass");
                 }
 
                 if (hasMessageClass && message.getOpcode() == null) {
-                    throw new IllegalArgumentException(
-                            "interfaces[key=" + interfaceConfig.getKey() + "].messages[type=" + message.getType()
-                                    + "] defines messageClass but is missing opcode");
+                    throw new IllegalArgumentException(messageContext + " defines messageClass but is missing opcode");
                 }
             }
         }
+    }
+
+    private String interfaceContext(InterfaceConfig interfaceConfig) {
+        return "interfaces[key=" + interfaceConfig.getKey() + "]";
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

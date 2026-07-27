@@ -5,11 +5,8 @@ import com.example.monitor.persistence.GroupByField;
 import com.example.monitor.persistence.MessageArchiveRepository;
 import com.example.monitor.persistence.TimeBucket;
 import com.example.monitor.persistence.TimeBucketCount;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
@@ -18,7 +15,7 @@ import java.util.List;
 import java.util.Locale;
 
 @RestController
-public class AnalyticsController {
+public class AnalyticsController extends AbstractBadRequestController {
     private final MessageArchiveRepository messageArchiveRepository;
 
     public AnalyticsController(MessageArchiveRepository messageArchiveRepository) {
@@ -89,11 +86,5 @@ public class AnalyticsController {
             return GroupByField.MESSAGE_TYPE;
         }
         throw new IllegalArgumentException("Invalid groupBy: must be one of interfaceName, messageType; got '" + groupBy + "'");
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public String handleInvalidRequest(IllegalArgumentException e) {
-        return e.getMessage();
     }
 }

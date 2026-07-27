@@ -37,7 +37,7 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
         <version>${spring.boot.version}</version>
         <configuration>
-          <mainClass>com.example.monitor.TrafficMonitorApplication</mainClass>
+          <mainClass>com.example.TrafficMonitorApplication</mainClass>
           <!--
             traffic-tester-app depends on this module's plain classes (com.example.schemas.*).
             Without a classifier, repackage replaces the main jar artifact in place with the

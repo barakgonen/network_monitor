@@ -65,7 +65,7 @@ public final class ReflectiveFieldApplier {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object coerce(Object value, Class<?> targetType) {
         if (value == null) {
-            return defaultValue(targetType);
+            return PrimitiveWireTypes.defaultValue(targetType);
         }
 
         if (targetType.isInstance(value)) {
@@ -76,12 +76,12 @@ public final class ReflectiveFieldApplier {
             return enumFromWireValue((Class<Enum>) targetType, stringValue);
         }
 
-        if (isNumericType(targetType) && value instanceof String stringValue) {
-            return coerceNumber(Double.parseDouble(stringValue), targetType);
+        if (PrimitiveWireTypes.isNumericType(targetType) && value instanceof String stringValue) {
+            return PrimitiveWireTypes.coerceNumber(Double.parseDouble(stringValue), targetType);
         }
 
         if (value instanceof Number number) {
-            return coerceNumber(number, targetType);
+            return PrimitiveWireTypes.coerceNumber(number, targetType);
         }
 
         if (targetType == boolean.class || targetType == Boolean.class) {
@@ -95,37 +95,6 @@ public final class ReflectiveFieldApplier {
         }
 
         return value;
-    }
-
-    private static boolean isNumericType(Class<?> type) {
-        return type == int.class || type == Integer.class
-                || type == long.class || type == Long.class
-                || type == short.class || type == Short.class
-                || type == byte.class || type == Byte.class
-                || type == double.class || type == Double.class
-                || type == float.class || type == Float.class;
-    }
-
-    private static Object coerceNumber(Number number, Class<?> targetType) {
-        if (targetType == int.class || targetType == Integer.class) {
-            return number.intValue();
-        }
-        if (targetType == long.class || targetType == Long.class) {
-            return number.longValue();
-        }
-        if (targetType == short.class || targetType == Short.class) {
-            return number.shortValue();
-        }
-        if (targetType == byte.class || targetType == Byte.class) {
-            return number.byteValue();
-        }
-        if (targetType == double.class || targetType == Double.class) {
-            return number.doubleValue();
-        }
-        if (targetType == float.class || targetType == Float.class) {
-            return number.floatValue();
-        }
-        return number;
     }
 
     /**
@@ -154,33 +123,5 @@ public final class ReflectiveFieldApplier {
         }
 
         return Enum.valueOf(type, value);
-    }
-
-    private static Object defaultValue(Class<?> type) {
-        if (type == boolean.class) {
-            return Boolean.FALSE;
-        }
-        if (type == char.class) {
-            return Character.valueOf((char) 0);
-        }
-        if (type == byte.class) {
-            return Byte.valueOf((byte) 0);
-        }
-        if (type == short.class) {
-            return Short.valueOf((short) 0);
-        }
-        if (type == int.class) {
-            return Integer.valueOf(0);
-        }
-        if (type == long.class) {
-            return Long.valueOf(0L);
-        }
-        if (type == float.class) {
-            return Float.valueOf(0f);
-        }
-        if (type == double.class) {
-            return Double.valueOf(0d);
-        }
-        return null;
     }
 }

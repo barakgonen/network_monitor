@@ -3,17 +3,14 @@ package com.example.monitor.api;
 import com.example.monitor.persistence.HistoryPage;
 import com.example.monitor.persistence.HistoryQuery;
 import com.example.monitor.persistence.MessageArchiveRepository;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 
 @RestController
-public class HistoryController {
+public class HistoryController extends AbstractBadRequestController {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 500;
 
@@ -60,11 +57,5 @@ public class HistoryController {
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid " + paramName + ": must be an ISO-8601 instant, got '" + value + "'");
         }
-    }
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public String handleInvalidRequest(IllegalArgumentException e) {
-        return e.getMessage();
     }
 }

@@ -45,7 +45,7 @@ public final class ReflectiveFieldExtractor {
                 continue;
             }
 
-            String fieldName = accessorFieldName(method.getName());
+            String fieldName = AccessorNames.fromAccessor(method.getName());
             if (fieldName == null) {
                 continue;
             }
@@ -106,17 +106,4 @@ public final class ReflectiveFieldExtractor {
         return value instanceof Number || value instanceof String || value instanceof Boolean || value instanceof Character;
     }
 
-    private static String accessorFieldName(String methodName) {
-        if (methodName.startsWith("get") && methodName.length() > 3) {
-            return decapitalize(methodName.substring(3));
-        }
-        if (methodName.startsWith("is") && methodName.length() > 2) {
-            return decapitalize(methodName.substring(2));
-        }
-        return null;
-    }
-
-    private static String decapitalize(String value) {
-        return Character.toLowerCase(value.charAt(0)) + value.substring(1);
-    }
 }
