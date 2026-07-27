@@ -30,14 +30,9 @@
       </div>
     </div>
 
-    <div class="sidebar-block">
-      <div class="block-label">Ingestion</div>
-      <span class="status-badge">UDP Active</span>
-    </div>
-
     <section class="sidebar-panel">
       <div class="sidebar-panel-header">
-        <span class="sidebar-panel-title">Interfaces</span>
+        <span class="sidebar-panel-title">Supported Interfaces and Messages</span>
       </div>
       <div id="sidebarInterfaces"></div>
     </section>
@@ -917,10 +912,19 @@
       chip.innerText = iface.name;
       container.appendChild(chip);
 
-      const note = document.createElement('div');
-      note.className = 'sidebar-note';
-      note.innerText = iface.messages.map(m => m.type).join(', ') || 'no messages configured';
-      container.appendChild(note);
+      if (iface.messages.length === 0) {
+        const note = document.createElement('div');
+        note.className = 'sidebar-note';
+        note.innerText = 'no messages configured';
+        container.appendChild(note);
+      } else {
+        for (const message of iface.messages) {
+          const note = document.createElement('div');
+          note.className = 'sidebar-note';
+          note.innerText = message.type;
+          container.appendChild(note);
+        }
+      }
     }
 
     populateHistoryInterfaceFilter();
