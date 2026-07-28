@@ -22,14 +22,8 @@ spring:
 
 traffic:
   udp:
-    enabled: true
-    fruit-port: 5001
-    weather-port: 5003
     buffer-size-bytes: 65507
   tcp:
-    enabled: true
-    fruit-port: 5001
-    weather-port: 5003
     max-body-length-bytes: 65507
   store:
     max-size: 500

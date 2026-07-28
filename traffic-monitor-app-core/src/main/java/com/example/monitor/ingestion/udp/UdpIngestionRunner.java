@@ -66,16 +66,8 @@ public class UdpIngestionRunner {
     public void start() {
         running = true;
 
-        if (properties.getUdp().isEnabled()) {
-            executor.submit(() -> listen(properties.getUdp().getFruitPort()));
-            executor.submit(() -> listen(properties.getUdp().getWeatherPort()));
-        } else {
-            log.info("UDP ingestion is disabled");
-        }
-
         for (InterfaceConfig interfaceConfig : trafficToolConfig.getInterfaces()) {
-            if (interfaceConfig.hasDedicatedPort() && interfaceConfig.isEnabled()
-                    && "UDP".equalsIgnoreCase(interfaceConfig.getProtocol())) {
+            if (interfaceConfig.isEnabled() && "UDP".equalsIgnoreCase(interfaceConfig.getProtocol())) {
                 startInterface(interfaceConfig);
             }
         }
@@ -125,21 +117,6 @@ public class UdpIngestionRunner {
         interfaceRuntimeRegistry.state(key).ifPresent(state -> state.setListening(false));
     }
 
-    private void listen(int port) {
-        try (DatagramSocket socket = new DatagramSocket(port)) {
-            sockets.add(socket);
-            log.info("UDP ingestion started on port {}", port);
-
-            receiveLoop(socket, port, () -> running,
-                    received -> pipeline.ingest(received.payload(), "UDP", received.remoteAddress(), port));
-        } catch (Exception e) {
-            if (running) {
-                log.error("UDP ingestion failed on port {}", port, e);
-                incrementListenerErrorCounter(port);
-            }
-        }
-    }
-
     private void listenForInterface(InterfaceConfig interfaceConfig, DatagramSocket socket) {
         int port = interfaceConfig.getPort();
         String key = interfaceConfig.getKey();
@@ -164,9 +141,7 @@ public class UdpIngestionRunner {
     }
 
     /**
-     * Shared receive-decode-log loop for both the legacy shared-port listener and the
-     * dedicated-port listener: identical packet plumbing and logging, differing only in how the
-     * received bytes get ingested (and, for dedicated ports, in runtime state bookkeeping).
+     * Shared receive-decode-log loop used by every interface's dedicated-port listener.
      */
     private void receiveLoop(
             DatagramSocket socket, int port, BooleanSupplier keepRunning, Function<ReceivedPacket, ObservedMessage> ingest)

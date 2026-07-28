@@ -13,6 +13,7 @@ final class TestProtocolPayloads {
     static final int TEMPERATURE_READING_OPCODE = 2001;
     static final int PING_OPCODE = 3001;
     static final int PONG_OPCODE = 3002;
+    static final int CANDY_OPCODE = 4001;
 
     private TestProtocolPayloads() {
     }
@@ -55,6 +56,15 @@ final class TestProtocolPayloads {
         ByteBuffer body = ByteBuffer.allocate(Integer.BYTES);
         body.putInt(sequence);
         return ProtocolHeaderCodec.encodeMessage(PONG_OPCODE, System.currentTimeMillis(), body.array());
+    }
+
+    static byte[] candy(String name, double calories) {
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES + nameBytes.length + Double.BYTES);
+        body.putInt(nameBytes.length);
+        body.put(nameBytes);
+        body.putDouble(calories);
+        return ProtocolHeaderCodec.encodeMessage(CANDY_OPCODE, System.currentTimeMillis(), body.array());
     }
 
     static byte[] rawHeaderOnly(int opcode, int bodyLength) {

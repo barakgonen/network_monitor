@@ -21,6 +21,9 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,17 +40,32 @@ public abstract class AbstractIntegrationTestBase {
     @LocalServerPort
     protected int httpPort;
 
-    @Value("${traffic.udp.fruit-port}")
+    /**
+     * Every interface now owns its own port/protocol (see {@code com.example.monitor.schema.InterfaceConfig}),
+     * sourced from a plain YAML file rather than Spring properties - so unlike the old
+     * {@code @Value("${traffic.udp.fruit-port}")} fields, these can't be dynamically overridden
+     * per-Spring-context out of the box. {@link #configureDynamicInterfacePorts} works around that
+     * by generating a per-context temp copy of traffic-tool-test.yml with fresh free ports
+     * substituted in, so distinct test contexts (e.g. the one {@code @AutoConfigureObservability}
+     * creates for ActuatorEndToEndIT) never collide trying to bind the same fixed ports while both
+     * are alive. Deliberately kept as instance fields resolved via {@code @Value}, not static -
+     * static fields shared across contexts get clobbered by whichever context's
+     * {@code @DynamicPropertySource} method runs last (bit us before, see git history).
+     */
+    @Value("${traffic.test.fruit-port}")
     protected int fruitPort;
 
-    @Value("${traffic.udp.weather-port}")
+    @Value("${traffic.test.ping-port}")
+    protected int pingPort;
+
+    @Value("${traffic.test.weather-port}")
     protected int weatherPort;
 
-    @Value("${traffic.tcp.fruit-port}")
-    protected int tcpFruitPort;
+    @Value("${traffic.test.candy-port}")
+    protected int candyPort;
 
-    @Value("${traffic.tcp.weather-port}")
-    protected int tcpWeatherPort;
+    @Value("${traffic.test.rada-port}")
+    protected int radaPort;
 
     @Autowired
     protected RecentMessageStore recentMessageStore;
@@ -65,19 +83,39 @@ public abstract class AbstractIntegrationTestBase {
     protected MeterRegistry meterRegistry;
 
     @DynamicPropertySource
-    static void registerUdpPorts(DynamicPropertyRegistry registry) throws IOException {
+    static void configureDynamicInterfacePorts(DynamicPropertyRegistry registry) throws IOException {
         int fruitPort = findFreePort();
+        int pingPort = findFreePort();
         int weatherPort = findFreePort();
-        registry.add("traffic.udp.fruit-port", () -> fruitPort);
-        registry.add("traffic.udp.weather-port", () -> weatherPort);
+        int candyPort = findFreePort();
+        int radaPort = findFreePort();
+
+        String yaml = loadTemplateYaml()
+                .replace("port: 25001", "port: " + fruitPort)
+                .replace("port: 25002", "port: " + pingPort)
+                .replace("port: 25003", "port: " + weatherPort)
+                .replace("port: 25004", "port: " + candyPort)
+                .replace("port: 25050", "port: " + radaPort);
+
+        Path tempConfig = Files.createTempFile("traffic-tool-test-", ".yml");
+        Files.writeString(tempConfig, yaml);
+        tempConfig.toFile().deleteOnExit();
+
+        registry.add("traffic.tool.config-path", () -> tempConfig.toAbsolutePath().toString());
+        registry.add("traffic.test.fruit-port", () -> fruitPort);
+        registry.add("traffic.test.ping-port", () -> pingPort);
+        registry.add("traffic.test.weather-port", () -> weatherPort);
+        registry.add("traffic.test.candy-port", () -> candyPort);
+        registry.add("traffic.test.rada-port", () -> radaPort);
     }
 
-    @DynamicPropertySource
-    static void registerTcpPorts(DynamicPropertyRegistry registry) throws IOException {
-        int tcpFruitPort = findFreePort();
-        int tcpWeatherPort = findFreePort();
-        registry.add("traffic.tcp.fruit-port", () -> tcpFruitPort);
-        registry.add("traffic.tcp.weather-port", () -> tcpWeatherPort);
+    private static String loadTemplateYaml() throws IOException {
+        try (var in = AbstractIntegrationTestBase.class.getClassLoader().getResourceAsStream("traffic-tool-test.yml")) {
+            if (in == null) {
+                throw new IllegalStateException("traffic-tool-test.yml not found on test classpath");
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private static int findFreePort() throws IOException {

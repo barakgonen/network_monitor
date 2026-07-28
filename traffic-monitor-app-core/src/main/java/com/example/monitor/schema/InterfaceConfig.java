@@ -5,6 +5,7 @@ import java.util.List;
 public class InterfaceConfig {
     public static final String DEFAULT_HEADER_TYPE = "com.example.schemacore.envelope.DefaultEnvelopeHeader";
     public static final String DEFAULT_OPCODE_FIELD_NAME = "opcode";
+    public static final String DEFAULT_BODY_LENGTH_FIELD_NAME = "bodyLength";
 
     private String key;
     private String name;
@@ -12,9 +13,9 @@ public class InterfaceConfig {
     private AutoReplyDestinationConfig autoReply = new AutoReplyDestinationConfig();
 
     /**
-     * Transport fields below are only used when {@link #getPort()} is set, which opts this
-     * interface into its own dedicated socket + header type instead of the legacy shared
-     * fruit/weather ports and global opcode registry.
+     * Every interface gets its own dedicated socket on {@link #getPort()}/{@link #getProtocol()}
+     * (both mutable at runtime via {@code InterfaceRuntimeState.configure}, reset to these
+     * config-file defaults on restart).
      */
     private boolean enabled = true;
     private String protocol = "UDP";
@@ -22,6 +23,21 @@ public class InterfaceConfig {
     private String byteOrder = "BIG_ENDIAN";
     private String headerType = DEFAULT_HEADER_TYPE;
     private String opcodeFieldName = DEFAULT_OPCODE_FIELD_NAME;
+
+    /**
+     * {@code false} (default): the message class only ever handles body-only bytes, so the
+     * pipeline strips the header before decoding and the publisher prepends one on encode
+     * (matches {@link #DEFAULT_HEADER_TYPE}'s layout, e.g. fruit/weather/ping/candy).
+     * {@code true}: the message class parses/emits its own header itself (e.g. rada), so the
+     * full payload is passed through unchanged on both decode and encode.
+     */
+    private boolean messageOwnsHeader = false;
+
+    /**
+     * Header field holding the body length in bytes, used only to frame messages on a TCP byte
+     * stream (UDP datagrams are already framed one-per-packet, so this is unused there).
+     */
+    private String bodyLengthFieldName = DEFAULT_BODY_LENGTH_FIELD_NAME;
 
     /**
      * When set, the publisher fans a UDP send out to every "host:port" target here in addition
@@ -79,8 +95,11 @@ public class InterfaceConfig {
     }
 
     /**
-     * When set, this interface is served on its own socket (see {@link #getProtocol()}) using
-     * {@link #getHeaderType()}/{@link #getOpcodeFieldName()} instead of the legacy shared ports.
+     * This interface's own socket port (see {@link #getProtocol()}), decoded/encoded using
+     * {@link #getHeaderType()}/{@link #getOpcodeFieldName()}. Every interface must configure
+     * one ({@link com.example.monitor.schema.TrafficToolConfigLoader} fails fast at startup
+     * otherwise) - {@link #hasDedicatedPort()} exists purely for that validation, not as a
+     * runtime branch.
      */
     public Integer getPort() {
         return port;
@@ -116,6 +135,22 @@ public class InterfaceConfig {
 
     public void setOpcodeFieldName(String opcodeFieldName) {
         this.opcodeFieldName = opcodeFieldName;
+    }
+
+    public boolean isMessageOwnsHeader() {
+        return messageOwnsHeader;
+    }
+
+    public void setMessageOwnsHeader(boolean messageOwnsHeader) {
+        this.messageOwnsHeader = messageOwnsHeader;
+    }
+
+    public String getBodyLengthFieldName() {
+        return bodyLengthFieldName;
+    }
+
+    public void setBodyLengthFieldName(String bodyLengthFieldName) {
+        this.bodyLengthFieldName = bodyLengthFieldName;
     }
 
     public boolean isShouldBroadcast() {

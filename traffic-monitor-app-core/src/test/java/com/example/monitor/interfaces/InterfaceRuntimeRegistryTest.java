@@ -11,21 +11,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InterfaceRuntimeRegistryTest {
 
     @Test
-    void onlyDedicatedPortInterfaces_getRuntimeState() {
-        InterfaceConfig legacy = new InterfaceConfig();
-        legacy.setKey("fruit");
+    void everyConfiguredInterface_getsRuntimeState() {
+        InterfaceConfig fruit = new InterfaceConfig();
+        fruit.setKey("fruit");
+        fruit.setPort(5001);
 
-        InterfaceConfig dedicated = new InterfaceConfig();
-        dedicated.setKey("rada");
-        dedicated.setPort(5050);
+        InterfaceConfig rada = new InterfaceConfig();
+        rada.setKey("rada");
+        rada.setPort(5050);
 
         TrafficToolConfig config = new TrafficToolConfig();
-        config.setInterfaces(List.of(legacy, dedicated));
+        config.setInterfaces(List.of(fruit, rada));
 
         InterfaceRuntimeRegistry registry = new InterfaceRuntimeRegistry(config);
 
-        assertThat(registry.states()).hasSize(1);
+        assertThat(registry.states()).hasSize(2);
         assertThat(registry.state("rada")).isPresent();
-        assertThat(registry.state("fruit")).isEmpty();
+        assertThat(registry.state("fruit")).isPresent();
     }
 }

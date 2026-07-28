@@ -46,7 +46,7 @@ class MessageIngestionPipelineTest {
     private MessageArrivedDispatcher messageArrivedDispatcher;
 
     @Mock
-    private MessageDefinitionRegistry messageDefinitionRegistry;
+    private MessageDefinitionRegistry scopedRegistry;
 
     @Mock
     private AutoReplySettingsService autoReplySettingsService;
@@ -57,12 +57,19 @@ class MessageIngestionPipelineTest {
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private MessageIngestionPipeline pipeline;
+    private InterfaceConfig interfaceConfig;
 
     @BeforeEach
     void setUp() {
         pipeline = new MessageIngestionPipeline(
-                recentMessageStore, messageArrivedDispatcher, messageDefinitionRegistry,
+                recentMessageStore, messageArrivedDispatcher,
                 autoReplySettingsService, messageArchiveRepository, meterRegistry, new SynchronousExecutorService());
+
+        interfaceConfig = new InterfaceConfig();
+        interfaceConfig.setName("Stub Interface");
+        interfaceConfig.setPort(5001);
+        interfaceConfig.setHeaderType(DefaultEnvelopeHeader.class.getName());
+        interfaceConfig.setOpcodeFieldName("opcode");
     }
 
     private static byte[] stubPayload() {
@@ -70,12 +77,13 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingest_withValidPayload_storesArchivesAndReturnsPopulatedMessage() {
+    void ingestForInterface_withValidPayload_storesArchivesAndReturnsPopulatedMessage() {
         StubDefinition definition = new StubDefinition();
-        when(messageDefinitionRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
-        ObservedMessage message = pipeline.ingest(stubPayload(), "TCP", "127.0.0.1:9000", 5001);
+        ObservedMessage message = pipeline.ingestForInterface(
+                stubPayload(), "TCP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         assertThat(message.transportProtocol()).isEqualTo("TCP");
         assertThat(message.remoteAddress()).isEqualTo("127.0.0.1:9000");
@@ -94,10 +102,11 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingest_withMalformedPayload_setsParseErrorAndNeverDispatches() {
+    void ingestForInterface_withMalformedPayload_setsParseErrorAndNeverDispatches() {
         byte[] malformed = new byte[] {1, 2, 3};
 
-        ObservedMessage message = pipeline.ingest(malformed, "TCP", "127.0.0.1:9000", 5001);
+        ObservedMessage message = pipeline.ingestForInterface(
+                malformed, "TCP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         assertThat(message.parseError()).isNotNull();
         assertThat(message.interfaceName()).isEqualTo("Unknown");
@@ -112,97 +121,120 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingest_whenArchiveSaveThrows_incrementsArchiveFailureCounter() {
+    void ingestForInterface_whenArchiveSaveThrows_incrementsArchiveFailureCounter() {
         StubDefinition definition = new StubDefinition();
-        when(messageDefinitionRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
         org.mockito.Mockito.doThrow(new RuntimeException("db down")).when(messageArchiveRepository).save(any());
 
-        pipeline.ingest(stubPayload(), "UDP", "127.0.0.1:9000", 5001);
+        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         assertThat(meterRegistry.counter("network_monitor.archive.failures", "transport", "UDP").count()).isEqualTo(1.0);
     }
 
     @Test
-    void ingest_whenAutoReplyEligible_dispatchesWithDestinationConfig() {
+    void ingestForInterface_whenAutoReplyEligible_dispatchesWithDestinationConfig() {
         StubDefinition definition = new StubDefinition();
-        when(messageDefinitionRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(true);
         when(autoReplySettingsService.interfaceSettings("Stub Interface")).thenReturn(
                 Optional.of(new AutoReplySettingsService.InterfaceAutoReplySettings(true, "localhost", 7001, "UDP")));
 
-        pipeline.ingest(stubPayload(), "UDP", "127.0.0.1:9000", 5001);
+        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         verify(messageArrivedDispatcher).dispatch(
                 eq("Stub Interface"), eq("Stub"), any(), eq(new DestinationConfig("localhost", 7001, "UDP")));
     }
 
     @Test
-    void ingest_whenAutoReplyEligibleWithTcpDestination_dispatchesWithTcpDestinationConfig() {
+    void ingestForInterface_whenAutoReplyEligibleWithTcpDestination_dispatchesWithTcpDestinationConfig() {
         StubDefinition definition = new StubDefinition();
-        when(messageDefinitionRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(true);
         when(autoReplySettingsService.interfaceSettings("Stub Interface")).thenReturn(
                 Optional.of(new AutoReplySettingsService.InterfaceAutoReplySettings(true, "localhost", 7001, "TCP")));
 
-        pipeline.ingest(stubPayload(), "UDP", "127.0.0.1:9000", 5001);
+        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         verify(messageArrivedDispatcher).dispatch(
                 eq("Stub Interface"), eq("Stub"), any(), eq(new DestinationConfig("localhost", 7001, "TCP")));
     }
 
     @Test
-    void ingest_whenAutoReplyIneligible_doesNotDispatch() {
+    void ingestForInterface_whenAutoReplyIneligible_doesNotDispatch() {
         StubDefinition definition = new StubDefinition();
-        when(messageDefinitionRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
-        pipeline.ingest(stubPayload(), "UDP", "127.0.0.1:9000", 5001);
+        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         verifyNoInteractions(messageArrivedDispatcher);
     }
 
     @Test
-    void ingestForInterface_withValidPayload_decodesUsingInterfaceScopedHeaderAndRegistry(
-            @org.mockito.Mock MessageDefinitionRegistry scopedRegistry) {
+    void ingestForInterface_withMessageNotOwningHeader_decodesUsingInterfaceScopedHeaderAndRegistry() {
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
         when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
-        InterfaceConfig interfaceConfig = new InterfaceConfig();
-        interfaceConfig.setName("Rada Interface");
-        interfaceConfig.setPort(5050);
-        interfaceConfig.setHeaderType(DefaultEnvelopeHeader.class.getName());
-        interfaceConfig.setOpcodeFieldName("opcode");
-
         byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
 
         ObservedMessage message = pipeline.ingestForInterface(
-                payload, "UDP", "127.0.0.1:9000", 5050, interfaceConfig, scopedRegistry);
+                payload, "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         assertThat(message.interfaceName()).isEqualTo("Stub Interface");
         assertThat(message.messageType()).isEqualTo("Stub");
         assertThat(message.parseError()).isNull();
         assertThat(message.header()).containsEntry("opcode", STUB_OPCODE);
+        // messageOwnsHeader defaults to false, so the pipeline strips the header before decoding:
+        // only the 3 body bytes should reach StubDefinition.decodeBody, not header+body.
+        assertThat(message.body()).containsEntry("raw", 3);
 
         verify(recentMessageStore).add(message);
         verify(messageArchiveRepository).save(message);
     }
 
     @Test
-    void ingestForInterface_withUnknownOpcode_setsParseError(@org.mockito.Mock MessageDefinitionRegistry scopedRegistry) {
-        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.empty());
-
-        InterfaceConfig interfaceConfig = new InterfaceConfig();
-        interfaceConfig.setName("Rada Interface");
-        interfaceConfig.setPort(5050);
-        interfaceConfig.setHeaderType(DefaultEnvelopeHeader.class.getName());
-        interfaceConfig.setOpcodeFieldName("opcode");
+    void ingestForInterface_withMessageOwningHeader_passesFullPayloadToDefinition() {
+        interfaceConfig.setMessageOwnsHeader(true);
+        StubDefinition definition = new StubDefinition();
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
 
         ObservedMessage message = pipeline.ingestForInterface(
-                payload, "UDP", "127.0.0.1:9000", 5050, interfaceConfig, scopedRegistry);
+                payload, "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).isNull();
+        // messageOwnsHeader is true, so the full payload (header + body) reaches decodeBody.
+        assertThat(message.body()).containsEntry("raw", payload.length);
+    }
+
+    @Test
+    void ingestForInterface_withBodyLengthMismatch_setsParseError() {
+        ByteBuffer buffer = ByteBuffer.allocate(ProtocolHeaderCodec.HEADER_SIZE_BYTES + 2);
+        buffer.putInt(STUB_OPCODE);
+        buffer.putLong(System.currentTimeMillis());
+        buffer.putInt(999);
+        buffer.put((byte) 1);
+        buffer.put((byte) 2);
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                buffer.array(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).contains("Invalid bodyLength");
+        assertThat(message.interfaceName()).isEqualTo("Unknown");
+    }
+
+    @Test
+    void ingestForInterface_withUnknownOpcode_setsParseError() {
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.empty());
+
+        byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                payload, "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
 
         assertThat(message.parseError()).isNotNull();
         assertThat(message.interfaceName()).isEqualTo("Unknown");

@@ -33,34 +33,7 @@ public class TrafficMonitorProperties {
     }
 
     public static class Udp {
-        private boolean enabled = true;
-        private int fruitPort = 5001;
-        private int weatherPort = 5003;
         private int bufferSizeBytes = 65507;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getFruitPort() {
-            return fruitPort;
-        }
-
-        public void setFruitPort(int fruitPort) {
-            this.fruitPort = fruitPort;
-        }
-
-        public int getWeatherPort() {
-            return weatherPort;
-        }
-
-        public void setWeatherPort(int weatherPort) {
-            this.weatherPort = weatherPort;
-        }
 
         public int getBufferSizeBytes() {
             return bufferSizeBytes;
@@ -72,34 +45,7 @@ public class TrafficMonitorProperties {
     }
 
     public static class Tcp {
-        private boolean enabled = true;
-        private int fruitPort = 5001;
-        private int weatherPort = 5003;
         private int maxBodyLengthBytes = 65507;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getFruitPort() {
-            return fruitPort;
-        }
-
-        public void setFruitPort(int fruitPort) {
-            this.fruitPort = fruitPort;
-        }
-
-        public int getWeatherPort() {
-            return weatherPort;
-        }
-
-        public void setWeatherPort(int weatherPort) {
-            this.weatherPort = weatherPort;
-        }
 
         public int getMaxBodyLengthBytes() {
             return maxBodyLengthBytes;

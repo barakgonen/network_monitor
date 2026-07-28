@@ -4,6 +4,8 @@ autoReply:
 interfaces:
   - key: fruit
     name: Fruit Interface
+    protocol: UDP
+    port: 25001
     messages:
       - type: Orange
         messageClass: com.example.schemas.fruit.OrangeMessage
@@ -18,6 +20,8 @@ interfaces:
 
   - key: weather
     name: Weather Interface
+    protocol: UDP
+    port: 25003
     messages:
       - type: TemperatureReading
         messageClass: com.example.schemas.weather.TemperatureReadingMessage
@@ -29,6 +33,8 @@ interfaces:
 
   - key: ping
     name: Ping Interface
+    protocol: UDP
+    port: 25002
     messages:
       - type: Ping
         messageClass: com.example.schemas.ping.PingMessage
@@ -41,6 +47,19 @@ interfaces:
       host: localhost
       port: 7001
 
+  - key: candy
+    name: Candy Interface
+    protocol: TCP
+    port: 25004
+    messages:
+      - type: Candy
+        messageClass: com.example.schemas.candy.CandyMessage
+        opcode: 4001
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
+
   - key: rada
     name: Rada Interface
     enabled: false
@@ -48,6 +67,7 @@ interfaces:
     port: 25050
     headerType: com.example.schemas.rada.struct.RadaHeader
     opcodeFieldName: msgType
+    messageOwnsHeader: true
     messages:
       - type: RadaStatus
         messageClass: com.example.schemas.rada.messages.RadaStatus

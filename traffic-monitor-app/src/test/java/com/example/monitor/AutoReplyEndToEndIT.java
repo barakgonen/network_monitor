@@ -40,7 +40,7 @@ class AutoReplyEndToEndIT extends AbstractIntegrationTestBase {
         autoReplySettingsService.setGlobalEnabled(true);
         autoReplySettingsService.updateInterfaceSettings("Ping Interface", true, "localhost", receiver.getLocalPort(), "UDP");
 
-        sendUdp(fruitPort, TestProtocolPayloads.ping(42));
+        sendUdp(pingPort, TestProtocolPayloads.ping(42));
 
         byte[] buffer = new byte[256];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -60,7 +60,7 @@ class AutoReplyEndToEndIT extends AbstractIntegrationTestBase {
         autoReplySettingsService.setGlobalEnabled(false);
         autoReplySettingsService.updateInterfaceSettings("Ping Interface", true, "localhost", receiver.getLocalPort(), "UDP");
 
-        sendUdp(fruitPort, TestProtocolPayloads.ping(1));
+        sendUdp(pingPort, TestProtocolPayloads.ping(1));
 
         byte[] buffer = new byte[256];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -75,7 +75,7 @@ class AutoReplyEndToEndIT extends AbstractIntegrationTestBase {
         autoReplySettingsService.setGlobalEnabled(true);
         autoReplySettingsService.updateInterfaceSettings("Ping Interface", false, "localhost", receiver.getLocalPort(), "UDP");
 
-        sendUdp(fruitPort, TestProtocolPayloads.ping(1));
+        sendUdp(pingPort, TestProtocolPayloads.ping(1));
 
         byte[] buffer = new byte[256];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
@@ -112,7 +112,7 @@ class AutoReplyEndToEndIT extends AbstractIntegrationTestBase {
         autoReplySettingsService.setGlobalEnabled(true);
         autoReplySettingsService.updateInterfaceSettings("Ping Interface", true, "localhost", tcpReceiver.getLocalPort(), "TCP");
 
-        sendUdp(fruitPort, TestProtocolPayloads.ping(77));
+        sendUdp(pingPort, TestProtocolPayloads.ping(77));
 
         try (Socket accepted = tcpReceiver.accept()) {
             byte[] header = accepted.getInputStream().readNBytes(16);

@@ -32,6 +32,22 @@ public class InterfaceRuntimeState {
         this.listening = listening;
     }
 
+    /**
+     * Overrides this interface's port/protocol at runtime (reset to the config-file default on
+     * restart, since this mutates the shared {@link InterfaceConfig} instance in place rather than
+     * persisting anywhere). Rejected while listening - the caller must stop the interface first,
+     * since a live socket can't be rebound out from under itself.
+     */
+    public synchronized void configure(int port, String protocol) {
+        if (listening) {
+            throw new IllegalStateException(
+                    "Cannot reconfigure interface " + config.getKey() + " while it is listening; stop it first");
+        }
+
+        config.setPort(port);
+        config.setProtocol(protocol);
+    }
+
     public long receivedCount() {
         return receivedCount.get();
     }

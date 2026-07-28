@@ -9,8 +9,6 @@ import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.ProtocolMessage;
 import com.example.schemacore.reflect.ReflectiveFieldExtractor;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
@@ -40,7 +38,6 @@ public class MessageIngestionPipeline {
 
     private final RecentMessageStore recentMessageStore;
     private final MessageArrivedDispatcher messageArrivedDispatcher;
-    private final MessageDefinitionRegistry messageDefinitionRegistry;
     private final AutoReplySettingsService autoReplySettingsService;
     private final MessageArchiveRepository messageArchiveRepository;
     private final MeterRegistry meterRegistry;
@@ -50,19 +47,17 @@ public class MessageIngestionPipeline {
     public MessageIngestionPipeline(
             RecentMessageStore recentMessageStore,
             MessageArrivedDispatcher messageArrivedDispatcher,
-            MessageDefinitionRegistry messageDefinitionRegistry,
             AutoReplySettingsService autoReplySettingsService,
             MessageArchiveRepository messageArchiveRepository,
             MeterRegistry meterRegistry
     ) {
-        this(recentMessageStore, messageArrivedDispatcher, messageDefinitionRegistry, autoReplySettingsService,
+        this(recentMessageStore, messageArrivedDispatcher, autoReplySettingsService,
                 messageArchiveRepository, meterRegistry, Executors.newCachedThreadPool());
     }
 
     MessageIngestionPipeline(
             RecentMessageStore recentMessageStore,
             MessageArrivedDispatcher messageArrivedDispatcher,
-            MessageDefinitionRegistry messageDefinitionRegistry,
             AutoReplySettingsService autoReplySettingsService,
             MessageArchiveRepository messageArchiveRepository,
             MeterRegistry meterRegistry,
@@ -70,22 +65,15 @@ public class MessageIngestionPipeline {
     ) {
         this.recentMessageStore = recentMessageStore;
         this.messageArrivedDispatcher = messageArrivedDispatcher;
-        this.messageDefinitionRegistry = messageDefinitionRegistry;
         this.autoReplySettingsService = autoReplySettingsService;
         this.messageArchiveRepository = messageArchiveRepository;
         this.meterRegistry = meterRegistry;
         this.executor = executor;
     }
 
-    public ObservedMessage ingest(byte[] payload, String transportProtocol, String remoteAddress, int localPort) {
-        DecodedPacket decoded = decode(payload);
-        return finishIngest(payload, transportProtocol, remoteAddress, localPort, decoded);
-    }
-
     /**
      * Decodes a packet against a single {@link InterfaceConfig} (its own header type, byte order,
-     * and opcode field) rather than the legacy shared fixed envelope + global opcode registry.
-     * Used for interfaces configured with their own dedicated port.
+     * and opcode field) and its own scoped {@link MessageDefinitionRegistry}.
      */
     public ObservedMessage ingestForInterface(
             byte[] payload,
@@ -123,28 +111,13 @@ public class MessageIngestionPipeline {
                 .record(message.payloadSizeBytes());
     }
 
-    private DecodedPacket decode(byte[] payload) {
-        try {
-            ByteBuffer buffer = ByteBuffer.wrap(payload);
-            ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
-
-            MessageDefinition definition = messageDefinitionRegistry.findByOpcode(header.opcode())
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown opcode: " + header.opcode()));
-
-            int bodyStart = buffer.position();
-            Map<String, Object> bodyFields = definition.decodeBody(buffer);
-            ProtocolMessage typedMessage = definition.decodeMessage(
-                    ByteBuffer.wrap(payload, bodyStart, payload.length - bodyStart));
-
-            return new DecodedPacket(definition, ReflectiveFieldExtractor.extractFields(header), bodyFields, typedMessage, null);
-        } catch (Exception e) {
-            return new DecodedPacket(null, null, null, null, e.getMessage());
-        }
-    }
-
     /**
-     * Mirrors {@link #decode(byte[])} but resolves the header type, opcode field, and message
-     * registry from a single {@link InterfaceConfig} instead of the global fixed envelope.
+     * Resolves the header type, opcode field, and message registry from a single
+     * {@link InterfaceConfig}. Whether the body-decode buffer includes the header bytes depends
+     * on {@link InterfaceConfig#isMessageOwnsHeader()}: {@code true} (e.g. rada) means the message
+     * class parses its own header itself, so it needs the full payload; {@code false} (the
+     * default) means the pipeline strips the header first, since the message class only ever
+     * handles body-only bytes.
      */
     private DecodedPacket decodeForInterface(
             byte[] payload, InterfaceConfig interfaceConfig, MessageDefinitionRegistry scopedRegistry) {
@@ -162,6 +135,10 @@ public class MessageIngestionPipeline {
             Object header = ReflectiveStructCodec.decode(headerType, headerBytes);
             Map<String, Object> headerFields = ReflectiveFieldExtractor.extractFields(header);
 
+            if (!interfaceConfig.isMessageOwnsHeader()) {
+                validateBodyLength(headerFields, interfaceConfig, payload.length - headerSize);
+            }
+
             Object opcodeValue = headerFields.get(interfaceConfig.getOpcodeFieldName());
             int opcode = Integer.parseInt(String.valueOf(opcodeValue));
 
@@ -169,15 +146,39 @@ public class MessageIngestionPipeline {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Unknown opcode " + opcode + " for interface " + interfaceConfig.getName()));
 
-            // Message classes for dedicated-port interfaces (e.g. rada) parse their own header as
-            // part of decoding themselves, so they need the full payload, not just the body.
-            Map<String, Object> bodyFields = definition.decodeBody(ByteBuffer.wrap(payload));
-            ProtocolMessage typedMessage = definition.decodeMessage(ByteBuffer.wrap(payload));
+            Map<String, Object> bodyFields = definition.decodeBody(bodyBuffer(payload, headerSize, interfaceConfig));
+            ProtocolMessage typedMessage = definition.decodeMessage(bodyBuffer(payload, headerSize, interfaceConfig));
 
             return new DecodedPacket(definition, headerFields, bodyFields, typedMessage, null);
         } catch (Exception e) {
             return new DecodedPacket(null, null, null, null, e.getMessage());
         }
+    }
+
+    /**
+     * Mirrors {@code ProtocolHeaderCodec.decodeHeader}'s bodyLength-vs-actual-remaining-bytes
+     * check, generalized to any header type via {@link InterfaceConfig#getBodyLengthFieldName()}.
+     * Only meaningful when the pipeline (not the message class) owns header interpretation - the
+     * field's semantics aren't guaranteed for {@code messageOwnsHeader} interfaces.
+     */
+    private void validateBodyLength(Map<String, Object> headerFields, InterfaceConfig interfaceConfig, int actualBodyLength) {
+        Object bodyLengthValue = headerFields.get(interfaceConfig.getBodyLengthFieldName());
+        if (bodyLengthValue == null) {
+            return;
+        }
+
+        int declaredBodyLength = Integer.parseInt(String.valueOf(bodyLengthValue));
+        if (declaredBodyLength != actualBodyLength) {
+            throw new IllegalArgumentException(
+                    "Invalid bodyLength. header=" + declaredBodyLength + ", actualRemaining=" + actualBodyLength);
+        }
+    }
+
+    private ByteBuffer bodyBuffer(byte[] payload, int headerSize, InterfaceConfig interfaceConfig) {
+        if (interfaceConfig.isMessageOwnsHeader()) {
+            return ByteBuffer.wrap(payload);
+        }
+        return ByteBuffer.wrap(payload, headerSize, payload.length - headerSize);
     }
 
     private void archiveMessage(ObservedMessage message) {

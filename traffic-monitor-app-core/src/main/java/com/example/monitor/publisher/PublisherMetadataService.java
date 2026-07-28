@@ -14,22 +14,20 @@ import java.util.Map;
 
 /**
  * Lists interfaces/messages available to the generic publisher, resolved from the same
- * registries the ingestion pipeline uses, so opcode/messageClass are always accurate regardless
- * of whether a message uses a hand-written or reflective {@link MessageDefinition}.
+ * per-interface scoped registries the ingestion pipeline uses, so opcode/messageClass are always
+ * accurate regardless of whether a message uses a hand-written or reflective
+ * {@link MessageDefinition}.
  */
 @Component
 public class PublisherMetadataService {
     private final TrafficToolConfig trafficToolConfig;
-    private final MessageDefinitionRegistry globalRegistry;
     private final Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries;
 
     public PublisherMetadataService(
             TrafficToolConfig trafficToolConfig,
-            MessageDefinitionRegistry globalRegistry,
             @Qualifier("interfaceMessageDefinitionRegistries") Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries
     ) {
         this.trafficToolConfig = trafficToolConfig;
-        this.globalRegistry = globalRegistry;
         this.interfaceMessageDefinitionRegistries = interfaceMessageDefinitionRegistries;
     }
 
@@ -54,10 +52,7 @@ public class PublisherMetadataService {
     }
 
     public MessageDefinitionRegistry registryFor(InterfaceConfig interfaceConfig) {
-        if (interfaceConfig.hasDedicatedPort()) {
-            return interfaceMessageDefinitionRegistries.get(interfaceConfig.getKey());
-        }
-        return globalRegistry;
+        return interfaceMessageDefinitionRegistries.get(interfaceConfig.getKey());
     }
 
     private List<PublisherMessageDto> messagesFor(InterfaceConfig interfaceConfig) {

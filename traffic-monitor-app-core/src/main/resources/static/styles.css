@@ -331,6 +331,35 @@ button:hover {
     font-family: var(--mono);
 }
 
+.panel-note {
+    padding: 10px 20px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.panel-note code {
+    color: var(--cyan);
+}
+
+.interface-port-input {
+    width: 90px;
+}
+
+.interface-protocol-input {
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    outline: none;
+}
+
 .live-events-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.6fr) 380px;

@@ -2,8 +2,14 @@ package com.example.monitor.ingestion.tcp;
 
 import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.ingestion.MessageIngestionPipeline;
+import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
 import com.example.monitor.model.ObservedMessage;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.monitor.schema.InterfaceConfig;
+import com.example.monitor.schema.TrafficToolConfig;
+import com.example.schemacore.MessageDefinitionRegistry;
+import com.example.schemacore.reflect.ReflectiveFieldExtractor;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
+import com.example.schemacore.reflect.StructSizeCalculator;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -11,6 +17,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.io.BufferedInputStream;
@@ -19,8 +26,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,16 +40,28 @@ public class TcpIngestionRunner {
     private final TrafficMonitorProperties properties;
     private final MessageIngestionPipeline pipeline;
     private final MeterRegistry meterRegistry;
+    private final TrafficToolConfig trafficToolConfig;
+    private final Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries;
+    private final InterfaceRuntimeRegistry interfaceRuntimeRegistry;
     private final ExecutorService executor = Executors.newCachedThreadPool();
-    private final List<ServerSocket> serverSockets = new CopyOnWriteArrayList<>();
     private final List<Socket> activeConnections = new CopyOnWriteArrayList<>();
+    private final Map<String, ServerSocket> dedicatedServerSockets = new ConcurrentHashMap<>();
+    private final Map<String, List<Socket>> dedicatedConnections = new ConcurrentHashMap<>();
 
-    private volatile boolean running;
-
-    public TcpIngestionRunner(TrafficMonitorProperties properties, MessageIngestionPipeline pipeline, MeterRegistry meterRegistry) {
+    public TcpIngestionRunner(
+            TrafficMonitorProperties properties,
+            MessageIngestionPipeline pipeline,
+            MeterRegistry meterRegistry,
+            TrafficToolConfig trafficToolConfig,
+            @Qualifier("interfaceMessageDefinitionRegistries") Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries,
+            InterfaceRuntimeRegistry interfaceRuntimeRegistry
+    ) {
         this.properties = properties;
         this.pipeline = pipeline;
         this.meterRegistry = meterRegistry;
+        this.trafficToolConfig = trafficToolConfig;
+        this.interfaceMessageDefinitionRegistries = interfaceMessageDefinitionRegistries;
+        this.interfaceRuntimeRegistry = interfaceRuntimeRegistry;
     }
 
     @PostConstruct
@@ -49,47 +69,115 @@ public class TcpIngestionRunner {
         Gauge.builder("network_monitor.tcp.connections.active", activeConnections, List::size)
                 .register(meterRegistry);
 
-        if (!properties.getTcp().isEnabled()) {
-            log.info("TCP ingestion is disabled");
+        for (InterfaceConfig interfaceConfig : trafficToolConfig.getInterfaces()) {
+            if (interfaceConfig.isEnabled() && "TCP".equalsIgnoreCase(interfaceConfig.getProtocol())) {
+                startInterface(interfaceConfig);
+            }
+        }
+    }
+
+    /**
+     * Opens a dedicated server socket for a single interface, independent of the others. Safe to
+     * call again for an interface that's already listening (no-op).
+     */
+    public synchronized void startInterface(InterfaceConfig interfaceConfig) {
+        String key = interfaceConfig.getKey();
+
+        if (dedicatedServerSockets.containsKey(key)) {
             return;
         }
 
-        running = true;
-        executor.submit(() -> acceptLoop(properties.getTcp().getFruitPort()));
-        executor.submit(() -> acceptLoop(properties.getTcp().getWeatherPort()));
+        try {
+            ServerSocket serverSocket = new ServerSocket(interfaceConfig.getPort());
+            dedicatedServerSockets.put(key, serverSocket);
+            dedicatedConnections.put(key, new CopyOnWriteArrayList<>());
+            interfaceRuntimeRegistry.state(key).ifPresent(state -> state.setListening(true));
+            executor.submit(() -> acceptLoopForInterface(interfaceConfig, serverSocket));
+        } catch (Exception e) {
+            log.error("Failed to start TCP ingestion on port {} for interface {}",
+                    interfaceConfig.getPort(), interfaceConfig.getName(), e);
+            throw new IllegalStateException(
+                    "Failed to start interface " + interfaceConfig.getName() + ": " + e.getMessage(), e);
+        }
     }
 
-    private void acceptLoop(int port) {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            serverSockets.add(serverSocket);
-            log.info("TCP ingestion started on port {}", port);
+    /**
+     * Closes the dedicated server socket and any open connections for a single interface. Safe to
+     * call for an interface that isn't currently listening (no-op).
+     */
+    public synchronized void stopInterface(String key) {
+        ServerSocket serverSocket = dedicatedServerSockets.remove(key);
 
-            while (running) {
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            try {
+                serverSocket.close();
+            } catch (IOException e) {
+                log.warn("Failed to close TCP server socket for interface {}", key, e);
+            }
+        }
+
+        List<Socket> connections = dedicatedConnections.remove(key);
+        if (connections != null) {
+            for (Socket connection : connections) {
+                activeConnections.remove(connection);
+                if (!connection.isClosed()) {
+                    try {
+                        connection.close();
+                    } catch (IOException e) {
+                        log.warn("Failed to close TCP connection for interface {}", key, e);
+                    }
+                }
+            }
+        }
+
+        interfaceRuntimeRegistry.state(key).ifPresent(state -> state.setListening(false));
+    }
+
+    private void acceptLoopForInterface(InterfaceConfig interfaceConfig, ServerSocket serverSocket) {
+        int port = interfaceConfig.getPort();
+        String key = interfaceConfig.getKey();
+
+        try {
+            log.info("TCP ingestion started on port {} for interface {}", port, interfaceConfig.getName());
+
+            while (!serverSocket.isClosed()) {
                 Socket connection = serverSocket.accept();
                 activeConnections.add(connection);
+                List<Socket> connections = dedicatedConnections.get(key);
+                if (connections != null) {
+                    connections.add(connection);
+                }
                 incrementAcceptedCounter(port);
-                executor.submit(() -> handleConnection(connection, port));
+                executor.submit(() -> handleConnectionForInterface(connection, interfaceConfig));
             }
         } catch (Exception e) {
-            if (running) {
-                log.error("TCP ingestion failed on port {}", port, e);
+            if (!serverSocket.isClosed()) {
+                log.error("TCP ingestion failed on port {} for interface {}", port, interfaceConfig.getName(), e);
+                incrementListenerErrorCounter(port);
             }
         }
     }
 
-    private void handleConnection(Socket connection, int port) {
+    private void handleConnectionForInterface(Socket connection, InterfaceConfig interfaceConfig) {
+        int port = interfaceConfig.getPort();
+        String key = interfaceConfig.getKey();
+        MessageDefinitionRegistry scopedRegistry = interfaceMessageDefinitionRegistries.get(key);
+
         try (connection; DataInputStream in = new DataInputStream(new BufferedInputStream(connection.getInputStream()))) {
             String remoteAddress = connection.getInetAddress().getHostAddress() + ":" + connection.getPort();
 
-            while (running) {
+            while (!connection.isClosed()) {
                 byte[] payload;
                 try {
-                    payload = readOneMessage(in);
+                    payload = readOneMessageGeneric(in, interfaceConfig);
                 } catch (EOFException e) {
                     break;
                 }
 
-                ObservedMessage message = pipeline.ingest(payload, "TCP", remoteAddress, port);
+                ObservedMessage message = pipeline.ingestForInterface(
+                        payload, "TCP", remoteAddress, port, interfaceConfig, scopedRegistry);
+                interfaceRuntimeRegistry.state(key)
+                        .ifPresent(state -> state.recordObserved(message.parseError() != null));
 
                 log.info("Received TCP {} message from {} on port {} - {} bytes - type={} - parseError={}",
                         message.interfaceName(),
@@ -100,13 +188,62 @@ public class TcpIngestionRunner {
                         message.parseError());
             }
         } catch (Exception e) {
-            if (running) {
-                log.warn("TCP connection handling failed on port {}", port, e);
+            if (!connection.isClosed()) {
+                log.warn("TCP connection handling failed on port {} for interface {}", port, interfaceConfig.getName(), e);
                 incrementConnectionErrorCounter(port);
             }
         } finally {
             activeConnections.remove(connection);
+            List<Socket> connections = dedicatedConnections.get(key);
+            if (connections != null) {
+                connections.remove(connection);
+            }
         }
+    }
+
+    /**
+     * Frames one message off a TCP byte stream: decodes the interface's configured header type
+     * (reflectively, same as the UDP dedicated-port decode path), reads the body length out of it
+     * via {@link InterfaceConfig#getBodyLengthFieldName()}, then reads that many more bytes. UDP
+     * doesn't need this since each datagram is already framed one-per-packet; a TCP byte stream
+     * has no such boundary, so the header must carry an explicit body length.
+     */
+    private byte[] readOneMessageGeneric(DataInputStream in, InterfaceConfig interfaceConfig) throws IOException {
+        Class<?> headerType;
+        try {
+            headerType = Class.forName(interfaceConfig.getHeaderType());
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Unknown header type: " + interfaceConfig.getHeaderType(), e);
+        }
+
+        int headerSize = StructSizeCalculator.calculateStructSize(headerType);
+        byte[] headerBytes = new byte[headerSize];
+        in.readFully(headerBytes);
+
+        Map<String, Object> headerFields;
+        try {
+            Object header = ReflectiveStructCodec.decode(headerType, headerBytes);
+            headerFields = ReflectiveFieldExtractor.extractFields(header);
+        } catch (Exception e) {
+            throw new IOException(
+                    "Failed to decode TCP header for interface " + interfaceConfig.getName() + ": " + e.getMessage(), e);
+        }
+
+        Object bodyLengthValue = headerFields.get(interfaceConfig.getBodyLengthFieldName());
+        int bodyLength = Integer.parseInt(String.valueOf(bodyLengthValue));
+
+        int maxBodyLengthBytes = properties.getTcp().getMaxBodyLengthBytes();
+        if (bodyLength < 0 || bodyLength > maxBodyLengthBytes) {
+            throw new IOException("Invalid TCP bodyLength: " + bodyLength + " (max " + maxBodyLengthBytes + ")");
+        }
+
+        byte[] bodyBytes = new byte[bodyLength];
+        in.readFully(bodyBytes);
+
+        byte[] payload = new byte[headerBytes.length + bodyBytes.length];
+        System.arraycopy(headerBytes, 0, payload, 0, headerBytes.length);
+        System.arraycopy(bodyBytes, 0, payload, headerBytes.length, bodyBytes.length);
+        return payload;
     }
 
     private void incrementAcceptedCounter(int port) {
@@ -123,34 +260,16 @@ public class TcpIngestionRunner {
                 .increment();
     }
 
-    private byte[] readOneMessage(DataInputStream in) throws IOException {
-        byte[] headerBytes = new byte[ProtocolHeaderCodec.HEADER_SIZE_BYTES];
-        in.readFully(headerBytes);
-
-        ByteBuffer headerBuffer = ByteBuffer.wrap(headerBytes);
-        headerBuffer.getInt();
-        headerBuffer.getLong();
-        int bodyLength = headerBuffer.getInt();
-
-        int maxBodyLengthBytes = properties.getTcp().getMaxBodyLengthBytes();
-        if (bodyLength < 0 || bodyLength > maxBodyLengthBytes) {
-            throw new IOException("Invalid TCP bodyLength: " + bodyLength + " (max " + maxBodyLengthBytes + ")");
-        }
-
-        byte[] bodyBytes = new byte[bodyLength];
-        in.readFully(bodyBytes);
-
-        byte[] payload = new byte[headerBytes.length + bodyBytes.length];
-        System.arraycopy(headerBytes, 0, payload, 0, headerBytes.length);
-        System.arraycopy(bodyBytes, 0, payload, headerBytes.length, bodyBytes.length);
-        return payload;
+    private void incrementListenerErrorCounter(int port) {
+        Counter.builder("network_monitor.tcp.listener.errors")
+                .tag("port", String.valueOf(port))
+                .register(meterRegistry)
+                .increment();
     }
 
     @PreDestroy
     public void stop() {
-        running = false;
-
-        for (ServerSocket serverSocket : serverSockets) {
+        for (ServerSocket serverSocket : dedicatedServerSockets.values()) {
             if (!serverSocket.isClosed()) {
                 try {
                     serverSocket.close();
@@ -170,6 +289,8 @@ public class TcpIngestionRunner {
             }
         }
 
+        dedicatedServerSockets.clear();
+        dedicatedConnections.clear();
         executor.shutdownNow();
         log.info("TCP ingestion stopped");
     }

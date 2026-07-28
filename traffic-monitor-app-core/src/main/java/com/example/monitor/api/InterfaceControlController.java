@@ -1,10 +1,12 @@
 package com.example.monitor.api;
 
+import com.example.monitor.interfaces.InterfaceConfigureRequest;
 import com.example.monitor.interfaces.InterfaceControlService;
 import com.example.monitor.interfaces.InterfaceStatusDto;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -31,6 +33,13 @@ public class InterfaceControlController {
     @PostMapping("/api/interfaces/{key}/stop")
     public List<InterfaceStatusDto> stop(@PathVariable("key") String key) {
         interfaceControlService.stop(key);
+        return interfaceControlService.statuses();
+    }
+
+    @PostMapping("/api/interfaces/{key}/configure")
+    public List<InterfaceStatusDto> configure(
+            @PathVariable("key") String key, @RequestBody InterfaceConfigureRequest request) {
+        interfaceControlService.configure(key, request.port(), request.protocol());
         return interfaceControlService.statuses();
     }
 }

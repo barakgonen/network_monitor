@@ -6,7 +6,7 @@ public record InterfaceStatusDto(
         String key,
         String name,
         String protocol,
-        int port,
+        Integer port,
         boolean listening,
         long receivedCount,
         long parseErrorCount,

@@ -1,5 +1,6 @@
 package com.example.monitor.interfaces;
 
+import com.example.monitor.ingestion.tcp.TcpIngestionRunner;
 import com.example.monitor.ingestion.udp.UdpIngestionRunner;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.schema.TrafficToolConfig;
@@ -14,12 +15,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class InterfaceControlServiceTest {
 
     @Mock
     private UdpIngestionRunner udpIngestionRunner;
+
+    @Mock
+    private TcpIngestionRunner tcpIngestionRunner;
 
     private InterfaceRuntimeRegistry runtimeRegistry;
     private InterfaceControlService service;
@@ -37,21 +42,43 @@ class InterfaceControlServiceTest {
         config.setInterfaces(List.of(radaConfig));
 
         runtimeRegistry = new InterfaceRuntimeRegistry(config);
-        service = new InterfaceControlService(runtimeRegistry, udpIngestionRunner);
+        service = new InterfaceControlService(runtimeRegistry, udpIngestionRunner, tcpIngestionRunner);
     }
 
     @Test
-    void start_delegatesToUdpIngestionRunner() {
+    void start_withUdpProtocol_delegatesToUdpIngestionRunner() {
         service.start("rada");
 
         verify(udpIngestionRunner).startInterface(radaConfig);
+        verifyNoInteractions(tcpIngestionRunner);
     }
 
     @Test
-    void stop_delegatesToUdpIngestionRunner() {
+    void stop_withUdpProtocol_delegatesToUdpIngestionRunner() {
         service.stop("rada");
 
         verify(udpIngestionRunner).stopInterface("rada");
+        verifyNoInteractions(tcpIngestionRunner);
+    }
+
+    @Test
+    void start_withTcpProtocol_delegatesToTcpIngestionRunner() {
+        radaConfig.setProtocol("TCP");
+
+        service.start("rada");
+
+        verify(tcpIngestionRunner).startInterface(radaConfig);
+        verifyNoInteractions(udpIngestionRunner);
+    }
+
+    @Test
+    void stop_withTcpProtocol_delegatesToTcpIngestionRunner() {
+        radaConfig.setProtocol("TCP");
+
+        service.stop("rada");
+
+        verify(tcpIngestionRunner).stopInterface("rada");
+        verifyNoInteractions(udpIngestionRunner);
     }
 
     @Test
@@ -62,12 +89,28 @@ class InterfaceControlServiceTest {
     }
 
     @Test
-    void start_withNonUdpProtocol_throwsIllegalArgumentException() {
-        radaConfig.setProtocol("TCP");
+    void start_withUnsupportedProtocol_throwsIllegalArgumentException() {
+        radaConfig.setProtocol("SCTP");
 
         assertThatThrownBy(() -> service.start("rada"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("UDP");
+                .hasMessageContaining("SCTP");
+    }
+
+    @Test
+    void configure_whileNotListening_updatesPortAndProtocol() {
+        service.configure("rada", 6050, "TCP");
+
+        assertThat(radaConfig.getPort()).isEqualTo(6050);
+        assertThat(radaConfig.getProtocol()).isEqualTo("TCP");
+    }
+
+    @Test
+    void configure_whileListening_throwsIllegalStateException() {
+        runtimeRegistry.state("rada").orElseThrow().setListening(true);
+
+        assertThatThrownBy(() -> service.configure("rada", 6050, "TCP"))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

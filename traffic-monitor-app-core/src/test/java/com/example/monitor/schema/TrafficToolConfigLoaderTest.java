@@ -26,6 +26,8 @@ class TrafficToolConfigLoaderTest {
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
+                    protocol: UDP
+                    port: 5001
                     messages:
                       - type: Orange
                         definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
@@ -77,6 +79,8 @@ class TrafficToolConfigLoaderTest {
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
+                    protocol: UDP
+                    port: 5001
                     messages: []
                 """);
 
@@ -94,6 +98,8 @@ class TrafficToolConfigLoaderTest {
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
+                    protocol: UDP
+                    port: 5001
                     messages:
                       - type: Orange
                 """);
@@ -101,5 +107,24 @@ class TrafficToolConfigLoaderTest {
         assertThatThrownBy(() -> loader.load(configFile))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("definitionClass");
+    }
+
+    @Test
+    void load_withInterfaceMissingPort_throwsIllegalArgumentException() throws Exception {
+        Path configFile = tempDir.resolve("missing-port.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: fruit
+                    name: Fruit Interface
+                    messages:
+                      - type: Orange
+                        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+                """);
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must define a port");
     }
 }

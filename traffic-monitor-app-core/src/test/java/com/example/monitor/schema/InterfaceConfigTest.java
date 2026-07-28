@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InterfaceConfigTest {
 
     @Test
-    void defaults_matchLegacySharedPortBehavior() {
+    void defaults_matchGenericEnvelopeBehavior() {
         InterfaceConfig config = new InterfaceConfig();
 
         assertThat(config.isEnabled()).isTrue();
@@ -17,6 +17,8 @@ class InterfaceConfigTest {
         assertThat(config.getByteOrder()).isEqualTo("BIG_ENDIAN");
         assertThat(config.getHeaderType()).isEqualTo("com.example.schemacore.envelope.DefaultEnvelopeHeader");
         assertThat(config.getOpcodeFieldName()).isEqualTo("opcode");
+        assertThat(config.isMessageOwnsHeader()).isFalse();
+        assertThat(config.getBodyLengthFieldName()).isEqualTo("bodyLength");
     }
 
     @Test

@@ -12,7 +12,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
 
-    private static final int RADA_PORT = 25050;
     private static final int RADA_STATUS_OPCODE = 3;
 
     @AfterEach
@@ -31,7 +30,7 @@ class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
                 .filteredOn(dto -> "rada".equals(dto.key()))
                 .allMatch(InterfaceStatusDto::listening);
 
-        sendUdp(RADA_PORT, radaStatusPayload());
+        sendUdp(radaPort, radaStatusPayload());
 
         ObservedMessage message = awaitStoreContains(m -> "RadaStatus".equals(m.messageType()));
 

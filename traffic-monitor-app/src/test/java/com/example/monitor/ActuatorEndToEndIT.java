@@ -19,7 +19,7 @@ class ActuatorEndToEndIT extends AbstractIntegrationTestBase {
 
     @Test
     void metrics_messagesReceivedIsQueryable() throws Exception {
-        sendUdp(fruitPort, TestProtocolPayloads.ping(1));
+        sendUdp(pingPort, TestProtocolPayloads.ping(1));
         awaitStoreContains(m -> "Ping".equals(m.messageType()));
 
         ResponseEntity<String> response = restTemplate.getForEntity(

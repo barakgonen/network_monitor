@@ -44,11 +44,14 @@ class PublisherServiceTest {
         candyConfig = new InterfaceConfig();
         candyConfig.setKey("candy");
         candyConfig.setName("Candy Interface");
+        candyConfig.setPort(5004);
+        candyConfig.setProtocol("TCP");
 
         radaConfig = new InterfaceConfig();
         radaConfig.setKey("rada");
         radaConfig.setName("Rada Interface");
         radaConfig.setPort(5050);
+        radaConfig.setMessageOwnsHeader(true);
 
         MessageDefinitionRegistry candyRegistry = new MessageDefinitionRegistry(
                 List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, StubLegacyMessage.class)));
@@ -56,7 +59,7 @@ class PublisherServiceTest {
                 List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, StubDedicatedPortMessage.class)));
 
         PublisherMetadataService metadataService = new PublisherMetadataService(
-                buildConfig(), candyRegistry, Map.of("rada", radaRegistry));
+                buildConfig(), Map.of("candy", candyRegistry, "rada", radaRegistry));
 
         service = new PublisherService(metadataService, udpMessagePublisher, tcpMessagePublisher);
     }
@@ -68,7 +71,7 @@ class PublisherServiceTest {
     }
 
     @Test
-    void send_forLegacyInterface_wrapsBodyWithEnvelopeHeader() {
+    void send_whenMessageDoesNotOwnHeader_wrapsBodyWithEnvelopeHeader() {
         PublisherSendRequest request = new PublisherSendRequest(
                 "candy", "Candy", "localhost", 7001, "UDP",
                 Map.of("name", "lollipop", "calories", 80.0));
@@ -87,7 +90,7 @@ class PublisherServiceTest {
     }
 
     @Test
-    void send_forDedicatedPortInterface_sendsBodyWithoutExtraEnvelopeWrap() {
+    void send_whenMessageOwnsHeader_sendsBodyWithoutExtraEnvelopeWrap() {
         PublisherSendRequest request = new PublisherSendRequest(
                 "rada", "RadaStatus", "localhost", 5050, "UDP", Map.of());
 

@@ -37,14 +37,14 @@ messages:
   - mode: PING
     target:
       host: 127.0.0.1
-      port: 5001
+      port: 5002
     ping:
       sequence: 1
 
   - mode: CANDY
     target:
       host: 127.0.0.1
-      port: 5001
+      port: 5004
       transport: TCP
     candy:
       name: "chocolate-bar"

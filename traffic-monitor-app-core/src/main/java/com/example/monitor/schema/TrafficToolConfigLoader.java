@@ -40,6 +40,10 @@ public class TrafficToolConfigLoader {
         }
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
+            if (!interfaceConfig.hasDedicatedPort()) {
+                throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define a port");
+            }
+
             if (interfaceConfig.getMessages() == null || interfaceConfig.getMessages().isEmpty()) {
                 throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define at least one message");
             }

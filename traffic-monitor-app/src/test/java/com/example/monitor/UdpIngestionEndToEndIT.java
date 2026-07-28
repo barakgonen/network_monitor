@@ -45,11 +45,8 @@ class UdpIngestionEndToEndIT extends AbstractIntegrationTestBase {
     }
 
     @Test
-    void sendingValidPingPayload_toFruitPort_landsInStoreWithPingInterfaceName() throws Exception {
-        // Ping has no dedicated UDP listener port configured today; ingestion decode is
-        // opcode-driven, not port-driven, so it is sent to (and understood on) the fruit port,
-        // matching what the tester scenario config does.
-        sendUdp(fruitPort, TestProtocolPayloads.ping(42));
+    void sendingValidPingPayload_toPingPort_landsInStoreWithPingInterfaceName() throws Exception {
+        sendUdp(pingPort, TestProtocolPayloads.ping(42));
 
         ObservedMessage message = awaitStoreContains(m -> "Ping".equals(m.messageType()));
 
@@ -92,7 +89,7 @@ class UdpIngestionEndToEndIT extends AbstractIntegrationTestBase {
         Thread.sleep(50);
         sendUdp(fruitPort, TestProtocolPayloads.banana("green", 1.0));
         Thread.sleep(50);
-        sendUdp(fruitPort, TestProtocolPayloads.ping(7));
+        sendUdp(pingPort, TestProtocolPayloads.ping(7));
 
         awaitStoreContains(m -> "Ping".equals(m.messageType()) && Integer.valueOf(7).equals(m.body().get("sequence")));
 

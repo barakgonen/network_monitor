@@ -11,9 +11,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * One {@link InterfaceRuntimeState} per dedicated-port interface, built once at startup from
- * {@link TrafficToolConfig}. Legacy shared-port interfaces (no dedicated port configured) aren't
- * individually controllable and have no entry here.
+ * One {@link InterfaceRuntimeState} per configured interface, built once at startup from
+ * {@link TrafficToolConfig}.
  */
 @Component
 public class InterfaceRuntimeRegistry {
@@ -23,9 +22,7 @@ public class InterfaceRuntimeRegistry {
         Map<String, InterfaceRuntimeState> map = new LinkedHashMap<>();
 
         for (InterfaceConfig interfaceConfig : trafficToolConfig.getInterfaces()) {
-            if (interfaceConfig.hasDedicatedPort()) {
-                map.put(interfaceConfig.getKey(), new InterfaceRuntimeState(interfaceConfig));
-            }
+            map.put(interfaceConfig.getKey(), new InterfaceRuntimeState(interfaceConfig));
         }
 
         this.states = Collections.unmodifiableMap(map);

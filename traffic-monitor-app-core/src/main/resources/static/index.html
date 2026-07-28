@@ -50,11 +50,6 @@
         <div class="stats-row">
         </div>
       </div>
-
-      <div class="topbar-right">
-        <input id="textFilter" type="text" class="filter-input" placeholder="Filter body…">
-        <button id="loadRecentBtn" class="secondary-btn">Load recent</button>
-      </div>
     </header>
 
     <nav class="tabs" role="tablist">
@@ -103,6 +98,12 @@
         <h2>Interfaces</h2>
       </div>
 
+      <p class="panel-note">
+        Every interface has its own port and protocol, individually startable/stoppable. Stop an
+        interface to edit its port/protocol, then Save and Start again - changes apply
+        immediately but reset to the config file's defaults on restart.
+      </p>
+
       <div class="table-wrapper">
         <table>
           <thead>
@@ -121,9 +122,7 @@
           <tbody id="interfacesTableBody"></tbody>
         </table>
         <div id="interfacesEmptyState" class="empty-state" style="display:none;">
-          No dedicated-port interfaces are configured. Legacy interfaces sharing the fixed UDP/TCP
-          ports are controlled by the global <code>traffic.udp.enabled</code> / <code>traffic.tcp.enabled</code>
-          settings, not individually here.
+          No interfaces are configured.
         </div>
       </div>
     </section>
@@ -402,33 +401,21 @@
     }
   };
 
-  document.getElementById('loadRecentBtn').addEventListener('click', loadMessages);
-  document.getElementById('textFilter').addEventListener('input', renderMessages);
-
   async function loadMessages() {
     const response = await fetch('/api/messages/recent');
     allMessages = await response.json();
-    document.getElementById('eventsCount').innerText = allMessages.length;
     renderMessages();
   }
 
   function renderMessages() {
-    const filterValue = document.getElementById('textFilter').value.toLowerCase();
     const tbody = document.getElementById('messagesTableBody');
     const emptyState = document.getElementById('emptyState');
 
     tbody.innerHTML = '';
 
-    const filtered = allMessages.filter(msg => {
-      const body = JSON.stringify(msg.body || {}).toLowerCase();
-      const messageName = String(msg.messageType || '').toLowerCase();
-      const interfaceName = String(msg.interfaceName || '').toLowerCase();
-      return body.includes(filterValue) || messageName.includes(filterValue) || interfaceName.includes(filterValue);
-    });
+    emptyState.style.display = allMessages.length === 0 ? 'block' : 'none';
 
-    emptyState.style.display = filtered.length === 0 ? 'block' : 'none';
-
-    for (const msg of filtered) {
+    for (const msg of allMessages) {
       const row = document.createElement('tr');
       row.dataset.id = msg.id;
 
@@ -950,23 +937,33 @@
 
     for (const status of statuses) {
       const row = document.createElement('tr');
+      const disabledWhileListening = status.listening ? 'disabled' : '';
+
       row.innerHTML = `
         <td>${escapeHtml(status.key)}</td>
         <td>${escapeHtml(status.name)}</td>
-        <td><span class="protocol-pill">${escapeHtml(status.protocol)}</span></td>
-        <td>${escapeHtml(status.port)}</td>
+        <td>
+          <select class="interface-protocol-input" ${disabledWhileListening}>
+            <option value="UDP">UDP</option>
+            <option value="TCP">TCP</option>
+          </select>
+        </td>
+        <td><input type="number" min="1" max="65535" class="interface-port-input" value="${escapeHtml(status.port)}" ${disabledWhileListening}></td>
         <td><span class="status-badge ${status.listening ? 'status-on' : 'status-off'}">${status.listening ? 'Listening' : 'Stopped'}</span></td>
         <td>${escapeHtml(status.receivedCount)}</td>
         <td class="${status.parseErrorCount > 0 ? 'error-text' : ''}">${escapeHtml(status.parseErrorCount)}</td>
         <td>${escapeHtml(formatTime(status.lastObservedAt))}</td>
         <td>
-          <button class="secondary-btn interface-start-btn" ${status.listening ? 'disabled' : ''}>Start</button>
+          <button class="secondary-btn interface-start-btn" ${disabledWhileListening}>Start</button>
           <button class="stop-btn interface-stop-btn" ${status.listening ? '' : 'disabled'}>Stop</button>
+          <button class="secondary-btn interface-save-btn" ${disabledWhileListening} title="Stop the interface to change its port/protocol">Save</button>
         </td>
       `;
 
+      row.querySelector('.interface-protocol-input').value = status.protocol;
       row.querySelector('.interface-start-btn').addEventListener('click', () => startInterface(status.key));
       row.querySelector('.interface-stop-btn').addEventListener('click', () => stopInterface(status.key));
+      row.querySelector('.interface-save-btn').addEventListener('click', () => configureInterface(row, status.key));
 
       tbody.appendChild(row);
     }
@@ -979,6 +976,24 @@
 
   async function stopInterface(key) {
     const response = await fetch(`/api/interfaces/${encodeURIComponent(key)}/stop`, { method: 'POST' });
+    renderInterfaceStatuses(await response.json());
+  }
+
+  async function configureInterface(row, key) {
+    const port = parseInt(row.querySelector('.interface-port-input').value, 10);
+    const protocol = row.querySelector('.interface-protocol-input').value;
+
+    const response = await fetch(`/api/interfaces/${encodeURIComponent(key)}/configure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port, protocol })
+    });
+
+    if (!response.ok) {
+      alert(`Failed to configure interface: ${await response.text()}`);
+      return;
+    }
+
     renderInterfaceStatuses(await response.json());
   }
 

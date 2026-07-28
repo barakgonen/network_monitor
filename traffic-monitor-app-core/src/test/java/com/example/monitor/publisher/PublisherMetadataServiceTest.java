@@ -18,10 +18,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PublisherMetadataServiceTest {
 
     @Test
-    void interfaces_resolvesOpcodeAndMessageClassFromGlobalRegistry_forLegacyInterface() {
+    void interfaces_resolvesOpcodeAndMessageClassFromScopedRegistry_forCandy() {
         InterfaceConfig candy = new InterfaceConfig();
         candy.setKey("candy");
         candy.setName("Candy Interface");
+        candy.setPort(5004);
+        candy.setProtocol("TCP");
         MessageConfig candyMessage = new MessageConfig();
         candyMessage.setType("Candy");
         candy.setMessages(List.of(candyMessage));
@@ -29,10 +31,10 @@ class PublisherMetadataServiceTest {
         TrafficToolConfig config = new TrafficToolConfig();
         config.setInterfaces(List.of(candy));
 
-        MessageDefinitionRegistry globalRegistry = new MessageDefinitionRegistry(
+        MessageDefinitionRegistry candyRegistry = new MessageDefinitionRegistry(
                 List.of(new ReflectiveMessageDefinition("Candy Interface", "Candy", 4001, StubLegacyMessage.class)));
 
-        PublisherMetadataService service = new PublisherMetadataService(config, globalRegistry, Map.of());
+        PublisherMetadataService service = new PublisherMetadataService(config, Map.of("candy", candyRegistry));
 
         List<PublisherInterfaceDto> interfaces = service.interfaces();
 
@@ -42,11 +44,12 @@ class PublisherMetadataServiceTest {
     }
 
     @Test
-    void interfaces_resolvesFromScopedRegistry_forDedicatedPortInterface() {
+    void interfaces_resolvesFromScopedRegistry_forRada() {
         InterfaceConfig rada = new InterfaceConfig();
         rada.setKey("rada");
         rada.setName("Rada Interface");
         rada.setPort(5050);
+        rada.setMessageOwnsHeader(true);
         MessageConfig radaMessage = new MessageConfig();
         radaMessage.setType("RadaStatus");
         rada.setMessages(List.of(radaMessage));
@@ -57,8 +60,7 @@ class PublisherMetadataServiceTest {
         MessageDefinitionRegistry scopedRegistry = new MessageDefinitionRegistry(
                 List.of(new ReflectiveMessageDefinition("Rada Interface", "RadaStatus", 3, StubDedicatedPortMessage.class)));
 
-        PublisherMetadataService service =
-                new PublisherMetadataService(config, new MessageDefinitionRegistry(List.of()), Map.of("rada", scopedRegistry));
+        PublisherMetadataService service = new PublisherMetadataService(config, Map.of("rada", scopedRegistry));
 
         List<PublisherInterfaceDto> interfaces = service.interfaces();
 
@@ -71,8 +73,7 @@ class PublisherMetadataServiceTest {
         TrafficToolConfig config = new TrafficToolConfig();
         config.setInterfaces(List.of());
 
-        PublisherMetadataService service =
-                new PublisherMetadataService(config, new MessageDefinitionRegistry(List.of()), Map.of());
+        PublisherMetadataService service = new PublisherMetadataService(config, Map.of());
 
         assertThatThrownBy(() -> service.requireInterfaceConfig("unknown"))
                 .isInstanceOf(IllegalArgumentException.class);

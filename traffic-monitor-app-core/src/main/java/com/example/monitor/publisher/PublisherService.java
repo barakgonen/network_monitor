@@ -68,14 +68,15 @@ public class PublisherService {
     }
 
     /**
-     * Dedicated-port messages (e.g. rada) embed their own header as part of {@code encodeBody}, so
-     * only the legacy shared-envelope interfaces need the opcode/timestamp wrap applied here.
+     * Messages whose class parses/emits its own header (e.g. rada, {@link InterfaceConfig#isMessageOwnsHeader()})
+     * only need {@code encodeBody}'s bytes as-is; everything else needs the opcode/timestamp
+     * envelope wrapped around the body here.
      */
     private byte[] buildPayload(MessageDefinition definition, InterfaceConfig interfaceConfig, Map<String, Object> fields)
             throws Exception {
         byte[] body = definition.encodeBody(fields);
 
-        if (interfaceConfig.hasDedicatedPort()) {
+        if (interfaceConfig.isMessageOwnsHeader()) {
             return body;
         }
 
