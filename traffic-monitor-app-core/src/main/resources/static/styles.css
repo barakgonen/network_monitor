@@ -166,6 +166,8 @@ body {
     font-size: 11px;
     font-family: var(--mono);
     word-break: break-all;
+    cursor: pointer;
+    user-select: none;
 }
 
 .topic-chip::before {
@@ -176,11 +178,36 @@ body {
     background: var(--cyan);
 }
 
+.topic-chip.excluded {
+    opacity: 0.4;
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+}
+
+.topic-chip.excluded::before {
+    background: var(--dim);
+}
+
 .sidebar-note {
     color: var(--muted);
     font-family: var(--mono);
     font-size: 11px;
     padding: 0 12px 12px;
+}
+
+.sidebar-note.message-filter-item {
+    cursor: pointer;
+    user-select: none;
+}
+
+.sidebar-note.message-filter-item:hover {
+    color: var(--text);
+}
+
+.sidebar-note.message-filter-item.excluded {
+    opacity: 0.4;
+    text-decoration: line-through;
 }
 
 .main-content {

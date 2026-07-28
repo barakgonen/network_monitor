@@ -413,9 +413,15 @@
 
     tbody.innerHTML = '';
 
-    emptyState.style.display = allMessages.length === 0 ? 'block' : 'none';
+    const visibleMessages = allMessages.filter(msg =>
+      !excludedInterfaces.has(msg.interfaceName) && !excludedMessageTypes.has(msg.messageType));
 
-    for (const msg of allMessages) {
+    emptyState.style.display = visibleMessages.length === 0 ? 'block' : 'none';
+    emptyState.innerText = allMessages.length === 0
+      ? 'No messages yet. Use the tester app or Sample Publisher.'
+      : 'No messages match the current filter. Click a highlighted interface/message in the sidebar to re-show it.';
+
+    for (const msg of visibleMessages) {
       const row = document.createElement('tr');
       row.dataset.id = msg.id;
 
@@ -870,21 +876,32 @@
   }
 
   // --- Sidebar: dynamic interfaces list (backed by the generic publisher metadata endpoint,
-  // which already reflects every configured interface, legacy and dedicated-port alike) ---
+  // which already reflects every configured interface, legacy and dedicated-port alike), with
+  // click-to-toggle filtering of the Live Messages table. All shown by default; clicking an
+  // interface or message excludes it, clicking again re-includes it. ---
 
   let publisherInterfacesCache = [];
+  const excludedInterfaces = new Set();
+  const excludedMessageTypes = new Set();
 
   async function loadSidebarInterfaces() {
     const response = await fetch('/api/publisher/interfaces');
     publisherInterfacesCache = await response.json();
 
+    renderSidebarInterfaces();
+    populateHistoryInterfaceFilter();
+  }
+
+  function renderSidebarInterfaces() {
     const container = document.getElementById('sidebarInterfaces');
     container.innerHTML = '';
 
     for (const iface of publisherInterfacesCache) {
       const chip = document.createElement('div');
-      chip.className = 'topic-chip';
+      chip.className = 'topic-chip' + (excludedInterfaces.has(iface.name) ? ' excluded' : '');
       chip.innerText = iface.name;
+      chip.title = 'Click to ' + (excludedInterfaces.has(iface.name) ? 'show' : 'hide') + ' this interface\'s messages';
+      chip.addEventListener('click', () => toggleInterfaceFilter(iface.name));
       container.appendChild(chip);
 
       if (iface.messages.length === 0) {
@@ -895,14 +912,44 @@
       } else {
         for (const message of iface.messages) {
           const note = document.createElement('div');
-          note.className = 'sidebar-note';
+          note.className = 'sidebar-note message-filter-item' + (excludedMessageTypes.has(message.type) ? ' excluded' : '');
           note.innerText = message.type;
+          note.title = 'Click to ' + (excludedMessageTypes.has(message.type) ? 'show' : 'hide') + ' this message type';
+          note.addEventListener('click', () => toggleMessageTypeFilter(message.type));
           container.appendChild(note);
         }
       }
     }
+  }
 
-    populateHistoryInterfaceFilter();
+  function toggleInterfaceFilter(interfaceName) {
+    const iface = publisherInterfacesCache.find(i => i.name === interfaceName);
+    const messageTypes = iface ? iface.messages.map(m => m.type) : [];
+
+    if (excludedInterfaces.has(interfaceName)) {
+      // Re-activating the interface resets all of its messages back to active too.
+      excludedInterfaces.delete(interfaceName);
+      messageTypes.forEach(type => excludedMessageTypes.delete(type));
+    } else {
+      // Deactivating the interface deactivates all of its messages; the user can then
+      // individually re-activate specific ones via toggleMessageTypeFilter.
+      excludedInterfaces.add(interfaceName);
+      messageTypes.forEach(type => excludedMessageTypes.add(type));
+    }
+
+    renderSidebarInterfaces();
+    renderMessages();
+  }
+
+  function toggleMessageTypeFilter(messageType) {
+    if (excludedMessageTypes.has(messageType)) {
+      excludedMessageTypes.delete(messageType);
+    } else {
+      excludedMessageTypes.add(messageType);
+    }
+
+    renderSidebarInterfaces();
+    renderMessages();
   }
 
   function populateHistoryInterfaceFilter() {
