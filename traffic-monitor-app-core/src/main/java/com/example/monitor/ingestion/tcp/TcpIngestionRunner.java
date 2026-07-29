@@ -24,6 +24,7 @@ import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
@@ -32,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class TcpIngestionRunner {
@@ -47,6 +49,7 @@ public class TcpIngestionRunner {
     private final List<Socket> activeConnections = new CopyOnWriteArrayList<>();
     private final Map<String, ServerSocket> dedicatedServerSockets = new ConcurrentHashMap<>();
     private final Map<String, List<Socket>> dedicatedConnections = new ConcurrentHashMap<>();
+    private final Map<String, AtomicBoolean> dedicatedClientStopFlags = new ConcurrentHashMap<>();
 
     public TcpIngestionRunner(
             TrafficMonitorProperties properties,
@@ -77,15 +80,29 @@ public class TcpIngestionRunner {
     }
 
     /**
-     * Opens a dedicated server socket for a single interface, independent of the others. Safe to
-     * call again for an interface that's already listening (no-op).
+     * Starts a single interface, independent of the others. In {@code SERVER} mode (default)
+     * this binds a dedicated server socket, failing fast if the bind itself fails. In {@code
+     * CLIENT} mode this instead kicks off a background reconnect loop that connects out to
+     * {@link InterfaceConfig#getHost()}:{@link InterfaceConfig#getPort()} - it does not throw if
+     * the remote isn't reachable yet, since that's an expected transient state, not a startup
+     * failure. Safe to call again for an interface that's already running (no-op).
      */
     public synchronized void startInterface(InterfaceConfig interfaceConfig) {
         String key = interfaceConfig.getKey();
 
-        if (dedicatedServerSockets.containsKey(key)) {
+        if (dedicatedServerSockets.containsKey(key) || dedicatedClientStopFlags.containsKey(key)) {
             return;
         }
+
+        if ("CLIENT".equalsIgnoreCase(interfaceConfig.getMode())) {
+            startClientInterface(interfaceConfig);
+        } else {
+            startServerInterface(interfaceConfig);
+        }
+    }
+
+    private void startServerInterface(InterfaceConfig interfaceConfig) {
+        String key = interfaceConfig.getKey();
 
         try {
             ServerSocket serverSocket = new ServerSocket(interfaceConfig.getPort());
@@ -101,9 +118,23 @@ public class TcpIngestionRunner {
         }
     }
 
+    private void startClientInterface(InterfaceConfig interfaceConfig) {
+        String key = interfaceConfig.getKey();
+        AtomicBoolean stopFlag = new AtomicBoolean(false);
+
+        dedicatedClientStopFlags.put(key, stopFlag);
+        dedicatedConnections.put(key, new CopyOnWriteArrayList<>());
+        interfaceRuntimeRegistry.state(key).ifPresent(state -> state.setListening(true));
+        executor.submit(() -> connectLoopForInterface(interfaceConfig, stopFlag));
+    }
+
     /**
-     * Closes the dedicated server socket and any open connections for a single interface. Safe to
-     * call for an interface that isn't currently listening (no-op).
+     * Closes the dedicated server socket/reconnect loop and any open connections for a single
+     * interface. Safe to call for an interface that isn't currently running (no-op). For a
+     * {@code CLIENT}-mode interface, this has a worst-case latency bounded by {@code
+     * traffic.tcp.client-connect-timeout-ms} - a connect attempt already in flight has no live
+     * socket yet to force-close, so the reconnect loop only observes the stop flag once that
+     * attempt resolves (success or timeout).
      */
     public synchronized void stopInterface(String key) {
         ServerSocket serverSocket = dedicatedServerSockets.remove(key);
@@ -114,6 +145,11 @@ public class TcpIngestionRunner {
             } catch (IOException e) {
                 log.warn("Failed to close TCP server socket for interface {}", key, e);
             }
+        }
+
+        AtomicBoolean stopFlag = dedicatedClientStopFlags.remove(key);
+        if (stopFlag != null) {
+            stopFlag.set(true);
         }
 
         List<Socket> connections = dedicatedConnections.remove(key);
@@ -154,6 +190,63 @@ public class TcpIngestionRunner {
             if (!serverSocket.isClosed()) {
                 log.error("TCP ingestion failed on port {} for interface {}", port, interfaceConfig.getName(), e);
                 incrementListenerErrorCounter(port);
+            }
+        }
+    }
+
+    /**
+     * Repeatedly connects out to {@link InterfaceConfig#getHost()}:{@link
+     * InterfaceConfig#getPort()}, handing each successful connection to the same {@link
+     * #handleConnectionForInterface} used by server mode, and retrying (after {@code
+     * clientReconnectDelayMs}) once that connection ends - until {@code stopFlag} is set.
+     */
+    private void connectLoopForInterface(InterfaceConfig interfaceConfig, AtomicBoolean stopFlag) {
+        String key = interfaceConfig.getKey();
+        String host = interfaceConfig.getHost();
+        int port = interfaceConfig.getPort();
+        int connectTimeoutMs = properties.getTcp().getClientConnectTimeoutMs();
+        int reconnectDelayMs = properties.getTcp().getClientReconnectDelayMs();
+
+        while (!stopFlag.get()) {
+            Socket socket = null;
+            try {
+                socket = new Socket();
+                socket.connect(new InetSocketAddress(host, port), connectTimeoutMs);
+
+                List<Socket> connections = dedicatedConnections.get(key);
+                if (stopFlag.get() || connections == null) {
+                    closeQuietly(socket);
+                    break;
+                }
+
+                activeConnections.add(socket);
+                connections.add(socket);
+                incrementAcceptedCounter(port);
+                log.info("TCP client connected for interface {} to {}:{}", key, host, port);
+                handleConnectionForInterface(socket, interfaceConfig);
+            } catch (IOException e) {
+                closeQuietly(socket);
+                log.debug("TCP client connect attempt failed for interface {} ({}:{}), retrying", key, host, port, e);
+                incrementReconnectAttemptCounter(port);
+            }
+
+            if (!stopFlag.get()) {
+                try {
+                    Thread.sleep(reconnectDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+    }
+
+    private void closeQuietly(Socket socket) {
+        if (socket != null && !socket.isClosed()) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                log.warn("Failed to close TCP client socket", e);
             }
         }
     }
@@ -267,8 +360,19 @@ public class TcpIngestionRunner {
                 .increment();
     }
 
+    private void incrementReconnectAttemptCounter(int port) {
+        Counter.builder("network_monitor.tcp.client.reconnect.attempts")
+                .tag("port", String.valueOf(port))
+                .register(meterRegistry)
+                .increment();
+    }
+
     @PreDestroy
     public void stop() {
+        for (AtomicBoolean stopFlag : dedicatedClientStopFlags.values()) {
+            stopFlag.set(true);
+        }
+
         for (ServerSocket serverSocket : dedicatedServerSockets.values()) {
             if (!serverSocket.isClosed()) {
                 try {
@@ -291,6 +395,7 @@ public class TcpIngestionRunner {
 
         dedicatedServerSockets.clear();
         dedicatedConnections.clear();
+        dedicatedClientStopFlags.clear();
         executor.shutdownNow();
         log.info("TCP ingestion stopped");
     }

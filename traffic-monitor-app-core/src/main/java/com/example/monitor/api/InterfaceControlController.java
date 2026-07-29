@@ -39,7 +39,7 @@ public class InterfaceControlController {
     @PostMapping("/api/interfaces/{key}/configure")
     public List<InterfaceStatusDto> configure(
             @PathVariable("key") String key, @RequestBody InterfaceConfigureRequest request) {
-        interfaceControlService.configure(key, request.port(), request.protocol());
+        interfaceControlService.configure(key, request.port(), request.protocol(), request.mode(), request.host());
         return interfaceControlService.statuses();
     }
 }

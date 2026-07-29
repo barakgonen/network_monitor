@@ -19,6 +19,8 @@ class InterfaceConfigTest {
         assertThat(config.getOpcodeFieldName()).isEqualTo("opcode");
         assertThat(config.isMessageOwnsHeader()).isFalse();
         assertThat(config.getBodyLengthFieldName()).isEqualTo("bodyLength");
+        assertThat(config.getMode()).isEqualTo("SERVER");
+        assertThat(config.getHost()).isNull();
     }
 
     @Test

@@ -99,17 +99,39 @@ class InterfaceControlServiceTest {
 
     @Test
     void configure_whileNotListening_updatesPortAndProtocol() {
-        service.configure("rada", 6050, "TCP");
+        service.configure("rada", 6050, "TCP", "SERVER", null);
 
         assertThat(radaConfig.getPort()).isEqualTo(6050);
         assertThat(radaConfig.getProtocol()).isEqualTo("TCP");
     }
 
     @Test
+    void configure_withClientModeAndHost_updatesModeAndHost() {
+        service.configure("rada", 6050, "TCP", "CLIENT", "remote-host");
+
+        assertThat(radaConfig.getMode()).isEqualTo("CLIENT");
+        assertThat(radaConfig.getHost()).isEqualTo("remote-host");
+    }
+
+    @Test
+    void configure_withClientModeAndUdpProtocol_throwsIllegalArgumentException() {
+        assertThatThrownBy(() -> service.configure("rada", 6050, "UDP", "CLIENT", "remote-host"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("CLIENT");
+    }
+
+    @Test
+    void configure_withClientModeAndBlankHost_throwsIllegalArgumentException() {
+        assertThatThrownBy(() -> service.configure("rada", 6050, "TCP", "CLIENT", " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("host");
+    }
+
+    @Test
     void configure_whileListening_throwsIllegalStateException() {
         runtimeRegistry.state("rada").orElseThrow().setListening(true);
 
-        assertThatThrownBy(() -> service.configure("rada", 6050, "TCP"))
+        assertThatThrownBy(() -> service.configure("rada", 6050, "TCP", "SERVER", null))
                 .isInstanceOf(IllegalStateException.class);
     }
 

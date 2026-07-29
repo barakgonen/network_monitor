@@ -49,9 +49,9 @@ public class InterfaceControlService {
         }
     }
 
-    public void configure(String key, int port, String protocol) {
+    public void configure(String key, Integer port, String protocol, String mode, String host) {
         InterfaceRuntimeState state = requireState(key);
-        state.configure(port, protocol);
+        state.configure(port, protocol, mode, host);
     }
 
     private InterfaceRuntimeState requireState(String key) {

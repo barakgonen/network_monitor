@@ -7,6 +7,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +30,7 @@ class TcpIngestionEndToEndIT extends AbstractIntegrationTestBase {
         restTemplate.postForEntity(httpUrl("/api/interfaces/fruit/stop"), null, InterfaceStatusDto[].class);
         restTemplate.postForEntity(
                 httpUrl("/api/interfaces/fruit/configure"),
-                new InterfaceConfigureRequest(fruitPort, "UDP"),
+                new InterfaceConfigureRequest(fruitPort, "UDP", "SERVER", null),
                 InterfaceStatusDto[].class);
         restTemplate.postForEntity(httpUrl("/api/interfaces/fruit/start"), null, InterfaceStatusDto[].class);
     }
@@ -125,7 +127,7 @@ class TcpIngestionEndToEndIT extends AbstractIntegrationTestBase {
 
         ResponseEntity<InterfaceStatusDto[]> configured = restTemplate.postForEntity(
                 httpUrl("/api/interfaces/fruit/configure"),
-                new InterfaceConfigureRequest(fruitPort, "TCP"),
+                new InterfaceConfigureRequest(fruitPort, "TCP", "SERVER", null),
                 InterfaceStatusDto[].class);
 
         InterfaceStatusDto fruitStatus = statusFor(configured.getBody(), "fruit");
@@ -142,6 +144,39 @@ class TcpIngestionEndToEndIT extends AbstractIntegrationTestBase {
         assertThat(message.transportProtocol()).isEqualTo("TCP");
         assertThat(message.interfaceName()).isEqualTo("Fruit Interface");
         assertThat(message.parseError()).isNull();
+    }
+
+    @Test
+    void reconfiguringInterfaceToTcpClientMode_connectsOutAndDecodesSuccessfully() throws Exception {
+        try (ServerSocket remoteServer = new ServerSocket(0)) {
+            remoteServer.setSoTimeout(5000);
+
+            restTemplate.postForEntity(httpUrl("/api/interfaces/fruit/stop"), null, InterfaceStatusDto[].class);
+
+            ResponseEntity<InterfaceStatusDto[]> configured = restTemplate.postForEntity(
+                    httpUrl("/api/interfaces/fruit/configure"),
+                    new InterfaceConfigureRequest(remoteServer.getLocalPort(), "TCP", "CLIENT", "localhost"),
+                    InterfaceStatusDto[].class);
+
+            InterfaceStatusDto fruitStatus = statusFor(configured.getBody(), "fruit");
+            assertThat(fruitStatus.protocol()).isEqualTo("TCP");
+            assertThat(fruitStatus.mode()).isEqualTo("CLIENT");
+            assertThat(fruitStatus.host()).isEqualTo("localhost");
+
+            restTemplate.postForEntity(httpUrl("/api/interfaces/fruit/start"), null, InterfaceStatusDto[].class);
+
+            try (Socket accepted = remoteServer.accept()) {
+                accepted.getOutputStream().write(TestProtocolPayloads.orange("Client Mode Farm", (byte) 1));
+                accepted.getOutputStream().flush();
+
+                ObservedMessage message = awaitStoreContains(
+                        m -> "Orange".equals(m.messageType()) && "Client Mode Farm".equals(m.body().get("sourceFarm")));
+
+                assertThat(message.transportProtocol()).isEqualTo("TCP");
+                assertThat(message.interfaceName()).isEqualTo("Fruit Interface");
+                assertThat(message.parseError()).isNull();
+            }
+        }
     }
 
     private static InterfaceStatusDto statusFor(InterfaceStatusDto[] statuses, String key) {

@@ -46,10 +46,33 @@ class InterfaceRuntimeStateTest {
         config.setProtocol("UDP");
         InterfaceRuntimeState state = new InterfaceRuntimeState(config);
 
-        state.configure(6001, "TCP");
+        state.configure(6001, "TCP", "SERVER", null);
 
         assertThat(config.getPort()).isEqualTo(6001);
         assertThat(config.getProtocol()).isEqualTo("TCP");
+    }
+
+    @Test
+    void configure_withClientModeAndHost_updatesModeAndHost() {
+        InterfaceConfig config = new InterfaceConfig();
+        config.setPort(5001);
+        config.setProtocol("TCP");
+        InterfaceRuntimeState state = new InterfaceRuntimeState(config);
+
+        state.configure(6001, "TCP", "CLIENT", "remote-host");
+
+        assertThat(config.getMode()).isEqualTo("CLIENT");
+        assertThat(config.getHost()).isEqualTo("remote-host");
+    }
+
+    @Test
+    void configure_withInvalidModeCombination_throwsIllegalArgumentException() {
+        InterfaceConfig config = new InterfaceConfig();
+        config.setPort(5001);
+        InterfaceRuntimeState state = new InterfaceRuntimeState(config);
+
+        assertThatThrownBy(() -> state.configure(6001, "UDP", "CLIENT", "remote-host"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -60,7 +83,7 @@ class InterfaceRuntimeStateTest {
         InterfaceRuntimeState state = new InterfaceRuntimeState(config);
         state.setListening(true);
 
-        assertThatThrownBy(() -> state.configure(6001, "TCP"))
+        assertThatThrownBy(() -> state.configure(6001, "TCP", "SERVER", null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("fruit");
     }

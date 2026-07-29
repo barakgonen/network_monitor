@@ -127,4 +127,96 @@ class TrafficToolConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must define a port");
     }
+
+    @Test
+    void load_withValidClientModeInterface_parsesModeAndHost() throws Exception {
+        Path configFile = tempDir.resolve("client-mode.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: fruit
+                    name: Fruit Interface
+                    protocol: TCP
+                    port: 5001
+                    mode: CLIENT
+                    host: remote-host
+                    messages:
+                      - type: Orange
+                        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+                """);
+
+        TrafficToolConfig config = loader.load(configFile);
+
+        InterfaceConfig fruit = config.getInterfaces().get(0);
+        assertThat(fruit.getMode()).isEqualTo("CLIENT");
+        assertThat(fruit.getHost()).isEqualTo("remote-host");
+    }
+
+    @Test
+    void load_withClientModeAndUdpProtocol_throwsIllegalArgumentException() throws Exception {
+        Path configFile = tempDir.resolve("client-mode-udp.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: fruit
+                    name: Fruit Interface
+                    protocol: UDP
+                    port: 5001
+                    mode: CLIENT
+                    host: remote-host
+                    messages:
+                      - type: Orange
+                        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+                """);
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("protocol=TCP");
+    }
+
+    @Test
+    void load_withClientModeAndMissingHost_throwsIllegalArgumentException() throws Exception {
+        Path configFile = tempDir.resolve("client-mode-missing-host.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: fruit
+                    name: Fruit Interface
+                    protocol: TCP
+                    port: 5001
+                    mode: CLIENT
+                    messages:
+                      - type: Orange
+                        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+                """);
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-blank host");
+    }
+
+    @Test
+    void load_withInvalidModeString_throwsIllegalArgumentException() throws Exception {
+        Path configFile = tempDir.resolve("invalid-mode.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: fruit
+                    name: Fruit Interface
+                    protocol: UDP
+                    port: 5001
+                    mode: BOGUS
+                    messages:
+                      - type: Orange
+                        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
+                """);
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SERVER or CLIENT");
+    }
 }

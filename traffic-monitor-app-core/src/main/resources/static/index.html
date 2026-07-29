@@ -100,8 +100,9 @@
 
       <p class="panel-note">
         Every interface has its own port and protocol, individually startable/stoppable. Stop an
-        interface to edit its port/protocol, then Save and Start again - changes apply
-        immediately but reset to the config file's defaults on restart.
+        interface to edit its port/protocol/mode/host, then Save and Start again - changes apply
+        immediately but reset to the config file's defaults on restart. TCP interfaces can run as
+        a Server (listens on Port) or a Client (connects out to Host:Port instead).
       </p>
 
       <div class="table-wrapper">
@@ -111,6 +112,8 @@
             <th>Key</th>
             <th>Name</th>
             <th>Protocol</th>
+            <th>Mode</th>
+            <th>Host</th>
             <th>Port</th>
             <th>Status</th>
             <th>Received</th>
@@ -985,6 +988,7 @@
     for (const status of statuses) {
       const row = document.createElement('tr');
       const disabledWhileListening = status.listening ? 'disabled' : '';
+      const hostDisabled = status.listening || status.mode !== 'CLIENT' ? 'disabled' : '';
 
       row.innerHTML = `
         <td>${escapeHtml(status.key)}</td>
@@ -995,6 +999,13 @@
             <option value="TCP">TCP</option>
           </select>
         </td>
+        <td>
+          <select class="interface-mode-input" ${disabledWhileListening}>
+            <option value="SERVER">Server</option>
+            <option value="CLIENT">Client</option>
+          </select>
+        </td>
+        <td><input type="text" class="interface-host-input" placeholder="remote host" value="${escapeHtml(status.host || '')}" ${hostDisabled}></td>
         <td><input type="number" min="1" max="65535" class="interface-port-input" value="${escapeHtml(status.port)}" ${disabledWhileListening}></td>
         <td><span class="status-badge ${status.listening ? 'status-on' : 'status-off'}">${status.listening ? 'Listening' : 'Stopped'}</span></td>
         <td>${escapeHtml(status.receivedCount)}</td>
@@ -1003,11 +1014,20 @@
         <td>
           <button class="secondary-btn interface-start-btn" ${disabledWhileListening}>Start</button>
           <button class="stop-btn interface-stop-btn" ${status.listening ? '' : 'disabled'}>Stop</button>
-          <button class="secondary-btn interface-save-btn" ${disabledWhileListening} title="Stop the interface to change its port/protocol">Save</button>
+          <button class="secondary-btn interface-save-btn" ${disabledWhileListening} title="Stop the interface to change its port/protocol/mode/host">Save</button>
         </td>
       `;
 
-      row.querySelector('.interface-protocol-input').value = status.protocol;
+      const protocolInput = row.querySelector('.interface-protocol-input');
+      const modeInput = row.querySelector('.interface-mode-input');
+      const hostInput = row.querySelector('.interface-host-input');
+
+      protocolInput.value = status.protocol;
+      modeInput.value = status.mode || 'SERVER';
+      modeInput.addEventListener('change', () => {
+        hostInput.disabled = status.listening || modeInput.value !== 'CLIENT';
+      });
+
       row.querySelector('.interface-start-btn').addEventListener('click', () => startInterface(status.key));
       row.querySelector('.interface-stop-btn').addEventListener('click', () => stopInterface(status.key));
       row.querySelector('.interface-save-btn').addEventListener('click', () => configureInterface(row, status.key));
@@ -1029,11 +1049,13 @@
   async function configureInterface(row, key) {
     const port = parseInt(row.querySelector('.interface-port-input').value, 10);
     const protocol = row.querySelector('.interface-protocol-input').value;
+    const mode = row.querySelector('.interface-mode-input').value;
+    const host = row.querySelector('.interface-host-input').value || null;
 
     const response = await fetch(`/api/interfaces/${encodeURIComponent(key)}/configure`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ port, protocol })
+      body: JSON.stringify({ port, protocol, mode, host })
     });
 
     if (!response.ok) {

@@ -44,6 +44,12 @@ public class TrafficToolConfigLoader {
                 throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define a port");
             }
 
+            InterfaceModeValidator.validate(
+                    interfaceConfig.getMode(),
+                    interfaceConfig.getProtocol(),
+                    interfaceConfig.getHost(),
+                    interfaceContext(interfaceConfig));
+
             if (interfaceConfig.getMessages() == null || interfaceConfig.getMessages().isEmpty()) {
                 throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define at least one message");
             }

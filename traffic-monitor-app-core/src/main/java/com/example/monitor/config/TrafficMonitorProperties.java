@@ -46,6 +46,8 @@ public class TrafficMonitorProperties {
 
     public static class Tcp {
         private int maxBodyLengthBytes = 65507;
+        private int clientReconnectDelayMs = 2000;
+        private int clientConnectTimeoutMs = 3000;
 
         public int getMaxBodyLengthBytes() {
             return maxBodyLengthBytes;
@@ -53,6 +55,22 @@ public class TrafficMonitorProperties {
 
         public void setMaxBodyLengthBytes(int maxBodyLengthBytes) {
             this.maxBodyLengthBytes = maxBodyLengthBytes;
+        }
+
+        public int getClientReconnectDelayMs() {
+            return clientReconnectDelayMs;
+        }
+
+        public void setClientReconnectDelayMs(int clientReconnectDelayMs) {
+            this.clientReconnectDelayMs = clientReconnectDelayMs;
+        }
+
+        public int getClientConnectTimeoutMs() {
+            return clientConnectTimeoutMs;
+        }
+
+        public void setClientConnectTimeoutMs(int clientConnectTimeoutMs) {
+            this.clientConnectTimeoutMs = clientConnectTimeoutMs;
         }
     }
 

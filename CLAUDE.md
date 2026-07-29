@@ -140,15 +140,37 @@ Corollary for the publisher (`PublisherService.buildPayload`): legacy interfaces
 dedicated-port interfaces send `definition.encodeBody(...)` as-is (already includes the
 header). Branch on `InterfaceConfig.hasDedicatedPort()`.
 
-TCP dedicated-port ingestion is **not implemented** — `TcpIngestionRunner` still only serves
-the two legacy ports. Every configured interface today is UDP.
+TCP dedicated-port ingestion **is implemented** (`TcpIngestionRunner`, one `ServerSocket` per
+enabled TCP interface) — Candy runs on it today. See "TCP client/server mode" below for the
+one remaining ingestion-direction gap this used to have (client mode), which is now also filled.
 
 Per-interface runtime start/stop (`/api/interfaces/{key}/start|stop`,
 `InterfaceRuntimeRegistry`/`InterfaceControlService`) only applies to dedicated-port
 interfaces. Legacy interfaces are all-or-nothing via `traffic.udp.enabled`/`traffic.tcp.enabled`.
-`InterfaceControlService.requireUdp()` additionally gates control to protocol `"UDP"`
-specifically (not just "has a dedicated port") — currently a no-op distinction since
-dedicated-port TCP isn't implemented, but will matter if that gap ever gets filled.
+`InterfaceControlService.isTcp()` dispatches `start`/`stop` to `TcpIngestionRunner` vs
+`UdpIngestionRunner` based on the interface's *current* protocol (switchable at runtime via
+`configure`).
+
+## TCP client/server mode
+
+Every TCP interface has a `mode`: `"SERVER"` (default — bind `port` and listen, as always) or
+`"CLIENT"` (connect out to `host:port` instead, using the same decode pipeline once connected).
+`mode`/`host` live on `InterfaceConfig` alongside `port`/`protocol`, validated together by
+`InterfaceModeValidator` (shared between config-load time and runtime `/configure` calls):
+`CLIENT` requires `protocol=TCP` (UDP is connectionless — no client/server distinction) and a
+non-blank `host`. Client mode is UI/API-configurable per interface the same way protocol/port
+already were (`InterfaceConfigureRequest`/`InterfaceStatusDto` both carry `mode`/`host`).
+
+`TcpIngestionRunner.startInterface` branches on mode: `SERVER` binds synchronously and throws
+on failure (unchanged); `CLIENT` never throws synchronously — it registers a stop flag and
+starts a background reconnect loop (`connectLoopForInterface`) that retries every
+`traffic.tcp.client-reconnect-delay-ms` (default 2s) with a bounded
+`traffic.tcp.client-connect-timeout-ms` (default 3s) per attempt, since the remote may not be
+up yet. Successful connections are handed to the exact same `handleConnectionForInterface`
+server mode uses. `stopInterface`'s cleanup is shared across both modes via the existing
+`dedicatedConnections` map/close loop, with one caveat: a client-mode connect attempt already
+in flight has no live socket yet to force-close, so `stopInterface`'s worst-case latency for a
+`CLIENT` interface is bounded by `client-connect-timeout-ms`, not instant.
 
 ## Config files
 
@@ -212,8 +234,10 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
 
 ## Known gaps / natural follow-ups
 
-- TCP dedicated-port ingestion (see above).
 - `RadaTracksExtended` Instancio generation (see above).
+- TCP client mode reconnects/backoff apply uniformly regardless of how many prior attempts
+  failed (flat delay, no exponential backoff) — fine at today's scale (~5 interfaces), but
+  would need revisiting if that count grows a lot.
 - Multi-select interface filtering in the Live/History UI tabs — dropdowns are dynamic now
   (all 5 interfaces show up) but still single-select; true multi-select needs
   `HistoryController`/`AnalyticsController` to accept a repeatable `interfaceName` param.

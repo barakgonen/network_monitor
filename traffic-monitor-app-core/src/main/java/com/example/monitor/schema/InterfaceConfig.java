@@ -20,6 +20,22 @@ public class InterfaceConfig {
     private boolean enabled = true;
     private String protocol = "UDP";
     private Integer port;
+
+    /**
+     * {@code "SERVER"} (default): bind {@link #getPort()} and listen, as before. {@code
+     * "CLIENT"} (TCP only - UDP is connectionless and has no client/server distinction here):
+     * connect out to {@link #getHost()}:{@link #getPort()} instead of binding, using the same
+     * decode pipeline once connected. See {@link InterfaceModeValidator} for the validity rules.
+     */
+    private String mode = "SERVER";
+
+    /**
+     * The remote host to connect to when {@link #getMode()} is {@code "CLIENT"}; unused (and
+     * left {@code null}) in {@code "SERVER"} mode, where {@link #getPort()} is a local bind
+     * port rather than a remote one.
+     */
+    private String host;
+
     private String byteOrder = "BIG_ENDIAN";
     private String headerType = DEFAULT_HEADER_TYPE;
     private String opcodeFieldName = DEFAULT_OPCODE_FIELD_NAME;
@@ -111,6 +127,22 @@ public class InterfaceConfig {
 
     public boolean hasDedicatedPort() {
         return port != null;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
     }
 
     public String getByteOrder() {
