@@ -1,421 +1,491 @@
 # Traffic Interface Tool
 
-A small Java 21 / Maven multi-module toolkit for simulating and observing custom binary
-protocol traffic over **UDP and TCP**. It has two runnable apps that talk to each other:
+A Java 21 / Maven multi-module toolkit for simulating and observing custom binary protocol
+traffic over **UDP and TCP**. Two runnable apps talk to each other:
 
-- **traffic-monitor-app** — a Spring Boot service that listens for UDP and TCP traffic, decodes
-  it, stores recent messages in memory (plus a durable H2-backed history with search/analytics
-  endpoints), exposes a REST API, and serves a dark-themed live-monitoring web UI. It can also
-  *publish* messages over UDP or TCP (once or on a repeating schedule), can auto-reply to
-  specific inbound message types via pluggable handlers (over UDP or TCP, independent of the
-  inbound transport), and exposes Micrometer/Actuator metrics (including a Prometheus scrape
-  endpoint) for both transports.
-- **traffic-tester-app** — a standalone CLI app that sends synthetic UDP traffic (defined in a
-  YAML scenario file) at the monitor, and can optionally listen for messages sent back.
+- **traffic-monitor-app** — a Spring Boot service that listens for traffic on a set of
+  configurable interfaces, decodes it, stores recent messages in memory (plus a durable
+  H2-backed history with search/analytics endpoints), exposes a REST API, and serves a
+  dark-themed live-monitoring web UI. It can also *publish* messages (once or on a repeating
+  schedule), auto-reply to specific inbound message types via pluggable handlers, and exposes
+  Micrometer/Actuator metrics (including a Prometheus scrape endpoint).
+- **traffic-tester-app** — a standalone CLI app that sends synthetic traffic (defined in a YAML
+  scenario file) at the monitor, and can optionally listen for messages sent back.
 
-Seven Maven modules make up the system, split so the "engine" is a generic, distributable SDK
-and everything Fruit/Weather-specific is a swappable, client-suppliable layer on top:
-
-- **schema-core** / **handler-core** — the generic engine's two contracts, zero Fruit/Weather
-  knowledge: `schema-core` defines `MessageDefinition` (wire decode/encode) with zero
-  dependencies beyond the JDK, and `handler-core` defines `MessageArrivedHandler<T>` (the
-  generic, typed `onMessageArrived` auto-reply dispatch contract), depending on `schema-core`
-  only for the `ProtocolMessage` marker type.
-- **shared-schemas** / **handler-app** — *our* concrete implementations of those two contracts
-  for the Fruit/Weather protocols. Neither is required by the engine — they're supplied by
-  whoever assembles a runnable app, exactly like a plugin.
-- **traffic-monitor-app-core** — the generic engine itself, as a plain library: ingestion,
-  store, REST API, UI resources, publishing, reflection/scan-based wiring. Depends on
-  `schema-core` + `handler-core` only — **not** `shared-schemas`, **not** `handler-app` — and
-  has no bootable `main()`/`spring-boot-maven-plugin` of its own. This is the module a client
-  would take a dependency on to build their *own* monitor with their *own* protocol and
-  handlers.
-- **traffic-monitor-app** — the runnable application. Holds the `TrafficMonitorApplication`
-  Spring Boot entrypoint (`main()`), depends on `traffic-monitor-app-core` + `shared-schemas` +
-  `handler-app`, and holds the `spring-boot-maven-plugin` config that produces the final
-  runnable/deployable jar. A client building their own monitor would write their own thin `-app`
-  module shaped exactly like this one, swapping in their own schema/handler modules (or reusing
-  ours).
-
-Four demo protocols currently exist: **Fruit Interface** (Orange, Banana messages),
-**Weather Interface** (TemperatureReading messages), **Ping Interface** (Ping, Pong messages),
-and **Candy Interface** (Candy messages).
-
-## Architecture
+## Module layout (3 modules)
 
 ```
-              UDP/TCP :5001 (Fruit)
-  traffic-tester ───────────────────► traffic-monitor
-       app        UDP/TCP :5003 (Weather)   app
-                  ───────────────────►   (Spring Boot,
-                                          port :8080 HTTP+UI+REST,
-                                          port :8080/actuator/* metrics)
-                  UDP :7001 (listener)
-  traffic-tester ◄───────────────────  traffic-monitor
-       app       single/periodic publish,      app
-                  or auto-reply (UDP or TCP,
-                  independent of inbound transport)
+traffic-monitor-app-core   The generic engine: ingestion, persistence, analytics, auto-reply,
+                            publisher, interface runtime control, REST API, UI resources.
+                              - com.example.schemacore (+ .annotation/.envelope/.reflect) —
+                                MessageDefinition/Registry, ProtocolMessage marker, the
+                                reflective codec engine.
+                              - com.example.handlercore — MessageArrivedHandler<T>,
+                                MessageHandlerRegistry, MessageArrivedDispatcher, ReplySender,
+                                DestinationConfig.
+                              - com.example.monitor — the engine itself.
+                            Has zero compile dependency on any concrete protocol/handler
+                            classes — enforced by its pom.xml, not just convention.
+
+traffic-monitor-app        The runnable app. Package layout adds two more top-level packages
+                            alongside com.example.monitor:
+                              - com.example.schemas — concrete message classes
+                                (fruit/weather/ping/candy/rada).
+                              - com.example.messagehandlers — concrete MessageArrivedHandler
+                                implementations, one per message type.
+                            Holds TrafficMonitorApplication's main(), the
+                            spring-boot-maven-plugin config, and this module's integration-test
+                            suite (real sockets, real Spring context).
+
+traffic-tester-app         Standalone CLI tester (no Spring), depends on traffic-monitor-app for
+                            the message classes — it's a test tool, allowed to know the wire
+                            format.
 ```
 
-The monitor persists every observed message (UDP or TCP) to an embedded H2 database in addition
-to the in-memory recent-message ring buffer, and exposes `/api/messages/history` +
-`/api/analytics/*` for querying that durable history. See
-[Persistence and history](#persistence-and-history) and
-[Metrics and observability](#metrics-and-observability) below.
+Build/test a module + its deps: `mvn -pl <module> -am test`. Full repo: `mvn clean verify` from
+the root.
 
-```
-   schema-core          handler-core          <-- the generic engine's contracts (SDK)
-   (generic)             (generic)
-        ▲                     ▲
-        └──────────┬──────────┘
-                    │  (compile dependency; zero schema/handler imports)
-         traffic-monitor-app-core             <-- the generic engine itself, a plain library
-                    ▲                             (no main(), no spring-boot-maven-plugin)
-                    │
-   shared-schemas ──┼── handler-app           <-- our concrete plugin implementations
-        ▲           │        ▲                    (a client could supply their own instead)
-        └───────────┼────────┘
-                    traffic-monitor-app        <-- the runnable app (client pattern);
-                    │                              holds TrafficMonitorApplication's main()
-                    │  spring-boot-maven-plugin repackage -> the runnable jar
-                    ▼
-                (Docker image)
+## Core architectural invariant: the engine has zero schema dependency
 
-  traffic-tester-app ──► shared-schemas (depends on it directly, uses types directly)
-```
+`traffic-monitor-app-core` never imports `com.example.schemas.*` or
+`com.example.messagehandlers.*` in main code. All wiring from the generic engine to concrete
+protocol classes happens by **fully-qualified class name string**, read from YAML
+(`config/traffic-tool.yml`) and resolved via `Class.forName` at startup. **This is what makes
+"adding a new interface" a config + new-classes exercise, not a change to the engine** — see
+[Adding a new interface](#adding-a-new-interface) below.
 
-- `schema-core` and `handler-core` have no dependencies beyond the JDK — pure generic
-  contracts, no Fruit/Weather knowledge at all. Together they're the reusable "SDK" a client
-  would build against.
-- `shared-schemas` implements `schema-core`'s `MessageDefinition` for each real message type
-  and still exposes the original `FruitProtocolCodec`/`WeatherProtocolCodec` classes (used
-  directly by `traffic-tester-app`, which is *not* schema-agnostic — it's a test tool that's
-  allowed to know the wire format).
-- `handler-app` implements `handler-core`'s `MessageArrivedHandler` using `shared-schemas`
-  types directly — it's the deliberate "application layer where schema types are used."
-- `traffic-monitor-app-core` owns the HTTP API, UI, and ingestion pipeline, and stays fully
-  generic by only ever referencing the `schema-core`/`handler-core` interfaces — a Maven-level
-  guarantee (no `shared-schemas` or `handler-app` dependency at all in its `pom.xml`), not just
-  a source-code convention. It has no bootable `main()` of its own — it's a library. A client
-  can depend on this module's published jar directly. (Its own integration tests boot a
-  test-scoped `TrafficMonitorTestApplication` in `src/test/java`, since the module has nothing
-  bootable in `src/main`.)
-- `traffic-monitor-app` is the only module that depends on `traffic-monitor-app-core` +
-  `shared-schemas` + `handler-app` together, and the only one that runs
-  `spring-boot-maven-plugin`'s `repackage` goal — it owns the `TrafficMonitorApplication`
-  entrypoint (`main()`), and its final fat jar is what the Dockerfile copies. This module is the
-  *pattern* a client replicates: their own thin `-app` module depending on
-  `traffic-monitor-app-core` + their own schema/handler modules (or ours), with their own
-  entrypoint class.
-- `traffic-tester-app` is a plain Java app (no Spring) with its own `main()`.
+## Interfaces currently configured
 
-## Wire protocols
+Every interface owns its **own dedicated socket** — its own port and its own protocol (`UDP` or
+`TCP`), individually startable/stoppable/reconfigurable at runtime (see
+[Interface runtime control](#interface-runtime-control)). There is no shared/legacy port model.
 
-All multi-byte numeric fields are **big-endian**. All strings are **UTF-8, length-prefixed**
-with a 4-byte `int32` length. Every message starts with the same 16-byte header. Framing is
-**transport-agnostic**: the same header+body layout is used whether a message arrives as one UDP
-datagram or over a TCP stream — `ProtocolHeaderCodec` (in `schema-core`) is the single
-implementation shared by both `UdpIngestionRunner` and `TcpIngestionRunner`. Over TCP, since the
-stream has no inherent message boundaries, the receiver reads the fixed 16-byte header first to
-learn `bodyLength`, then reads exactly that many more bytes to reassemble one logical message
-before decoding — this lets a single persistent TCP connection carry multiple messages
-back-to-back.
+| Interface | Port | Protocol | Messages | Header |
+|---|---|---|---|---|
+| Fruit Interface | 5001 | UDP | Orange, Banana | default envelope |
+| Ping Interface | 5002 | UDP | Ping, Pong | default envelope |
+| Weather Interface | 5003 | UDP | TemperatureReading | default envelope |
+| Candy Interface | 5004 | TCP | Candy | default envelope |
+| Rada Interface | 5050 | UDP | RadaStatus, RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended | custom `RadaHeader`, self-parsing |
+
+"Default envelope" vs "custom header, self-parsing" is explained in
+[The reflective codec convention](#the-reflective-codec-convention) below — it's the single most
+important thing to understand before adding a new interface.
+
+## The reflective codec convention
+
+Messages don't need a hand-written `MessageDefinition` + separate codec class pair.
+`ReflectiveStructCodec` (`com.example.schemacore.reflect`) reflectively invokes methods that
+follow a naming convention on the message class itself:
+
+- **Decode** (first match wins): `public static T fromByteBuffer(ByteBuffer)` (records — immutable,
+  can't self-mutate) — else `public T(byte[])` constructor (mutable classes that parse themselves
+  in the constructor, e.g. the Rada messages).
+- **Encode** (first match wins): `public byte[] toByteArray()` — no-arg, self-sizing, used when a
+  field is variable-length (e.g. a `String` — `StructSizeCalculator` can't size those) — else
+  `public void toByteArray(ByteBuffer)`, buffer pre-sized via
+  `StructSizeCalculator.calculateStructSize(class)` (fixed-layout messages only; array fields
+  additionally need `@FixedArrayLength(n)` from `com.example.schemacore.annotation`).
+
+`ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass)` wraps this into a
+`MessageDefinition` — one line of config (`messageClass:` + `opcode:` in
+`config/traffic-tool.yml`) replaces a hand-written Java class entirely. There's also a legacy
+`definitionClass:` config form for a fully hand-written `MessageDefinition`, but every message in
+this repo today uses the reflective style — **use it for new messages too, unless you have a
+specific reason not to.**
+
+`ReflectiveFieldExtractor`/`ReflectiveFieldApplier` convert message objects ↔ generic
+`Map<String,Object>` (used for the UI/history JSON and the generic publisher). Enums with a
+`getWireName()` method are represented by that value both ways (case-insensitive on input);
+everything else falls back to the Java constant name. String field values from HTTP/JSON/HTML
+form input are coerced to the target's real numeric/boolean type on the way in.
+
+## Two header models: default envelope vs. custom/self-parsing
+
+Every interface picks **one** of two header models via `InterfaceConfig`:
+
+**Default envelope (`messageOwnsHeader: false`, the default — use this unless you have a
+specific reason not to):** the engine handles the header for you. Every message on the interface
+is preceded by the same fixed 16-byte header (`com.example.schemacore.envelope.DefaultEnvelopeHeader`):
 
 | Field | Type | Bytes | Notes |
 |---|---|---|---|
 | `opcode` | int32 | 4 | identifies the message type |
 | `sendTimeEpochMillis` | int64 | 8 | sender's timestamp |
-| `bodyLength` | int32 | 4 | length of the body that follows |
+| `bodyLength` | int32 | 4 | length of the body that follows (also used to frame messages on a TCP stream) |
 
-### Fruit Interface
+Your message class only ever encodes/decodes its **body** — the pipeline strips the header
+before calling your `fromByteBuffer`/constructor, and the publisher/tester prepend
+`ProtocolHeaderCodec.encodeMessage(opcode, timestamp, body)` around your `toByteArray()` output.
+This is what Fruit/Weather/Ping/Candy all use.
 
-| Message | Opcode |
-|---|---|
-| Orange | 1001 |
-| Banana | 1002 |
+**Custom/self-parsing header (`messageOwnsHeader: true`):** your message class parses *and*
+emits its own header as part of its own `fromByteBuffer`/`toByteArray` — the full payload
+(header + body) is passed through unchanged on both decode and encode, with no engine-side
+wrap/strip at all. Use this when you're interoperating with an existing wire format that has its
+own header shape (opcode field name/position/type, extra fields, different byte order, etc.) —
+Rada is the worked example (`RadaHeader`, `opcodeFieldName: msgType`). You'll also need
+`headerType:` pointing at your header class, and if the interface runs over **TCP**, your header
+needs an integer field the engine can read as the body length for stream framing
+(`bodyLengthFieldName:`, see below) — `RadaHeader` doesn't have one because Rada is UDP-only, so
+TCP framing never comes up for it.
 
-**Orange body:**
+## Adding a new interface
 
-| Field | Type |
-|---|---|
-| `sourceFarmLength` | int32 |
-| `sourceFarm` | UTF-8 string |
-| `freshness` | byte (1=`very_fresh`, 2=`not_fresh`, 3=`unknown`) |
+This is the main workflow this README exists to document. A new interface needs, at minimum, a
+config entry and at least one message class — nothing in `traffic-monitor-app-core` is ever
+touched. Everything below assumes the common case (`messageOwnsHeader: false`, the default
+envelope) unless a step says otherwise; see the callouts for the custom-header path.
 
-**Banana body:**
+### Step 1 — Pick a key, a name, a port, and a protocol
 
-| Field | Type |
-|---|---|
-| `colorLength` | int32 |
-| `color` | UTF-8 string |
-| `weight` | float64 |
+- `key`: short, lowercase, unique across `config/traffic-tool.yml` — used in URLs
+  (`/api/interfaces/{key}/start`) and as the map key in a few places. Pick something stable; it's
+  not meant to change.
+- `name`: the human-readable display name — shown in the UI, used as `interfaceName` in
+  `ObservedMessage`/handlers/auto-reply settings, and must be unique too.
+- `port`: **required** — `TrafficToolConfigLoader` fails Spring context startup immediately if
+  any interface is missing one. Pick something free; check against every other interface's
+  `port:` in the same file (5001/5002/5003/5004/5050 are already taken — see
+  [Interfaces currently configured](#interfaces-currently-configured)). This is only the
+  **default**; it can be changed later at runtime without a restart (see
+  [Interface runtime control](#interface-runtime-control)) or in config before the next restart.
+- `protocol`: `UDP` or `TCP`. Pick UDP unless you specifically want a persistent-connection,
+  ordered-delivery transport for this interface. Both are equally supported — `UdpIngestionRunner`
+  and `TcpIngestionRunner` both implement the exact same per-interface dedicated-socket mechanism
+  (open on startup if `enabled: true`, or later via the REST API), decoding through the same
+  `MessageIngestionPipeline`.
 
-### Weather Interface
+### Step 2 — Write the message class(es)
 
-| Message | Opcode |
-|---|---|
-| TemperatureReading | 2001 |
+Message classes live in `traffic-monitor-app/src/main/java/com/example/schemas/<protocol>/` and
+implement `ProtocolMessage` (from `com.example.schemacore`, an empty marker interface — no other
+methods required beyond what `ReflectiveStructCodec` looks for). Pick the shape based on your
+field types:
 
-**TemperatureReading body:**
+**Variable-length field (a `String`, most commonly) → a record with a self-sizing no-arg
+`toByteArray()`.** This is the common case — what `OrangeMessage`/`CandyMessage` already do:
 
-| Field | Type |
-|---|---|
-| `stationIdLength` | int32 |
-| `stationId` | UTF-8 string |
-| `temperatureCelsius` | float64 |
-| `condition` | byte (1=`sunny`, 2=`cloudy`, 3=`rainy`, 4=`unknown`) |
+```java
+package com.example.schemas.beacon;
 
-### Ping Interface
+import com.example.schemacore.ProtocolMessage;
 
-A minimal extensibility proof: send a Ping, the monitor auto-replies with a Pong. Demonstrates
-adding a brand-new interface with zero changes to `schema-core`/`handler-core`/
-`traffic-monitor-app-core` — only `shared-schemas` (2 message definitions),
-`handler-app` (1 handler), `config/traffic-tool.yml`, and `traffic-tester-app` changed.
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
-| Message | Opcode |
-|---|---|
-| Ping | 3001 |
-| Pong | 3002 |
+public record BeaconPingMessage(String label, int strength) implements ProtocolMessage {
+    public static BeaconPingMessage fromByteBuffer(ByteBuffer buffer) {
+        int labelLength = buffer.getInt();
+        byte[] labelBytes = new byte[labelLength];
+        buffer.get(labelBytes);
+        int strength = buffer.getInt();
+        return new BeaconPingMessage(new String(labelBytes, StandardCharsets.UTF_8), strength);
+    }
 
-**Ping/Pong body (identical shape):**
-
-| Field | Type |
-|---|---|
-| `sequence` | int32 |
-
-### Candy Interface
-
-A second extensibility example, this time with a string+double body (rather than Ping's bare
-int32): send a Candy message, the monitor decodes and archives it. No auto-reply — the handler is
-a no-op stub, same as `BananaMessageHandler`. Also demonstrates the tester sending over **TCP**
-(`target.transport: TCP` in `config/tester-scenario.yml`), reusing the monitor's Fruit TCP port
-(`:5001`) since TCP ingestion decodes generically by opcode, independent of interface.
-
-| Message | Opcode |
-|---|---|
-| Candy | 4001 |
-
-**Candy body:**
-
-| Field | Type |
-|---|---|
-| `name` | UTF-8 string |
-| `calories` | float64 |
-
-`handler-app`'s `PingMessageHandler` replies to every Ping with a Pong echoing the same
-`sequence`, sent back to the sender's address:port — see
-[Auto-reply message handlers](#auto-reply-message-handlers).
-
-Codecs validate header size (≥12 bytes) and that `bodyLength` matches the remaining buffer.
-
-## Module reference
-
-### schema-core (`com.example.schemacore`)
-
-| Class | Purpose |
-|---|---|
-| `ProtocolHeader` (record) | Generic header: `opcode`, `sendTimeEpochMillis`, `bodyLength` |
-| `ProtocolHeaderCodec` | `decodeHeader(ByteBuffer)` / `encodeMessage(opcode, sendTime, body)` — the one place the 16-byte framing is implemented |
-| `ProtocolMessage` (interface) | Empty marker interface — every concrete message record (`OrangeMessage`, `BananaMessage`, ...) implements it, purely so generic code (`ReplySender`) can accept "a real message" without depending on `shared-schemas` |
-| `MessageDefinition` (interface) | `interfaceName()`, `messageType()`, `opcode()`, `messageClass()`, `decodeBody(ByteBuffer)` → `Map` (for `ObservedMessage`/UI display), `decodeMessage(ByteBuffer)` → `ProtocolMessage` (for typed handler dispatch), `encodeBody(Map)` (for the REST publish API), `encodeBody(ProtocolMessage)` (for `ReplySender`) — one implementation per real message type |
-| `MessageDefinitionRegistry` | Built from a `List<MessageDefinition>`; keyed by opcode, by interfaceName/messageType, **and** by `messageClass()` (so a typed instance can resolve its own definition); `loadFromClassNames(List<String>)` does the reflective `Class.forName` + `newInstance()` loading; fail-fast on duplicate keys in any index |
-| `MessageFields` | Static `requireString`/`requireDouble`/`requireInt` field-validation helpers shared by the `Map`-based `encodeBody` implementations |
-
-### shared-schemas (`com.example.schemas`)
-
-| Package | Classes |
-|---|---|
-| `com.example.schemas` | `ProtocolType` (TCP/UDP enum) |
-| `com.example.schemas.fruit` | `FruitOpcodes`, `FruitProtocolHeader`, `FruitProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `FruitFreshness` (enum), `OrangeMessage`, `BananaMessage`, `OrangeMessageDefinition`, `BananaMessageDefinition` (the `schema-core` implementations, loaded reflectively by `traffic-monitor-app`) |
-| `com.example.schemas.weather` | `WeatherOpcodes`, `WeatherProtocolHeader`, `WeatherProtocolCodec`, `WeatherCondition` (enum), `TemperatureReadingMessage`, `TemperatureReadingMessageDefinition` |
-| `com.example.schemas.ping` | `PingOpcodes`, `PingMessage`, `PongMessage`, `PingProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `PingMessageDefinition`, `PongMessageDefinition` — the extensibility proof interface |
-| `com.example.schemas.candy` | `CandyOpcodes`, `CandyMessage`, `CandyProtocolCodec` (encode/decode, used directly by `traffic-tester-app`), `CandyMessageDefinition` — the string+double, TCP-send extensibility example |
-
-### handler-core (`com.example.handlercore`)
-
-Depends on `schema-core` (its only dependency) purely for the `ProtocolMessage` type — still
-zero Fruit/Weather knowledge.
-
-| Class | Purpose |
-|---|---|
-| `DestinationConfig` (record) | `(String host, int port, String transport)` — the resolved auto-reply destination (and reply transport, `"UDP"`/`"TCP"`) for the interface that just fired, handed to the handler so it doesn't have to guess |
-| `ReplySender` (interface) | `reply(ProtocolMessage message, String host, int port, String transport)` — construct a real typed message instance and send it to an explicit host/port over the given transport |
-| `MessageArrivedHandler<T>` (interface) | Generic over the concrete incoming message type. `interfaceName()`, `messageType()`, `onMessageArrived(T message, ReplySender replySender, DestinationConfig destinationConfig)` — `message` arrives already decoded into its real type (e.g. `OrangeMessage`), no `Map` unpacking needed; `destinationConfig` is `null` if no destination is configured for that interface |
-| `MessageHandlerRegistry` | Keyed by interfaceName/messageType; fail-fast on duplicates |
-| `MessageArrivedDispatcher` | Looks up the registry and invokes the matching handler, if any |
-
-### handler-app (`com.example.messagehandlers`)
-
-| Package | Classes |
-|---|---|
-| `com.example.messagehandlers.fruit` | `OrangeMessageHandler` (worked example — auto-replies with a Banana when `freshness == not_fresh`), `BananaMessageHandler` (stub) |
-| `com.example.messagehandlers.weather` | `TemperatureReadingMessageHandler` (stub) |
-| `com.example.messagehandlers.ping` | `PingMessageHandler` — always auto-replies with a Pong echoing the same `sequence` |
-| `com.example.messagehandlers.candy` | `CandyMessageHandler` (stub) |
-
-### traffic-monitor-app-core (`com.example.monitor`)
-
-Almost all of the monitor's Java source and resources (`application.yml`, `static/*`) live here,
-as a plain library — no bootable `main()`.
-
-| Package | Classes |
-|---|---|
-| `com.example.monitor.config` | `TrafficMonitorProperties` — binds `traffic.*` properties from `application.yml` (`udp.*`, `tcp.*`, `store.*`) |
-| `com.example.monitor.schema` | `TrafficToolConfig`/`InterfaceConfig`/`MessageConfig`/`AutoReplyConfig`/`AutoReplyDestinationConfig` (POJOs for `config/traffic-tool.yml`, the latter carrying the optional per-interface `transport`), `TrafficToolConfigLoader` (SnakeYAML), `MessageSchemaWiringConfig` (`@Bean MessageDefinitionRegistry`, loaded via reflection at startup) |
-| `com.example.monitor.model` | `ObservedMessage` — record capturing one decoded/failed inbound packet, transport-tagged (`transportProtocol` is `"UDP"` or `"TCP"`) |
-| `com.example.monitor.store` | `RecentMessageStore` — thread-safe bounded `ArrayDeque`, backs `/api/messages/recent` (in-memory only; see `persistence` for the durable equivalent) |
-| `com.example.monitor.ingestion` | `MessageIngestionPipeline` — the shared decode/store/archive/dispatch/metrics pipeline used by **both** `UdpIngestionRunner` and `TcpIngestionRunner`, guaranteeing identical behavior and metrics regardless of transport |
-| `com.example.monitor.ingestion.udp` | `UdpIngestionRunner` — opens the Fruit and Weather UDP sockets on startup, decodes packets generically via `MessageDefinitionRegistry`, delegates each datagram to `MessageIngestionPipeline` |
-| `com.example.monitor.ingestion.tcp` | `TcpIngestionRunner` — opens Fruit and Weather TCP `ServerSocket`s, accepts persistent connections (one thread per connection via a cached thread pool), reads the 16-byte header + declared `bodyLength` off the stream to reassemble each logical message, delegates to `MessageIngestionPipeline`; tracks active connections for the `network_monitor.tcp.connections.active` gauge |
-| `com.example.monitor.persistence` | `MessageArchiveRepository` (JDBC/H2-backed durable store — every ingested message, UDP or TCP, is archived here asynchronously), `HistoryQuery`/`HistoryPage` (paged filtered history lookups), `GroupByField`/`BreakdownCount`/`TimeBucket`/`TimeBucketCount` (analytics aggregation types) |
-| `com.example.monitor.publishing` | `MonitorPayloadFactory` (fields map → protocol bytes via `MessageDefinitionRegistry`), `UdpMessagePublisher` (send one datagram), `TcpMessagePublisher` (open a short-lived TCP connection, write one message, close), `TransportSelector` (single source of truth: `normalize(String)` — null/blank → `"UDP"`, else validates `UDP`/`TCP` or throws), `PeriodicPublisherService` (scheduled repeat send, UDP or TCP) |
-| `com.example.monitor.handler` | `HandlerWiringConfig` — wires the `handler-core` `ReplySender`/`MessageHandlerRegistry`/`MessageArrivedDispatcher` beans on top of `MonitorPayloadFactory`/`UdpMessagePublisher`/`TcpMessagePublisher`, branching on `TransportSelector.normalize(transport)` to pick the outbound publisher, resolving reply destinations via `AutoReplySettingsService` |
-| `com.example.monitor.autoreply` | `AutoReplySettingsService` — runtime-mutable global + per-interface auto-reply enabled/destination/**transport** state, seeded from `TrafficToolConfig` (transport always normalized to `UDP`/`TCP`, never left null) |
-| `com.example.monitor.api` | `MessageController` (`/api/messages/recent`), `PublishController` (`/api/publish/udp`, UDP or TCP per request), `PeriodicPublishController`, `AutoReplyController` (settings + global/interface toggles, transport-aware), `HistoryController` (`/api/messages/history`), `AnalyticsController` (`/api/analytics/timeseries`, `/api/analytics/breakdown`) + their request/response records |
-
-### traffic-monitor-app (`com.example.monitor`)
-
-The runnable application. `pom.xml` declares the `traffic-monitor-app-core` + `shared-schemas` +
-`handler-app` dependencies and the `spring-boot-maven-plugin` `repackage` config
-(`mainClass=com.example.TrafficMonitorApplication`). `docker-compose.yml`/`Dockerfile`
-build and copy this module's jar — everything else is pulled in transitively.
-
-| Package | Classes |
-|---|---|
-| `com.example.monitor` | `TrafficMonitorApplication` — Spring Boot entrypoint (`main()`); `scanBasePackages` widened to also pick up `com.example.messagehandlers` beans |
-
-### traffic-tester-app (`com.example.tester`)
-
-| Package | Classes |
-|---|---|
-| `com.example.tester` | `TesterMain` — entrypoint; loads scenario, runs send loop, starts listener |
-| `com.example.tester.config` | `ScenarioLoader` (SnakeYAML), `TesterScenario`, `PayloadConfig`, `PayloadMode` (enum), `FruitPayloadConfig`, `WeatherPayloadConfig`, `PingPayloadConfig`, `CandyPayloadConfig`, `UdpConfig`, `UdpListenerConfig`, `PayloadTargetConfig` (`host`/`port`/`transport` override) |
-| `com.example.tester.payload` | `PayloadFactory` — dispatches on `PayloadMode` to the shared-schemas codecs (or raw text/base64/hex) |
-| `com.example.tester.udp` | `UdpPublisher` (send), `UdpListener` (background receive + best-effort Fruit/Weather decode + log) — UDP only, no TCP listener |
-| `com.example.tester.tcp` | `TcpPublisher` — opens a short-lived TCP connection, writes one message, closes; used when `target.transport: TCP` |
-
-## traffic-monitor-app details
-
-### Configuration (real)
-
-Two separate config sources, both live:
-
-**`application.yml`** (Spring Boot) — HTTP port, which UDP/TCP ports to listen on, the
-recent-message store size, the H2 datasource used for durable history, and Actuator endpoint
-exposure:
-
-```yaml
-server:
-  port: 8080
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,prometheus
-  endpoint:
-    health:
-      show-details: when-authorized
-
-spring:
-  datasource:
-    url: jdbc:h2:file:${TRAFFIC_MONITOR_DB_PATH:./data/traffic-monitor};AUTO_SERVER=TRUE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: ""
-  sql:
-    init:
-      mode: always
-
-traffic:
-  udp:
-    enabled: true
-    fruit-port: 5001
-    weather-port: 5003
-    buffer-size-bytes: 65507
-  tcp:
-    enabled: true
-    fruit-port: 5001
-    weather-port: 5003
-    max-body-length-bytes: 65507
-  store:
-    max-size: 500
+    public byte[] toByteArray() {
+        byte[] labelBytes = label.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + labelBytes.length + Integer.BYTES);
+        buffer.putInt(labelBytes.length);
+        buffer.put(labelBytes);
+        buffer.putInt(strength);
+        return buffer.array();
+    }
+}
 ```
 
-`traffic.udp.*`/`traffic.tcp.*` are bound via `@ConfigurationProperties(prefix = "traffic")`
-(`TrafficMonitorProperties`). Fruit and Weather intentionally share the same port numbers across
-UDP and TCP (`5001`/`5003`) — they're independent OS-level namespaces, so there's no conflict;
-Docker Compose maps each one twice (`5001:5001/udp` and `5001:5001/tcp`). Either transport can be
-disabled independently via `traffic.udp.enabled`/`traffic.tcp.enabled`.
+**Fixed-size fields only (no `String`) → a `toByteArray(ByteBuffer)` instead**, with the buffer
+pre-sized via `StructSizeCalculator.calculateStructSize(class)`; array fields additionally need
+`@FixedArrayLength(n)` from `com.example.schemacore.annotation` (see
+`com.example.schemas.rada.messages.RadaTracksExtended` for a worked array-heavy example, and
+`com.example.schemas.rada.messages.RadaExtendedStatus` for a simpler scalar-only one). Fixed-layout
+messages can be either a record (`fromByteBuffer`) or, if the class needs to parse itself in
+place rather than via a static factory, a mutable class with a `public T(byte[])` constructor —
+see `RadaStatus` for that variant.
 
-The H2 database file (`TRAFFIC_MONITOR_DB_PATH`, default `./data/traffic-monitor`) is where
-every observed message is durably archived — see
-[Persistence and history](#persistence-and-history). `spring.sql.init.mode: always` runs the
-schema migration in `src/main/resources/schema.sql` on every startup (idempotent
-`CREATE TABLE IF NOT EXISTS`).
+`ReflectiveStructCodec` finds these methods by name and signature alone — there's no interface
+to implement beyond `ProtocolMessage`, and no hand-written codec or `MessageDefinition` class to
+write, regardless of which shape you pick.
 
-**`config/traffic-tool.yml`** (path from env var `TRAFFIC_TOOL_CONFIG`, default
-`config/traffic-tool.yml`) — which `MessageDefinition` classes to load reflectively at startup.
-This is what lets `traffic-monitor-app` decode/encode Fruit and Weather messages without ever
-importing `com.example.schemas.*`:
+**If this interface uses a custom/self-parsing header** (`messageOwnsHeader: true`), your message
+class's `fromByteBuffer`/constructor and `toByteArray()`/`toByteArray(ByteBuffer)` must read/write
+the header themselves as the first thing they do (see `RadaStatus.fromByteArray`, which calls
+`header.fromByteArray(buffer)` before anything else) — you'll also write a small header struct
+class (see `com.example.schemas.rada.struct.RadaHeader`) using the exact same
+`fromByteBuffer`/`toByteArray(ByteBuffer)` convention.
+
+### Step 3 — Register it in `config/traffic-tool.yml`
+
+Add a new top-level entry under `interfaces:`:
 
 ```yaml
-interfaces:
-  - key: fruit
-    name: Fruit Interface
+  - key: beacon
+    name: Beacon Interface
+    protocol: UDP
+    port: 5005
     messages:
-      - type: Orange
-        definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
-      - type: Banana
-        definitionClass: com.example.schemas.fruit.BananaMessageDefinition
-  - key: weather
-    name: Weather Interface
-    messages:
-      - type: TemperatureReading
-        definitionClass: com.example.schemas.weather.TemperatureReadingMessageDefinition
+      - type: BeaconPing
+        messageClass: com.example.schemas.beacon.BeaconPingMessage
+        opcode: 6001
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
 ```
 
-At startup, `MessageSchemaWiringConfig` flattens every `messages[].definitionClass` across all
-interfaces and calls `MessageDefinitionRegistry.loadFromClassNames(...)`, which does
-`Class.forName(...).getDeclaredConstructor().newInstance()` for each one. A missing file, bad
-class name, or duplicate opcode/interfaceName+messageType fails Spring context startup
-immediately (fail-fast, same philosophy as `MessageHandlerRegistry`'s duplicate-handler check).
-`MessageIngestionPipeline.ingest(...)` then decodes any inbound payload generically — whether it
-arrived via `UdpIngestionRunner` (one datagram) or `TcpIngestionRunner` (one reassembled
-message off a persistent connection): read the 16-byte header via `ProtocolHeaderCodec`, look up
-the opcode in the registry, call `decodeBody(...)` on whatever `MessageDefinition` matched — no
-`"Fruit"`/`"Weather"` or `"UDP"`/`"TCP"` branching in the decode logic at all. The same pipeline
-call also records metrics, writes to the in-memory store, archives to H2, and dispatches to
-`handler-core` for auto-reply — see [Metrics and observability](#metrics-and-observability).
-`MonitorPayloadFactory` does the mirror image for outgoing messages (REST publish API and the
-auto-reply `ReplySender` below), looking up by `interfaceName`/`messageType` instead of opcode.
+Field reference (`InterfaceConfig`/`MessageConfig`):
 
-### REST API
+| Field | Required? | Default | Notes |
+|---|---|---|---|
+| `key` | yes | — | unique, used in URLs |
+| `name` | yes | — | unique, shown in UI, `interfaceName` everywhere |
+| `protocol` | no | `UDP` | `UDP` or `TCP` |
+| `port` | **yes** | — | fails startup if missing |
+| `enabled` | no | `true` | if `false`, doesn't auto-start at boot (still startable via REST/UI) |
+| `headerType` | no | `com.example.schemacore.envelope.DefaultEnvelopeHeader` | only set this for a custom header |
+| `opcodeFieldName` | no | `opcode` | the header field name holding the opcode; only change for a custom header whose opcode field is named differently |
+| `messageOwnsHeader` | no | `false` | `true` for a custom/self-parsing header (see [Two header models](#two-header-models-default-envelope-vs-customself-parsing)) |
+| `bodyLengthFieldName` | no | `bodyLength` | only relevant for **TCP** interfaces with a **custom** header — the header field the engine reads to know how many body bytes follow, for stream framing |
+| `byteOrder` | no | `BIG_ENDIAN` | currently informational only |
+| `messages[].type` | yes | — | unique per interface, shown in UI, matched by handlers |
+| `messages[].messageClass` | yes* | — | fully-qualified class name, reflective style (recommended) |
+| `messages[].definitionClass` | yes* | — | fully-qualified hand-written `MessageDefinition` class (legacy style — mutually exclusive with `messageClass`) |
+| `messages[].opcode` | yes, if using `messageClass` | — | must be unique **within this interface's own messages** (each interface has its own scoped opcode table — opcodes don't need to be globally unique across interfaces) |
+| `autoReply.enabled` | no | `false` | see [Auto-reply message handlers](#auto-reply-message-handlers) |
+| `autoReply.host`/`port`/`transport` | no | `localhost`/`7001`/`UDP` | default auto-reply destination |
+| `shouldBroadcast`/`broadcastTargets` | no | `false`/`[]` | fan a publish out to a fixed list of `host:port` targets — see `PublisherService` |
+
+`TrafficToolConfigLoader` validates all of this at startup and fails fast (a clear exception, not
+a silent misconfiguration) on: a missing interface `port`, zero messages on an interface, a
+message with neither `messageClass` nor `definitionClass`, or a `messageClass` entry missing its
+`opcode`.
+
+### Step 4 — (Optional) React to it with a handler
+
+Every successfully decoded message is dispatched (asynchronously, off the ingestion thread) to a
+per-message-type `onMessageArrived` hook. Handler classes live in
+`traffic-monitor-app/src/main/java/com/example/messagehandlers/<protocol>/`, are Spring
+`@Component`s (picked up automatically — `TrafficMonitorApplication`'s `scanBasePackages`
+includes `com.example.messagehandlers`), and implement `MessageArrivedHandler<T>` where `T` is
+your new message class — it arrives **already decoded into its real type**, no `Map` unpacking or
+casting:
+
+```java
+package com.example.messagehandlers.beacon;
+
+import com.example.handlercore.DestinationConfig;
+import com.example.handlercore.MessageArrivedHandler;
+import com.example.handlercore.ReplySender;
+import com.example.schemas.beacon.BeaconPingMessage;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BeaconPingMessageHandler implements MessageArrivedHandler<BeaconPingMessage> {
+    @Override
+    public String interfaceName() {
+        return "Beacon Interface"; // must match config/traffic-tool.yml's `name:`
+    }
+
+    @Override
+    public String messageType() {
+        return "BeaconPing"; // must match config/traffic-tool.yml's `type:`
+    }
+
+    @Override
+    public void onMessageArrived(BeaconPingMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
+        // no-op is fine if you don't need to react — see BananaMessageHandler for the pattern.
+        // To reply: if (destinationConfig != null) {
+        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
+        // }
+    }
+}
+```
+
+If you skip this step, the message still decodes, gets stored, and shows up in the Live/History
+UI — it just won't trigger anything on arrival. `MessageHandlerRegistry` fails Spring context
+startup fast on a duplicate `interfaceName`+`messageType` registration, same fail-fast philosophy
+as the config loader.
+
+### Step 5 — (Optional) Let the tester app send it
+
+`traffic-tester-app` doesn't discover message types dynamically — each sendable message needs an
+explicit `PayloadMode` enum entry and a `PayloadFactory` case:
+
+1. Add a constant to `traffic-tester-app/.../config/PayloadMode.java`, e.g. `BEACON_PING`.
+2. Add a case + private builder method in `traffic-tester-app/.../payload/PayloadFactory.java`:
+
+   ```java
+   case BEACON_PING -> createBeaconPing(config);
+   ```
+
+   ```java
+   private byte[] createBeaconPing(PayloadConfig config) {
+       BeaconPingMessage message = new BeaconPingMessage(config.getBeacon().getLabel(), config.getBeacon().getStrength());
+       return encodeMessage(BEACON_PING_OPCODE, message);
+   }
+   ```
+
+   For a `messageOwnsHeader: true` interface, don't call the shared `encodeMessage(opcode, message)`
+   helper (that wraps in the default envelope) — instead call `ReflectiveStructCodec.encode(message)`
+   directly, since the message class already emits its own header. See `createRadaStatus` in the
+   same file for that pattern, and `createRadaTracksExtended` for the extra care needed with
+   `@FixedArrayLength` array fields (Instancio doesn't understand that annotation — see the
+   comment on that method for the workaround).
+3. If the message needs caller-supplied fields (like `label`/`strength` above), add a
+   `BeaconPayloadConfig` class next to `CandyPayloadConfig`/`PingPayloadConfig` and a getter on
+   `PayloadConfig`. If it's fully random/self-contained (like the Rada messages, generated via
+   `Instancio.create(...)`), skip this — no config class needed.
+4. Add an entry to `config/tester-scenario.yml` so a normal tester run exercises it:
+
+   ```yaml
+     - mode: BEACON_PING
+       target:
+         host: 127.0.0.1
+         port: 5005
+       beacon:
+         label: "beacon-01"
+         strength: 7
+   ```
+
+### Step 6 — Add to the test config and write tests
+
+Make the same `config/traffic-tool.yml` edit to
+`traffic-monitor-app/src/test/resources/traffic-tool-test.yml` (used by the integration-test
+suite) — pick a port in the `25000` range there to match the existing convention
+(25001/25002/25003/25004/25050 are taken; `AbstractIntegrationTestBase` also dynamically
+reassigns fresh free ports per test-context anyway, substituting whatever literal `port: NNNNN`
+values appear in that file, so keep using plain integers there, not expressions).
+
+At minimum, write:
+
+- A round-trip encode/decode unit test on the message class itself (see
+  `CandyMessageTest.toByteArray_thenFromByteBuffer_roundTripsNameAndCalories` for the pattern).
+- If you added a handler, a test asserting `interfaceName()`/`messageType()` and whatever
+  `onMessageArrived` does (see `CandyMessageHandlerTest`).
+- If you want end-to-end coverage (real socket, real Spring context), an `*IT.java` test in
+  `traffic-monitor-app/src/test/java/com/example/monitor/` extending
+  `AbstractIntegrationTestBase` — see `UdpIngestionEndToEndIT`/`TcpIngestionEndToEndIT` for the
+  pattern (`sendUdp(port, payloadBytes)` / `sendTcp(port, payloadBytes)`, then
+  `awaitStoreContains(predicate)`).
+
+### Step 7 — Build and verify
+
+```bash
+mvn -pl traffic-monitor-app -am test      # unit tests
+mvn -pl traffic-monitor-app -am verify    # also runs the integration suite (real sockets, real
+                                           # Spring context) — catches config typos and
+                                           # duplicate-opcode mistakes before you'd hit them at
+                                           # runtime
+```
+
+Then run it for real and confirm the new interface opens its socket:
+
+```bash
+mvn -pl traffic-monitor-app-core,traffic-monitor-app -am -DskipTests package
+java -jar traffic-monitor-app/target/traffic-monitor-app-1.0-SNAPSHOT-exec.jar
+```
+
+Look for a log line like `UDP ingestion started on port 5005 for interface Beacon Interface`,
+then `curl localhost:8080/api/interfaces` to confirm it's listed and `"listening": true`.
+
+### Adding just a new message to an *existing* interface
+
+Simpler — skip Steps 1 and 3's interface-level fields entirely. Write the message class (Step 2),
+append a new entry under that interface's existing `messages:` list in
+`config/traffic-tool.yml` with a fresh `opcode` (unique within that interface), optionally add a
+handler (Step 4) and tester support (Step 5), and test (Step 6). No new port, no new top-level
+config entry.
+
+## Interface runtime control
+
+Beyond config-time defaults, every interface can be started, stopped, and reconfigured (port
+and/or protocol) at runtime — no restart needed, from either the REST API or the **Interfaces**
+tab in the web UI (per-row editable port input + protocol dropdown + Save button, alongside
+Start/Stop). Runtime changes are **in-memory only** — they reset back to whatever
+`config/traffic-tool.yml` says on the next restart.
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
-| GET | `/api/messages/recent` | — | Returns the current in-memory `ObservedMessage` list (newest first) |
-| GET | `/api/messages/history` | — (query params) | Paged, filtered search over the durable H2 history — see [Persistence and history](#persistence-and-history) |
-| GET | `/api/analytics/timeseries` | — (query params) | Message counts bucketed by time — see [Persistence and history](#persistence-and-history) |
-| GET | `/api/analytics/breakdown` | — (query params) | Message counts grouped by `interfaceName` or `messageType` — see [Persistence and history](#persistence-and-history) |
-| POST | `/api/publish/udp` | `PublishRequest` | Sends one message over UDP or TCP (despite the path name — `transport` in the body selects the transport, default UDP) |
-| POST | `/api/publish/udp/periodic/start` | `PeriodicPublishRequest` | Starts repeating publish (UDP or TCP, per the nested `PublishRequest.transport`) |
+| GET | `/api/interfaces` | — | List every interface with its current key/name/protocol/port/listening state/received & parse-error counts/last-observed timestamp |
+| POST | `/api/interfaces/{key}/start` | — | Opens the socket on the interface's current port/protocol |
+| POST | `/api/interfaces/{key}/stop` | — | Closes the socket |
+| POST | `/api/interfaces/{key}/configure` | `{ "port": 6001, "protocol": "TCP" }` | Changes port and/or protocol — **rejected while the interface is listening**; stop it first |
+
+```bash
+curl -X POST localhost:8080/api/interfaces/beacon/stop
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"port":6005,"protocol":"TCP"}' \
+  localhost:8080/api/interfaces/beacon/configure
+curl -X POST localhost:8080/api/interfaces/beacon/start
+```
+
+Switching an interface's protocol works because both `UdpIngestionRunner` and
+`TcpIngestionRunner` implement the identical dedicated-socket-per-interface mechanism against the
+same `InterfaceConfig`/`MessageIngestionPipeline` — `InterfaceControlService` just dispatches to
+whichever runner matches the interface's *current* protocol.
+
+## Config files
+
+- **`config/traffic-tool.yml`** (path from env var `TRAFFIC_TOOL_CONFIG`, default
+  `config/traffic-tool.yml` relative to the working directory — run from the repo root) — the
+  interfaces/messages/auto-reply config described above. Test equivalent:
+  `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`.
+- **`traffic-monitor-app-core/src/main/resources/application.yml`** (Spring Boot) — HTTP port,
+  UDP receive buffer size, TCP max body length, recent-message store size, the H2 datasource, and
+  Actuator endpoint exposure:
+
+  ```yaml
+  server:
+    port: 8080
+
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,info,metrics,prometheus
+
+  spring:
+    datasource:
+      url: jdbc:h2:file:${TRAFFIC_MONITOR_DB_PATH:./data/traffic-monitor};AUTO_SERVER=TRUE
+    sql:
+      init:
+        mode: always
+
+  traffic:
+    udp:
+      buffer-size-bytes: 65507
+    tcp:
+      max-body-length-bytes: 65507
+    store:
+      max-size: 500
+  ```
+
+  Per-interface ports/protocols/enabled state live in `traffic-tool.yml`, not here — this file
+  only holds settings that apply globally across every interface.
+- **`config/tester-scenario.yml`** — `traffic-tester-app`'s scenario definition (what to send,
+  how often, to which target) — see [Scenario configuration](#scenario-configuration).
+
+## REST API
+
+| Method | Path | Body | Purpose |
+|---|---|---|---|
+| GET | `/api/messages/recent` | — | Current in-memory `ObservedMessage` list (newest first) |
+| GET | `/api/messages/history` | — (query params) | Paged, filtered search over durable H2 history |
+| GET | `/api/analytics/timeseries` | — (query params) | Message counts bucketed by time (`minute`/`hour`/`day`) |
+| GET | `/api/analytics/breakdown` | — (query params) | Message counts grouped by `interfaceName` or `messageType` |
+| GET / POST / POST | `/api/interfaces*` | see above | [Interface runtime control](#interface-runtime-control) |
+| GET | `/api/publisher/interfaces` | — | Every configured interface + its message types (backs the generic Sample Publisher UI and the left sidebar) |
+| GET | `/api/publisher/fields` | — (query params) | Field metadata (name/type/enum options) for one message type, via reflection |
+| POST | `/api/publish/udp` | `PublishRequest` | Sends one message over UDP or TCP (`transport` in the body selects the transport, default UDP) |
+| POST | `/api/publish/udp/periodic/start` | `PeriodicPublishRequest` | Starts repeating publish |
 | POST | `/api/publish/udp/periodic/stop` | — | Stops the periodic publisher |
-| GET | `/api/publish/udp/periodic/status` | — | Returns current `PeriodicPublishStatus` |
-| GET | `/api/autoreply/settings` | — | Returns global + per-interface auto-reply settings (including `transport`) |
+| GET | `/api/publish/udp/periodic/status` | — | Current `PeriodicPublishStatus` |
+| GET | `/api/autoreply/settings` | — | Global + per-interface auto-reply settings |
 | POST | `/api/autoreply/global` | `{ enabled }` | Sets the global auto-reply switch |
 | POST | `/api/autoreply/interface` | `{ interfaceName, enabled, host, port, transport }` | Sets one interface's switch + destination + reply transport |
 
-`PublishRequest`: `interfaceName`, `messageType`, `host`, `port`, `transport` (`"UDP"` \| `"TCP"`,
-optional — blank/omitted defaults to `"UDP"`), `fields` (`Map<String,Object>`).
-
-`PeriodicPublishRequest`: `publishRequest` (a `PublishRequest`), `eventsPerTimeUnit` (int),
-`timeUnit` (`SECOND` | `MINUTE` | `HOUR`).
-
-`PeriodicPublishStatus`: `running`, `interfaceName`, `messageType`, `host`, `port`,
-`eventsPerTimeUnit`, `timeUnit`, `intervalMillis`, `sentCount`, `lastError`.
-
-Example single-publish request (add `"transport": "TCP"` to send over TCP instead):
+`PublishRequest`: `interfaceName`, `messageType`, `host`, `port`, `transport`
+(`"UDP"` \| `"TCP"`, optional, defaults to `"UDP"`), `fields` (`Map<String,Object>`).
 
 ```json
 POST /api/publish/udp
@@ -423,298 +493,143 @@ POST /api/publish/udp
   "interfaceName": "Fruit Interface",
   "messageType": "Banana",
   "host": "localhost",
-  "port": 5001,
+  "port": 7001,
   "fields": { "color": "yellow", "weight": 142.75 }
 }
 ```
 
-Example periodic-start request:
+## Web UI
 
-```json
-POST /api/publish/udp/periodic/start
-{
-  "publishRequest": {
-    "interfaceName": "Fruit Interface",
-    "messageType": "Banana",
-    "host": "traffic-tester-app",
-    "port": 7001,
-    "fields": { "color": "yellow", "weight": 142.75 }
-  },
-  "eventsPerTimeUnit": 5,
-  "timeUnit": "SECOND"
-}
-```
+Served at `http://localhost:8080`. Left sidebar: **Supported Interfaces and Messages** — every
+configured interface as a clickable chip with its message types listed below it. Click an
+interface to deactivate all of its messages in the Live Messages table (click again to
+reactivate); click a single message to toggle just that one independently.
 
-### Web UI
+Five tabs:
 
-Served at `http://localhost:8080`, dark "System Flow Investigator" theme, four tabs:
+- **Live Messages** — table of observed messages, polling `/api/messages/recent` every ~2s, with
+  a click-to-inspect JSON detail panel. Filtered by whatever's currently active in the sidebar.
+- **Interfaces** — one row per configured interface: editable port input + protocol dropdown +
+  Save, plus Start/Stop, listening state, received/parse-error counts, last-observed time — see
+  [Interface runtime control](#interface-runtime-control).
+- **Sample Publisher** — pick any configured interface/message, target host:port:transport, and
+  per-field inputs (enum fields render as dropdowns); "Send Once" plus periodic controls.
+- **Auto-Reply** — master toggle + one row per interface (host/port/transport), built entirely
+  from the API response so new interfaces show up automatically.
+- **History** — search/filter the durable H2-backed history plus time-series/breakdown analytics
+  charts.
 
-- **Live Messages** — table of `Observed At | Protocol | Port | Interface | Message Name |
-  Message Body | Parse Error`, polling `/api/messages/recent` every ~2s, with a text filter and
-  a click-to-inspect JSON detail panel. Raw Base64 is not shown in the table. `Protocol` reflects
-  the actual inbound transport (`UDP` or `TCP`) for that message.
-- **Sample Publisher** — form to pick interface/message, target host:port, a UDP/TCP transport
-  selector, and per-field inputs (enum fields render as dropdowns), with "Send Once" plus
-  periodic controls (events/time-unit, Start/Stop/Refresh Status).
-- **Auto-Reply** — see [Auto-reply toggle](#auto-reply-toggle) below.
-- **History** — search/filter the durable H2-backed history (interface, message type, parse-error
-  only, time range, paging) and view analytics (time-series counts, breakdown by interface or
-  message type) — see [Persistence and history](#persistence-and-history).
+## Auto-reply message handlers
 
-### Auto-reply message handlers
+See [Step 4](#step-4--optional-react-to-it-with-a-handler) above for the mechanics of writing a
+handler. Two independent gates control whether it actually fires and where the reply goes, both
+defaulting from `config/traffic-tool.yml` and both live-editable via the UI/API without a
+restart:
 
-Every successfully decoded message is dispatched (asynchronously, off the UDP/TCP receive path)
-to a per-message-type `onMessageArrived` hook, so you can react to specific inbound messages —
-most commonly by sending a reply. `MessageArrivedHandler<T>` is generic over the concrete
-incoming message type, so a handler receives the message **already decoded into its real
-type** — no `Map` unpacking, no casting. To add one: implement `MessageArrivedHandler<T>` in
-`handler-app` (`@Component`, `interfaceName()`/`messageType()` pick which message it reacts to,
-`T` is that message's shared-schemas record) and call `replySender.reply(ProtocolMessage
-message, String host, int port, String transport)` with a real typed instance (e.g.
-`new BananaMessage("yellow", 100.0)`) to send something back. The reply transport is independent
-of the transport the triggering message arrived on — e.g. a message received over UDP can still
-trigger a reply sent over TCP, per the interface's configured auto-reply `transport`.
-`ReplySender`'s implementation resolves which `MessageDefinition` to encode with via
-`MessageDefinitionRegistry.findByMessageClass(message.getClass())` — no string-based dispatch
-on the reply side either.
+- **Global switch** — a single master on/off for the whole mechanism.
+- **Per-interface switch + destination** — each interface has its own `enabled` flag plus a
+  `host`/`port`/`transport`.
 
-The third parameter, `DestinationConfig destinationConfig`, is the resolved auto-reply
-destination (host/port/transport) for the interface that triggered dispatch — see
-[Auto-reply toggle](#auto-reply-toggle) below for where it comes from. It's `null` if that
-interface has no destination configured, which handlers should check before replying.
+`MessageIngestionPipeline` checks both switches right after the parse-error check; if either is
+off, the handler never runs. If it passes, it resolves the interface's destination into a
+`DestinationConfig` (`null` if unconfigured) and passes it as `onMessageArrived`'s third argument
+— the handler explicitly uses `destinationConfig.host()/port()/transport()` when calling
+`replySender.reply(...)`. The reply transport is independent of the transport the triggering
+message arrived on. `ReplySender` resolves which `MessageDefinition` to encode with via
+`MessageDefinitionRegistry.findByMessageClass(message.getClass())` — no string-based dispatch.
 
-Worked example — `handler-app/.../fruit/OrangeMessageHandler.java` replies with a Banana when
-an Orange arrives with `freshness == not_fresh`:
+Worked example — `OrangeMessageHandler` replies with a Banana when an Orange arrives with
+`freshness == not_fresh`; `PingMessageHandler` always replies with a Pong echoing the same
+sequence. `BananaMessageHandler`/`TemperatureReadingMessageHandler`/`CandyMessageHandler` are
+no-op stubs demonstrating the "decode and store, but don't react" case.
 
-```java
-public class OrangeMessageHandler implements MessageArrivedHandler<OrangeMessage> {
-    @Override
-    public String interfaceName() { return "Fruit Interface"; }
+## Persistence and history
 
-    @Override
-    public String messageType() { return "Orange"; }
-
-    @Override
-    public void onMessageArrived(OrangeMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
-        if (message.freshness() == FruitFreshness.NOT_FRESH && destinationConfig != null) {
-            replySender.reply(new BananaMessage("yellow", 100.0), destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
-        }
-    }
-}
-```
-
-`BananaMessageHandler`, `TemperatureReadingMessageHandler`, and `PingMessageHandler` (always
-replies `new PongMessage(message.sequence())`, echoing the same sequence) round out the
-registered handlers — `BananaMessageHandler`/`TemperatureReadingMessageHandler` are still empty
-stubs with a `// TODO`.
-
-Every `shared-schemas` message record (`OrangeMessage`, `BananaMessage`,
-`TemperatureReadingMessage`, `PingMessage`, `PongMessage`) implements `schema-core`'s
-`ProtocolMessage` — an empty marker interface that exists purely so `handler-core`'s generic
-types can accept "any real protocol message" without depending on `shared-schemas` itself.
-`handler-core` depends on `schema-core` for this (its only dependency), which is still fully
-Fruit/Weather-agnostic. `MessageDefinition` also grew a typed decode path
-(`decodeMessage(ByteBuffer) → ProtocolMessage`, alongside the existing `Map`-returning
-`decodeBody` used for the UI) so `MessageIngestionPipeline` can hand handlers the real typed
-object instead of a generic envelope, regardless of which transport it arrived on.
-
-### Auto-reply toggle
-
-Two independent gates control whether `onMessageArrived` actually fires and where the reply
-goes, both defaulting from `config/traffic-tool.yml` and both live-editable via the UI/API
-without a restart:
-
-- **Global switch** (`AutoReplySettingsService.isGlobalEnabled()`) — a single master on/off for
-  the whole mechanism.
-- **Per-interface switch + destination** — each interface (Fruit/Weather/Ping) has its own
-  `enabled` flag plus a `host`/`port`/**`transport`**.
-
-`MessageIngestionPipeline.dispatchIfEligible()` checks `autoReplySettingsService.shouldAutoReply
-(interfaceName)` (both switches at once) right after the parse-error check — if either is off,
-the handler never runs. If it passes, the pipeline resolves that interface's
-`host`/`port`/`transport` from `AutoReplySettingsService` into a `handler-core`
-`DestinationConfig` (`null` if somehow unconfigured) and passes it straight into
-`onMessageArrived(...)` as the third argument — the handler explicitly uses
-`destinationConfig.host()/port()/transport()` when it calls `replySender.reply(...)`.
-`ReplySender`'s implementation itself does no destination resolution or overriding — it just
-sends to whatever host/port/transport it's given (branching to `UdpMessagePublisher` or
-`TcpMessagePublisher` via `TransportSelector.normalize(...)`), so the whole destination story
-lives in one visible place (`MessageIngestionPipeline` + the handler), not split across a silent
-override inside the reply mechanism. `transport` is optional in config/API — unset or blank
-always normalizes to `"UDP"` via `TransportSelector`, so existing UDP-only configs keep working
-unchanged.
-
-Defaults come from `config/traffic-tool.yml`:
-
-```yaml
-autoReply:
-  enabled: false          # global default
-
-interfaces:
-  - key: ping
-    name: Ping Interface
-    messages: [...]
-    autoReply:             # per-interface default
-      enabled: false
-      host: localhost
-      port: 7001
-      transport: UDP        # optional — "UDP" or "TCP", defaults to UDP if omitted
-```
-
-See [REST API](#rest-api) above for the `AutoReplyController` endpoints
-(`/api/autoreply/settings`, `/api/autoreply/global`, `/api/autoreply/interface`).
-
-Web UI: an **Auto-Reply** tab — a master toggle switch, plus a collapsible accordion with one row
-per interface, each with a host/port input and a UDP/TCP transport dropdown. The accordion is
-built entirely from the `GET` response's `interfaces` map (not hardcoded), so it automatically
-picks up new interfaces added to `config/traffic-tool.yml` with no frontend changes.
-
-### Persistence and history
-
-Every message `MessageIngestionPipeline.ingest(...)` observes (successfully decoded or not, UDP
-or TCP) is written to two places: `RecentMessageStore` (in-memory, bounded ring buffer, backs
-`/api/messages/recent`, lost on restart) and `MessageArchiveRepository` (durable, backs
-`/api/messages/history` and `/api/analytics/*`, survives restarts). Archiving happens
-asynchronously on a background thread pool so a slow/failed write never blocks ingestion — a
-failure is logged and increments the `network_monitor.archive.failures` metric rather than
-propagating.
+Every observed message (successfully decoded or not, any transport) is written to two places:
+`RecentMessageStore` (in-memory bounded ring buffer, backs `/api/messages/recent`, lost on
+restart) and `MessageArchiveRepository` (durable H2-backed, backs `/api/messages/history` and
+`/api/analytics/*`, survives restarts). Archiving happens asynchronously so a slow/failed write
+never blocks ingestion — failures are logged and increment `network_monitor.archive.failures`
+rather than propagating.
 
 Storage is an embedded H2 database, file-backed by default
-(`jdbc:h2:file:${TRAFFIC_MONITOR_DB_PATH:./data/traffic-monitor};AUTO_SERVER=TRUE` — see
-[Configuration (real)](#configuration-real)), so history survives container/process restarts as
-long as the `./data` volume is preserved. The schema is one `messages` table
-(`src/main/resources/schema.sql`, created idempotently on every startup via
-`spring.sql.init.mode: always`) mirroring `ObservedMessage`'s fields, with indexes on
-`observed_at`, `interface_name`, and `message_type`.
+(`jdbc:h2:file:${TRAFFIC_MONITOR_DB_PATH:./data/traffic-monitor};AUTO_SERVER=TRUE`), schema in
+`traffic-monitor-app-core/src/main/resources/schema.sql` (one `messages` table, applied
+idempotently via `spring.sql.init.mode: always` on every startup).
 
-`GET /api/messages/history` (`HistoryController`) — paged, filtered search:
+## Metrics and observability
 
-| Query param | Type | Notes |
-|---|---|---|
-| `interfaceName` | string, optional | exact match |
-| `messageType` | string, optional | exact match |
-| `parseErrorOnly` | boolean, default `false` | only rows with a non-null `parseError` |
-| `from` / `to` | ISO-8601 instant, optional | `observed_at` range |
-| `limit` | int, default `50`, max `500` | |
-| `offset` | int, default `0` | |
+`spring-boot-starter-actuator` + `micrometer-registry-prometheus` expose `health`, `info`,
+`metrics`, `prometheus` under `/actuator/*`. Application metrics, all prefixed
+`network_monitor.*`:
 
-Returns `HistoryResponse`: `items` (`List<ObservedMessage>`), `totalCount`, `limit`, `offset`.
-
-`GET /api/analytics/timeseries` (`AnalyticsController`) — message counts bucketed by time:
-
-| Query param | Type | Notes |
-|---|---|---|
-| `from` / `to` | ISO-8601 instant, optional | defaults to the last 24 hours |
-| `bucket` | string, default `hour` | one of `minute`, `hour`, `day` |
-
-Returns `TimeSeriesResponse`: `bucket`, `points` (`List<{bucketStart, count}>`).
-
-`GET /api/analytics/breakdown` (`AnalyticsController`) — message counts grouped by field:
-
-| Query param | Type | Notes |
-|---|---|---|
-| `groupBy` | string, required | `interfaceName` or `messageType` |
-| `from` / `to` | ISO-8601 instant, optional | defaults to all-time |
-
-Returns `BreakdownResponse`: `groupBy`, `entries` (`List<{key, count}>`).
-
-Both controllers respond `400 Bad Request` with a plain-text message for invalid params (bad
-instant format, unknown `bucket`/`groupBy` value).
-
-Web UI: the **History** tab combines a filterable/paged search table (backed by
-`/api/messages/history`) with time-series and breakdown charts (backed by `/api/analytics/*`).
-
-### Metrics and observability
-
-`spring-boot-starter-actuator` + `micrometer-registry-prometheus` are on the classpath, exposing
-`health`, `info`, `metrics`, and `prometheus` under `/actuator/*` (see
-[Configuration (real)](#configuration-real) for the `management.endpoints.web.exposure.include`
-setting). `/actuator/health` includes the H2 datasource health indicator automatically, with no
-extra code.
-
-Application-specific metrics, all prefixed `network_monitor.*` and tagged with `transport`
-(`UDP`/`TCP`) where relevant, so Prometheus queries can slice by transport:
-
-| Metric | Type | Tags | Where it's recorded |
+| Metric | Type | Tags | Where |
 |---|---|---|---|
-| `network_monitor.messages.received` | Counter | `transport`, `interfaceName`, `parseError` | `MessageIngestionPipeline.ingest(...)` — once per inbound message, UDP or TCP |
-| `network_monitor.messages.payload_size_bytes` | DistributionSummary | `transport` | `MessageIngestionPipeline.ingest(...)` |
-| `network_monitor.archive.failures` | Counter | `transport` | `MessageIngestionPipeline` — H2 archive write failed |
-| `network_monitor.dispatch.failures` | Counter | `interfaceName` | `MessageIngestionPipeline` — an `onMessageArrived` handler threw |
-| `network_monitor.tcp.connections.accepted` | Counter | `port` | `TcpIngestionRunner.acceptLoop` — once per accepted TCP connection |
-| `network_monitor.tcp.connections.active` | Gauge | — | `TcpIngestionRunner` — current open TCP connection count (Fruit + Weather combined) |
-| `network_monitor.tcp.connections.errors` | Counter | `port` | `TcpIngestionRunner.handleConnection` — genuine connection-handling errors (not expected EOF-on-close) |
-| `network_monitor.udp.listener.errors` | Counter | `port` | `UdpIngestionRunner` — genuine socket errors while listening |
-| `network_monitor.messages.sent` | Counter | `transport` | `UdpMessagePublisher`/`TcpMessagePublisher` — successful outbound send (REST publish, periodic publish, or auto-reply) |
-| `network_monitor.messages.send_errors` | Counter | `transport` | `UdpMessagePublisher`/`TcpMessagePublisher` — outbound send failed |
+| `network_monitor.messages.received` | Counter | `transport`, `interfaceName`, `parseError` | `MessageIngestionPipeline` — once per inbound message |
+| `network_monitor.messages.payload_size_bytes` | DistributionSummary | `transport` | `MessageIngestionPipeline` |
+| `network_monitor.archive.failures` | Counter | `transport` | H2 archive write failed |
+| `network_monitor.dispatch.failures` | Counter | `interfaceName` | an `onMessageArrived` handler threw |
+| `network_monitor.tcp.connections.accepted` | Counter | `port` | once per accepted TCP connection |
+| `network_monitor.tcp.connections.active` | Gauge | — | current open TCP connection count, across all TCP interfaces |
+| `network_monitor.tcp.connections.errors` | Counter | `port` | genuine connection-handling errors |
+| `network_monitor.udp.listener.errors` | Counter | `port` | genuine socket errors while listening |
+| `network_monitor.messages.sent` | Counter | `transport` | successful outbound send (publish or auto-reply) |
+| `network_monitor.messages.send_errors` | Counter | `transport` | outbound send failed |
 
-Deliberately **not** tagged with `messageType` — with two transports × several interfaces ×
-several message types, adding a third high-cardinality dimension risked an unbounded label
-cardinality blowup in Prometheus; `interfaceName` is enough to slice by without that risk.
-
-Example: scrape counts for Fruit-interface traffic split by transport:
-
-```bash
-curl -s http://localhost:8080/actuator/prometheus | grep 'network_monitor_messages_received_total{.*Fruit Interface'
-```
+Deliberately **not** tagged with `messageType` — with several interfaces × several message types
+each, a third high-cardinality dimension risked unbounded Prometheus label cardinality;
+`interfaceName` is enough to slice by.
 
 ## traffic-tester-app details
 
 ### Scenario configuration
 
-Loaded from the path in env var `TRAFFIC_TESTER_CONFIG` (default `./config/tester-scenario.yml`;
-in Docker Compose it's `/app/config/tester-scenario.yml`, mounted read-only from `./config`):
+Loaded from env var `TRAFFIC_TESTER_CONFIG` (default `./config/tester-scenario.yml`):
 
 ```yaml
 udp:
-  host: 127.0.0.1        # default send target host
-  port: 5001              # default send target port
+  host: 127.0.0.1
+  port: 5001
 
 listener:
-  enabled: true            # default true
-  port: 7001                # default 7001
-  durationSeconds: 120       # default 120 — how long to listen after sending
-  bufferSizeBytes: 65507     # default 65507
+  enabled: true
+  port: 7001
+  durationSeconds: 120
+  bufferSizeBytes: 65507
 
-messages:                  # preferred (V2) format — list of messages sent per iteration
-  - mode: FRUIT_ORANGE       # FRUIT_ORANGE | FRUIT_BANANA | WEATHER_TEMPERATURE_READING | PING | TEXT | BASE64 | HEX
-    target:                  # optional per-message override of udp.host/port
+messages:
+  - mode: FRUIT_ORANGE   # see PayloadMode for every mode; TEXT/BASE64/HEX send raw payloads
+    target:               # optional per-message override of udp.host/port
       host: 127.0.0.1
       port: 5001
-      transport: UDP          # optional — "UDP" (default) or "TCP", selects the send transport for this message
+      transport: UDP       # optional — "UDP" (default) or "TCP"
     fruit:
-      sourceFarm: "north-farm-17"   # default "default-farm"
-      freshness: "very_fresh"       # default "unknown"
-      # color: "yellow"             # Banana only, default "yellow"
-      # weight: 142.75              # Banana only, default 120.5
-  - mode: WEATHER_TEMPERATURE_READING
-    weather:
-      stationId: "station-tlv-01"   # default "station-01"
-      temperatureCelsius: 28.4      # default 24.5
-      condition: "sunny"            # default "sunny"
+      sourceFarm: "north-farm-17"
+      freshness: "very_fresh"
+  - mode: CANDY
+    target:
+      host: 127.0.0.1
+      port: 5004
+      transport: TCP
+    candy:
+      name: "chocolate-bar"
+      calories: 250.5
+  - mode: RADA_STATUS      # Rada messages need no per-message config — fields are Instancio-randomized
+    target:
+      host: 127.0.0.1
+      port: 5050
 
-# payload: {...}          # legacy (V1) format — single message, used only if `messages` is absent
-
-repeat: 1                  # default 1 — number of times to iterate through `messages`
-intervalMillis: 1000        # default 1000 — delay between iterations (not after the last one)
+repeat: 1231
+intervalMillis: 1000
 ```
-
-`TEXT`/`BASE64`/`HEX` modes send raw payloads from the `text`/`base64`/`hex` string fields
-instead of an encoded Fruit/Weather message — useful for testing malformed-input handling.
 
 ### Behavior
 
-- **Send loop**: for `repeat` iterations, encode and send every entry in `messages` (or the
-  single `payload` in V1 configs) to its resolved target (`target.*` override, else top-level
-  `udp.*`) over the resolved transport (`target.transport`, default `UDP`; `TCP` opens a
-  short-lived connection per message via `TcpPublisher`), sleeping `intervalMillis` between
-  iterations.
+- **Send loop**: for `repeat` iterations, encode and send every entry in `messages` to its
+  resolved target over the resolved transport, sleeping `intervalMillis` between iterations.
 - **Listener**: if `listener.enabled`, a background thread binds `listener.port` **over UDP
-  only** (there is no TCP listener in `traffic-tester-app`), logs each received packet's source,
-  hex, and UTF-8 text, and attempts to decode it as a Fruit or Weather message, logging the
-  parsed fields on success. Runs for `listener.durationSeconds`. To receive a TCP auto-reply from
-  the monitor, point the monitor's auto-reply destination at something else that actually listens
-  on TCP (e.g. `nc -l`) — the tester's own listener won't see it.
+  only** (there is no TCP listener in `traffic-tester-app`), logs each received packet, and
+  attempts a best-effort Fruit/Weather decode.
 
 ### Standalone run
 
@@ -726,242 +641,54 @@ TRAFFIC_TESTER_CONFIG=config/tester-scenario.yml \
 
 ## Running the project
 
-Start the monitor:
-
 ```bash
 docker compose up --build traffic-monitor-app
 ```
 
-Open the UI:
-
-```text
-http://localhost:8080
-```
-
-In another terminal, run the tester (sends whatever `config/tester-scenario.yml` defines):
+Open `http://localhost:8080`. In another terminal, run the tester (sends whatever
+`config/tester-scenario.yml` defines):
 
 ```bash
 docker compose --profile tester up --build traffic-tester-app
 ```
 
-Edit `config/tester-scenario.yml` to change what gets sent, or use the monitor's Sample
-Publisher UI/API to send ad hoc messages toward the tester's listener
-(`traffic-tester-app:7001` inside Docker, `localhost:7001` if both run locally).
+Exposed ports: `8080/tcp` (HTTP+UI+REST+`/actuator/*`), `5001/udp` (Fruit), `5002/udp` (Ping),
+`5003/udp` (Weather), `5004/tcp` (Candy), `5050/udp` (Rada), `7001/udp` (tester listener). If you
+add a new interface, add its port to `docker-compose.yml` too.
 
-Exposed ports: `8080/tcp` (monitor HTTP+UI+REST+`/actuator/*`), `5001/udp` + `5001/tcp` (Fruit),
-`5003/udp` + `5003/tcp` (Weather), `7001/udp` (tester listener). Fruit/Weather are mapped twice
-in `docker-compose.yml` (once per transport) since UDP and TCP are independent OS-level port
-namespaces.
-
-The `./data` host directory is bind-mounted into the container (`docker-compose.yml`) and holds
-the H2 database file backing message history — it survives `docker compose down`/`up` since it's
-a host bind mount, not a named volume. Delete `./data` manually to start with an empty history.
-
-Check the monitor is healthy:
+The `./data` host directory is bind-mounted and holds the H2 database file — survives
+`docker compose down`/`up`. Delete `./data` manually to start with an empty history.
 
 ```bash
 curl http://localhost:8080/actuator/health
 ```
 
-## Adding a new message
-
-A new message type needs two things: a **message class** (defines the wire encoding) and an
-entry in **`config/traffic-tool.yml`** (wires an opcode to that class). If you want the monitor
-to react to it on arrival (e.g. auto-reply), add a third thing, a **handler class**. No changes
-to `traffic-monitor-app-core` are ever required — it decodes/encodes every message generically by
-reflection; see `com.example.schemacore.reflect.ReflectiveStructCodec` for the exact convention
-it looks for.
-
-This walks through adding a `Discount` message to the existing Candy interface: opcode `4002`, a
-`String code` field and an `int percentOff` field. Adding a brand-new interface (rather than a
-new message on an existing one) is the same process, just with a new top-level entry under
-`interfaces:` in step 2 instead of appending to an existing one — copy the `candy` entry's shape,
-or `rada`'s if you also want your own dedicated UDP port instead of sharing the legacy one.
-
-### 1. Write the message class
-
-Message classes live in `traffic-monitor-app/src/main/java/com/example/schemas/<protocol>/` and
-implement `ProtocolMessage` (from `com.example.schemacore`). The shape depends on whether the
-layout is fixed-size or has a variable-length field:
-
-- **Any variable-length field** (a `String`, most commonly) → a self-sizing no-arg
-  `toByteArray()` — `StructSizeCalculator` can't size a `String`, so the class must size its own
-  buffer. This is the common case, and what `CandyMessage` already does:
-
-  ```java
-  package com.example.schemas.candy;
-
-  import com.example.schemacore.ProtocolMessage;
-
-  import java.nio.ByteBuffer;
-  import java.nio.charset.StandardCharsets;
-
-  public record DiscountMessage(String code, int percentOff) implements ProtocolMessage {
-      public static DiscountMessage fromByteBuffer(ByteBuffer buffer) {
-          int codeLength = buffer.getInt();
-          byte[] codeBytes = new byte[codeLength];
-          buffer.get(codeBytes);
-          int percentOff = buffer.getInt();
-          return new DiscountMessage(new String(codeBytes, StandardCharsets.UTF_8), percentOff);
-      }
-
-      public byte[] toByteArray() {
-          byte[] codeBytes = code.getBytes(StandardCharsets.UTF_8);
-          ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + codeBytes.length + Integer.BYTES);
-          buffer.putInt(codeBytes.length);
-          buffer.put(codeBytes);
-          buffer.putInt(percentOff);
-          return buffer.array();
-      }
-  }
-  ```
-
-- **Fixed-size fields only** (no `String`) → a `toByteArray(ByteBuffer)` instead, with the buffer
-  pre-sized via `StructSizeCalculator.calculateStructSize(class)`; array fields additionally need
-  `@FixedArrayLength(n)` from `com.example.schemacore.annotation` (see
-  `com.example.schemas.rada.messages.RadaStatus` for a worked fixed-layout example — it also
-  shows the mutable-class-with-a-`(byte[])`-constructor alternative to a record, used when the
-  class needs to parse itself in place rather than via a static factory).
-
-`ReflectiveStructCodec` finds `fromByteBuffer(ByteBuffer)`/`toByteArray()` (or
-`toByteArray(ByteBuffer)`) by name and signature alone — there's no interface to implement beyond
-`ProtocolMessage`, and no separate hand-written codec or `MessageDefinition` class to write.
-
-### 2. Register it in `config/traffic-tool.yml`
-
-Add a `messages` entry under the interface it belongs to, giving it a `messageClass:` (the
-class's fully-qualified name) and a unique `opcode:`:
-
-```yaml
-  - key: candy
-    name: Candy Interface
-    messages:
-      - type: Candy
-        messageClass: com.example.schemas.candy.CandyMessage
-        opcode: 4001
-      - type: Discount
-        messageClass: com.example.schemas.candy.DiscountMessage
-        opcode: 4002
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
-```
-
-`MessageSchemaWiringConfig` reads this at startup and resolves `messageClass:` via
-`Class.forName(...)`, wrapping it in a `ReflectiveMessageDefinition` — a duplicate opcode or a
-class that doesn't follow the convention above fails Spring context startup immediately
-(fail-fast). If you're testing locally, make the same edit to
-`traffic-monitor-app/src/test/resources/traffic-tool-test.yml` too, so the integration-test suite
-picks it up.
-
-### 3. (Optional) React to it with a handler
-
-Handler classes live in `traffic-monitor-app/src/main/java/com/example/handlers/<protocol>/`,
-are Spring `@Component`s (picked up by `TrafficMonitorApplication`'s `scanBasePackages`), and
-implement `MessageArrivedHandler<T>` where `T` is your new message class — the message arrives
-already decoded into its real type, no `Map` unpacking or casting needed:
-
-```java
-package com.example.messagehandlers.candy;
-
-import com.example.handlercore.DestinationConfig;
-import com.example.handlercore.MessageArrivedHandler;
-import com.example.handlercore.ReplySender;
-import com.example.schemas.candy.DiscountMessage;
-import org.springframework.stereotype.Component;
-
-@Component
-public class DiscountMessageHandler implements MessageArrivedHandler<DiscountMessage> {
-    @Override
-    public String interfaceName() {
-        return "Candy Interface"; // must match config/traffic-tool.yml's `name:`
-    }
-
-    @Override
-    public String messageType() {
-        return "Discount"; // must match config/traffic-tool.yml's `type:`
-    }
-
-    @Override
-    public void onMessageArrived(DiscountMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
-        // no-op is fine if you don't need to react — see CandyMessageHandler for the pattern.
-        // To reply: if (destinationConfig != null) {
-        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
-        // }
-    }
-}
-```
-
-If you skip this step, the message still decodes, gets stored, and shows up in the Live/History
-UI — it just won't trigger anything on arrival.
-
-### 4. Write tests
-
-At minimum, a round-trip encode/decode test on the message class itself (see
-`CandyMessageTest.toByteArray_thenFromByteBuffer_roundTripsNameAndCalories` for the pattern), and
-if you added a handler, a test asserting `interfaceName()`/`messageType()` and whatever behavior
-`onMessageArrived` has (see `CandyMessageHandlerTest`). Both live next to their counterparts under
-`traffic-monitor-app/src/test/java/com/example/schemas/<protocol>/` and
-`.../com/example/handlers/<protocol>/`.
-
-### 5. Rebuild and verify
-
-```bash
-mvn -pl traffic-monitor-app -am test
-```
-
-runs the new unit tests. To also exercise the full startup wiring (catches config typos and
-duplicate-opcode mistakes before you'd hit them at runtime), run the integration suite too:
-
-```bash
-mvn -pl traffic-monitor-app -am verify
-```
-
 ## Development
 
-- Java 21, Maven multi-module build. From the repo root:
+```bash
+mvn clean package
+```
 
-  ```bash
-  mvn clean package
-  ```
+builds all 3 modules in dependency order. Run the monitor locally without Docker:
 
-  builds all seven modules (`schema-core`, `shared-schemas`, `handler-core`, `handler-app`,
-  `traffic-monitor-app-core`, `traffic-monitor-app`, `traffic-tester-app`) in dependency order.
-- Run the monitor locally without Docker (simplest — from the repo root, after `mvn clean
-  package`):
+```bash
+TRAFFIC_TOOL_CONFIG=config/traffic-tool.yml \
+  java -jar traffic-monitor-app/target/traffic-monitor-app-1.0-SNAPSHOT-exec.jar
+```
 
-  ```bash
-  TRAFFIC_TOOL_CONFIG=config/traffic-tool.yml \
-    java -jar traffic-monitor-app/target/traffic-monitor-app-1.0-SNAPSHOT.jar
-  ```
+(Note the `-exec` classifier — `spring-boot-maven-plugin`'s repackage uses a classifier so the
+plain jar stays the resolvable Maven dependency `traffic-tester-app` consumes, and the runnable
+fat jar is the separate `-exec.jar`.) Run the tester locally: see
+[Standalone run](#standalone-run) above.
 
-  Uses `application.yml` for ports and `config/traffic-tool.yml` for message definitions —
-  HTTP+`/actuator/*` on `:8080`, UDP and TCP both on `:5001`/`:5003`. History persists to the H2
-  file at `./data/traffic-monitor` (relative to the working directory) unless
-  `TRAFFIC_MONITOR_DB_PATH` is set.
+## Known gaps
 
-  `spring-boot:run` also works, but needs `mvn install` first (not just `package` — direct
-  goal invocation, unlike lifecycle phases, doesn't resolve sibling-module dependencies via
-  `-am`) and an **absolute** `TRAFFIC_TOOL_CONFIG` path (the plugin's working directory is the
-  `traffic-monitor-app/` module folder, not the repo root, so the `config/traffic-tool.yml`
-  relative default won't resolve):
-
-  ```bash
-  mvn install -DskipTests
-  TRAFFIC_TOOL_CONFIG="$(pwd)/config/traffic-tool.yml" mvn -pl traffic-monitor-app spring-boot:run
-  ```
-- Run the tester locally without Docker: see [Standalone run](#standalone-run) above.
-
-## Known gaps / legacy code
-
-- **`traffic-tester-app`'s listener is UDP-only.** It can *send* over TCP
-  (`target.transport: TCP` in a scenario message — see [Scenario configuration](#scenario-configuration)),
-  but `UdpListener` only binds a UDP socket, so it can't receive a TCP auto-reply from the
-  monitor. There is no `TcpListener` counterpart yet.
-- **`BananaMessageHandler`/`TemperatureReadingMessageHandler`/`CandyMessageHandler` are still
-  empty stubs** (`// TODO`) — see [Auto-reply message handlers](#auto-reply-message-handlers).
-  Only `OrangeMessageHandler` and `PingMessageHandler` do anything on arrival.
-- **`network_monitor.tcp.connections.active` is a single combined gauge**, not split per port
-  (Fruit vs Weather) — a deliberate simplicity choice, see
-  [Metrics and observability](#metrics-and-observability).
+- **`traffic-tester-app`'s listener is UDP-only** — it can *send* over TCP but can't receive a
+  TCP auto-reply from the monitor.
+- **`BananaMessageHandler`/`TemperatureReadingMessageHandler`/`CandyMessageHandler` are empty
+  stubs** — only `OrangeMessageHandler` and `PingMessageHandler` do anything on arrival.
+- **`network_monitor.tcp.connections.active` is a single combined gauge**, not split per
+  interface/port.
+- Multi-select interface filtering in the Live/History UI tabs is still single-select in the
+  History tab's dropdown (the sidebar's click-to-toggle filter on the Live tab is effectively
+  multi-select already).

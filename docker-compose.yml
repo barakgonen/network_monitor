@@ -7,9 +7,10 @@ services:
     ports:
       - "8080:8080"
       - "5001:5001/udp"
+      - "5002:5002/udp"
       - "5003:5003/udp"
-      - "5001:5001/tcp"
-      - "5003:5003/tcp"
+      - "5004:5004/tcp"
+      - "5050:5050/udp"
     volumes:
       - ./config:/app/config:ro
       - ./data:/app/data
