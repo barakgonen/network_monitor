@@ -50,8 +50,13 @@ class PeriodicPublisherServiceTest {
 
     @Test
     void start_withValidRequest_returnsRunningStatusImmediately() {
-        when(payloadFactory.create(any(), any(), any())).thenReturn(new byte[] {1});
-
+        // No payloadFactory stub here deliberately: this test only asserts on start()'s
+        // synchronous return value, before the background scheduled publish (interval as low as
+        // 1ms via fastRequest()) has necessarily run. Stubbing it anyway raced against that
+        // background thread - Mockito's strict-stubs check flags it as "unnecessary" if the
+        // scheduler hasn't fired by test teardown, which is timing/machine-dependent (passed
+        // reliably here, failed on a slower machine). See start_thenAwaitSentCountIncreasing_*
+        // below for a test that actually waits for and verifies the scheduled publish.
         PeriodicPublishStatus status = service.start(fastRequest());
 
         assertThat(status.running()).isTrue();
