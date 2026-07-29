@@ -1,13 +1,15 @@
 package com.example.monitor.api;
 
 import com.example.monitor.autoreply.AutoReplySettingsService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Map;
 
@@ -18,17 +20,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AutoReplyController.class)
+/**
+ * Standalone MockMvc setup (no Spring context): {@code @WebMvcTest} no longer exists as of
+ * Spring Boot 4, so the controller is wired directly with a Mockito mock instead.
+ */
+@ExtendWith(MockitoExtension.class)
 class AutoReplyControllerTest {
 
-    @Autowired
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Mock
+    private AutoReplySettingsService autoReplySettingsService;
+
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
-    private AutoReplySettingsService autoReplySettingsService;
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(new AutoReplyController(autoReplySettingsService)).build();
+    }
 
     @Test
     void getSettings_returnsGlobalAndInterfaceSettings() throws Exception {

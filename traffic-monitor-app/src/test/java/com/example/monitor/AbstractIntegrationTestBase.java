@@ -7,10 +7,10 @@ import com.example.monitor.persistence.HistoryQuery;
 import com.example.monitor.persistence.MessageArchiveRepository;
 import com.example.monitor.store.RecentMessageStore;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -76,11 +76,20 @@ public abstract class AbstractIntegrationTestBase {
     @Autowired
     protected MessageArchiveRepository messageArchiveRepository;
 
-    @Autowired
-    protected TestRestTemplate restTemplate;
+    /**
+     * Spring Boot 4 dropped {@code TestRestTemplate} (and the {@code @SpringBootTest} wiring that
+     * auto-provided it); see {@link TestHttpClient} for why this is a plain field populated in
+     * {@code @BeforeEach} rather than an {@code @Autowired} bean.
+     */
+    protected TestHttpClient restTemplate;
 
     @Autowired
     protected MeterRegistry meterRegistry;
+
+    @BeforeEach
+    void initializeTestHttpClient() {
+        restTemplate = new TestHttpClient();
+    }
 
     @DynamicPropertySource
     static void configureDynamicInterfacePorts(DynamicPropertyRegistry registry) throws IOException {

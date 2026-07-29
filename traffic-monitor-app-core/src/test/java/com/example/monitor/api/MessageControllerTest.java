@@ -2,11 +2,13 @@ package com.example.monitor.api;
 
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.store.RecentMessageStore;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,14 +19,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(MessageController.class)
+/**
+ * Standalone MockMvc setup (no Spring context): {@code @WebMvcTest} no longer exists as of
+ * Spring Boot 4, so the controller is wired directly with a Mockito mock instead.
+ */
+@ExtendWith(MockitoExtension.class)
 class MessageControllerTest {
 
-    @Autowired
+    @Mock
+    private RecentMessageStore recentMessageStore;
+
     private MockMvc mockMvc;
 
-    @MockBean
-    private RecentMessageStore recentMessageStore;
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(new MessageController(recentMessageStore)).build();
+    }
 
     @Test
     void getRecentMessages_returnsStoreContentsAsJson() throws Exception {

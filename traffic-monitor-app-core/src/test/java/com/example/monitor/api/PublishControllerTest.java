@@ -3,13 +3,15 @@ package com.example.monitor.api;
 import com.example.monitor.publishing.MonitorPayloadFactory;
 import com.example.monitor.publishing.TcpMessagePublisher;
 import com.example.monitor.publishing.UdpMessagePublisher;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Map;
 
@@ -23,23 +25,31 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(PublishController.class)
+/**
+ * Standalone MockMvc setup (no Spring context): {@code @WebMvcTest} no longer exists as of
+ * Spring Boot 4, so the controller is wired directly with Mockito mocks instead.
+ */
+@ExtendWith(MockitoExtension.class)
 class PublishControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
+    @Mock
     private MonitorPayloadFactory payloadFactory;
 
-    @MockBean
+    @Mock
     private UdpMessagePublisher udpMessagePublisher;
 
-    @MockBean
+    @Mock
     private TcpMessagePublisher tcpMessagePublisher;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                new PublishController(payloadFactory, udpMessagePublisher, tcpMessagePublisher)).build();
+    }
 
     @Test
     void publishUdp_withValidRequest_returnsSuccessResponseAndInvokesPublisher() throws Exception {

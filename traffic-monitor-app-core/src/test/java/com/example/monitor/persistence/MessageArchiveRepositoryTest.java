@@ -1,12 +1,14 @@
 package com.example.monitor.persistence;
 
 import com.example.monitor.model.ObservedMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -16,17 +18,28 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@JdbcTest
+/**
+ * No Spring context needed: builds a throwaway embedded H2 database directly (Spring Boot's
+ * {@code @JdbcTest} slice annotation no longer exists as of Spring Boot 4), wires it straight
+ * into the repository under test.
+ */
 class MessageArchiveRepositoryTest {
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
+    private EmbeddedDatabase dataSource;
     private MessageArchiveRepository repository;
 
     @BeforeEach
     void setUp() {
-        repository = new MessageArchiveRepository(jdbcTemplate, new ObjectMapper());
+        dataSource = new EmbeddedDatabaseBuilder()
+                .setType(EmbeddedDatabaseType.H2)
+                .addScript("schema.sql")
+                .build();
+        repository = new MessageArchiveRepository(new JdbcTemplate(dataSource), new ObjectMapper());
+    }
+
+    @AfterEach
+    void tearDown() {
+        dataSource.shutdown();
     }
 
     private static ObservedMessage message(String id, Instant observedAt, String interfaceName, String messageType,

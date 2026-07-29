@@ -55,5 +55,20 @@ messages:
       host: 127.0.0.1
       port: 5050
 
+  - mode: RADA_EXTENDED_STATUS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_EXTENDED_STATUS_MRS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_TRACKS_EXTENDED
+    target:
+      host: 127.0.0.1
+      port: 5050
+
 repeat: 1231
 intervalMillis: 1000

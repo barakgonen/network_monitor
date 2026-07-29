@@ -7,7 +7,10 @@ import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.OrangeMessage;
 import com.example.schemas.ping.PingMessage;
+import com.example.schemas.rada.messages.RadaExtendedStatus;
+import com.example.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.schemas.rada.messages.RadaStatus;
+import com.example.schemas.rada.messages.RadaTracksExtended;
 import com.example.schemas.weather.TemperatureReadingMessage;
 import com.example.schemas.weather.WeatherCondition;
 import com.example.schemacore.ProtocolMessage;
@@ -18,13 +21,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 
+import static org.instancio.Select.field;
+
 public class PayloadFactory {
     private static final int ORANGE_OPCODE = 1001;
     private static final int BANANA_OPCODE = 1002;
     private static final int TEMPERATURE_READING_OPCODE = 2001;
     private static final int PING_OPCODE = 3001;
     private static final int CANDY_OPCODE = 4001;
+    private static final int RADA_EXTENDED_STATUS_OPCODE = 1;
+    private static final int RADA_EXTENDED_STATUS_MRS_OPCODE = 2;
     private static final int RADA_STATUS_OPCODE = 3;
+    private static final int RADA_TRACKS_EXTENDED_OPCODE = 4;
 
     public byte[] create(PayloadConfig config) {
         return switch (config.getMode()) {
@@ -37,6 +45,9 @@ public class PayloadFactory {
             case PING -> createPing(config);
             case CANDY -> createCandy(config);
             case RADA_STATUS -> createRadaStatus();
+            case RADA_EXTENDED_STATUS -> createRadaExtendedStatus();
+            case RADA_EXTENDED_STATUS_MRS -> createRadaExtendedStatusMrs();
+            case RADA_TRACKS_EXTENDED -> createRadaTracksExtended();
         };
     }
 
@@ -49,6 +60,40 @@ public class PayloadFactory {
     private byte[] createRadaStatus() {
         RadaStatus message = Instancio.create(RadaStatus.class);
         message.getHeader().setMsgType(RADA_STATUS_OPCODE);
+        return ReflectiveStructCodec.encode(message);
+    }
+
+    /** No array fields, same as RadaStatus - safe to populate with Instancio's defaults. */
+    private byte[] createRadaExtendedStatus() {
+        RadaExtendedStatus message = Instancio.create(RadaExtendedStatus.class);
+        message.getHeader().setMsgType(RADA_EXTENDED_STATUS_OPCODE);
+        return ReflectiveStructCodec.encode(message);
+    }
+
+    /** No array fields, same as RadaStatus - safe to populate with Instancio's defaults. */
+    private byte[] createRadaExtendedStatusMrs() {
+        RadaExtendedStatusMrs message = Instancio.create(RadaExtendedStatusMrs.class);
+        message.getHeader().setMsgType(RADA_EXTENDED_STATUS_MRS_OPCODE);
+        return ReflectiveStructCodec.encode(message);
+    }
+
+    /**
+     * Unlike the other Rada messages, this one has {@code @FixedArrayLength} array fields
+     * (trackData[10], plotData[10], plus nested reserved byte[] fields inside each track entry) -
+     * Instancio doesn't know about that custom annotation and would otherwise generate
+     * differently-sized arrays, breaking the monitor's struct-size-driven decode. Rather than
+     * configuring an exact generator per array (there are several, nested two levels deep),
+     * {@code ignore(...)} the two top-level array fields so Instancio leaves them exactly as the
+     * constructor built them: correctly sized (10 elements each) with real, zero-valued
+     * RadaTrackData/RadaPlotData instances. Only the message's own top-level scalar fields
+     * (header, updateTimeTag, chunkNumber, etc.) get randomized.
+     */
+    private byte[] createRadaTracksExtended() {
+        RadaTracksExtended message = Instancio.of(RadaTracksExtended.class)
+                .ignore(field(RadaTracksExtended.class, "trackData"))
+                .ignore(field(RadaTracksExtended.class, "plotData"))
+                .create();
+        message.getHeader().setMsgType(RADA_TRACKS_EXTENDED_OPCODE);
         return ReflectiveStructCodec.encode(message);
     }
 

@@ -7,7 +7,10 @@ import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.OrangeMessage;
 import com.example.schemas.ping.PingMessage;
+import com.example.schemas.rada.messages.RadaExtendedStatus;
+import com.example.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.schemas.rada.messages.RadaStatus;
+import com.example.schemas.rada.messages.RadaTracksExtended;
 import com.example.schemas.weather.TemperatureReadingMessage;
 import com.example.tester.config.CandyPayloadConfig;
 import com.example.tester.config.FruitPayloadConfig;
@@ -156,6 +159,41 @@ class PayloadFactoryTest {
         // fixed-envelope ProtocolHeaderCodec used by the legacy message types above.
         RadaStatus decoded = ReflectiveStructCodec.decode(RadaStatus.class, payload);
         assertThat(decoded.getHeader().getMsgType()).isEqualTo(3);
+    }
+
+    @Test
+    void create_withRadaExtendedStatusMode_producesDecodableRandomizedPayloadWithFixedOpcode() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.RADA_EXTENDED_STATUS);
+
+        byte[] payload = factory.create(config);
+
+        RadaExtendedStatus decoded = ReflectiveStructCodec.decode(RadaExtendedStatus.class, payload);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(1);
+    }
+
+    @Test
+    void create_withRadaExtendedStatusMrsMode_producesDecodableRandomizedPayloadWithFixedOpcode() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.RADA_EXTENDED_STATUS_MRS);
+
+        byte[] payload = factory.create(config);
+
+        RadaExtendedStatusMrs decoded = ReflectiveStructCodec.decode(RadaExtendedStatusMrs.class, payload);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(2);
+    }
+
+    @Test
+    void create_withRadaTracksExtendedMode_producesDecodablePayloadWithFixedSizeArrays() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.RADA_TRACKS_EXTENDED);
+
+        byte[] payload = factory.create(config);
+
+        RadaTracksExtended decoded = ReflectiveStructCodec.decode(RadaTracksExtended.class, payload);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(4);
+        assertThat(decoded.getTrackData()).hasSize(10);
+        assertThat(decoded.getPlotData()).hasSize(10);
     }
 
     private Object decodeBody(byte[] payload, int expectedOpcode, Class<?> messageClass) {

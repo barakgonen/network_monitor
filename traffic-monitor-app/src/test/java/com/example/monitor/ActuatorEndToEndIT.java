@@ -1,12 +1,10 @@
 package com.example.monitor;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@AutoConfigureObservability
 class ActuatorEndToEndIT extends AbstractIntegrationTestBase {
 
     @Test

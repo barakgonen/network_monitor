@@ -5,11 +5,13 @@ import com.example.monitor.persistence.GroupByField;
 import com.example.monitor.persistence.MessageArchiveRepository;
 import com.example.monitor.persistence.TimeBucket;
 import com.example.monitor.persistence.TimeBucketCount;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
@@ -21,14 +23,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(AnalyticsController.class)
+/**
+ * Standalone MockMvc setup (no Spring context): {@code @WebMvcTest} no longer exists as of
+ * Spring Boot 4, so the controller is wired directly with a Mockito mock instead.
+ */
+@ExtendWith(MockitoExtension.class)
 class AnalyticsControllerTest {
 
-    @Autowired
+    @Mock
+    private MessageArchiveRepository messageArchiveRepository;
+
     private MockMvc mockMvc;
 
-    @MockBean
-    private MessageArchiveRepository messageArchiveRepository;
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(new AnalyticsController(messageArchiveRepository)).build();
+    }
 
     @Test
     void timeseries_withDefaultBucket_returnsHourlyPoints() throws Exception {
