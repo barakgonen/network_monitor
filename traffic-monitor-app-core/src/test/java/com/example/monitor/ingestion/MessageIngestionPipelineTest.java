@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -225,6 +226,48 @@ class MessageIngestionPipelineTest {
 
         assertThat(message.parseError()).contains("Invalid bodyLength");
         assertThat(message.interfaceName()).isEqualTo("Unknown");
+    }
+
+    @Test
+    void ingestForInterface_withLittleEndianByteOrder_decodesHeaderUsingConfiguredOrder() {
+        interfaceConfig.setByteOrder("LITTLE_ENDIAN");
+        StubDefinition definition = new StubDefinition();
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
+
+        byte[] payload = littleEndianStubPayload();
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                payload, "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).isNull();
+        assertThat(message.interfaceName()).isEqualTo("Stub Interface");
+        assertThat(message.header()).containsEntry("opcode", STUB_OPCODE);
+    }
+
+    @Test
+    void ingestForInterface_withDefaultBigEndianOrder_misparsesLittleEndianHeader() {
+        // Sanity check that the previous test's override is actually load-bearing: decoding the
+        // same little-endian bytes with the (default) big-endian interface must NOT resolve to
+        // the real opcode - proves header decode really does honor the configured byte order,
+        // not just default to something that happens to match.
+        byte[] payload = littleEndianStubPayload();
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                payload, "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.header()).doesNotContainEntry("opcode", STUB_OPCODE);
+    }
+
+    private static byte[] littleEndianStubPayload() {
+        byte[] body = {1, 2, 3};
+        ByteBuffer buffer = ByteBuffer.allocate(ProtocolHeaderCodec.HEADER_SIZE_BYTES + body.length)
+                .order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(STUB_OPCODE);
+        buffer.putLong(System.currentTimeMillis());
+        buffer.putInt(body.length);
+        buffer.put(body);
+        return buffer.array();
     }
 
     @Test

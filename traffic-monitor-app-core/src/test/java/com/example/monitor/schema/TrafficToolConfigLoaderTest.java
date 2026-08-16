@@ -199,6 +199,36 @@ class TrafficToolConfigLoaderTest {
     }
 
     @Test
+    void load_withMessageLevelByteOrder_parsesOverride_andLeavesOtherMessagesNull() throws Exception {
+        Path configFile = tempDir.resolve("message-byte-order.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: rada
+                    name: Rada Interface
+                    protocol: UDP
+                    port: 5050
+                    byteOrder: BIG_ENDIAN
+                    messages:
+                      - type: RadaStatus
+                        messageClass: com.example.schemas.rada.messages.RadaStatus
+                        opcode: 3
+                      - type: RadaTracksExtended
+                        messageClass: com.example.schemas.rada.messages.RadaTracksExtended
+                        opcode: 4
+                        byteOrder: LITTLE_ENDIAN
+                """);
+
+        TrafficToolConfig config = loader.load(configFile);
+
+        InterfaceConfig rada = config.getInterfaces().get(0);
+        assertThat(rada.getByteOrder()).isEqualTo("BIG_ENDIAN");
+        assertThat(rada.getMessages().get(0).getByteOrder()).isNull();
+        assertThat(rada.getMessages().get(1).getByteOrder()).isEqualTo("LITTLE_ENDIAN");
+    }
+
+    @Test
     void load_withInvalidModeString_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("invalid-mode.yml");
         Files.writeString(configFile, """

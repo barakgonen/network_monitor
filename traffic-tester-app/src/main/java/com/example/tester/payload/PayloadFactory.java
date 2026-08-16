@@ -17,6 +17,7 @@ import com.example.schemacore.ProtocolMessage;
 import com.example.tester.config.PayloadConfig;
 import org.instancio.Instancio;
 
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -46,6 +47,7 @@ public class PayloadFactory {
             case CANDY -> createCandy(config);
             case RADA_STATUS -> createRadaStatus();
             case RADA_EXTENDED_STATUS -> createRadaExtendedStatus();
+            case RADA_EXTENDED_STATUS_LITTLE_ENDIAN -> createRadaExtendedStatusLittleEndian();
             case RADA_EXTENDED_STATUS_MRS -> createRadaExtendedStatusMrs();
             case RADA_TRACKS_EXTENDED -> createRadaTracksExtended();
         };
@@ -68,6 +70,19 @@ public class PayloadFactory {
         RadaExtendedStatus message = Instancio.create(RadaExtendedStatus.class);
         message.getHeader().setMsgType(RADA_EXTENDED_STATUS_OPCODE);
         return ReflectiveStructCodec.encode(message);
+    }
+
+    /**
+     * Same message type/opcode as {@link #createRadaExtendedStatus()}, but encoded little-endian -
+     * targets the {@code rada-le} interface in {@code config/traffic-tool.yml}, which declares
+     * {@code byteOrder: LITTLE_ENDIAN} at the interface level (see that file for why this has to
+     * be an interface-level split rather than a per-message override sharing a port with the
+     * always-big-endian {@code rada} interface).
+     */
+    private byte[] createRadaExtendedStatusLittleEndian() {
+        RadaExtendedStatus message = Instancio.create(RadaExtendedStatus.class);
+        message.getHeader().setMsgType(RADA_EXTENDED_STATUS_OPCODE);
+        return ReflectiveStructCodec.encode(message, ByteOrder.LITTLE_ENDIAN);
     }
 
     /** No array fields, same as RadaStatus - safe to populate with Instancio's defaults. */

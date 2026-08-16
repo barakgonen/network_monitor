@@ -5,6 +5,7 @@ import com.example.schemacore.ProtocolMessage;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,5 +69,17 @@ class ReflectiveMessageDefinitionTest {
 
         assertThat(definition.decodeMessage(ByteBuffer.wrap(encoded)))
                 .isEqualTo(new TestMessage(12, Freshness.STALE));
+    }
+
+    @Test
+    void decodeMessage_thenEncodeBody_roundTrips_withConfiguredByteOrder() throws Exception {
+        ReflectiveMessageDefinition littleEndianDefinition = new ReflectiveMessageDefinition(
+                "Test Interface", "TestMessage", 55, TestMessage.class, ByteOrder.LITTLE_ENDIAN);
+
+        TestMessage original = new TestMessage(3, Freshness.STALE);
+        byte[] encoded = littleEndianDefinition.encodeBody(original);
+
+        assertThat(ByteBuffer.wrap(encoded).order(ByteOrder.LITTLE_ENDIAN).getInt()).isEqualTo(3);
+        assertThat(littleEndianDefinition.decodeMessage(ByteBuffer.wrap(encoded))).isEqualTo(original);
     }
 }

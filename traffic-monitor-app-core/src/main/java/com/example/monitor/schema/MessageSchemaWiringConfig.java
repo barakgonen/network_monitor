@@ -8,11 +8,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.ByteOrder;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Configuration
 public class MessageSchemaWiringConfig {
@@ -36,13 +39,33 @@ public class MessageSchemaWiringConfig {
      * registry below) - this one backs cross-interface name/class lookups, namely
      * {@code MonitorPayloadFactory}'s "encode by interfaceName+messageType" and "encode by message
      * class" API.
+     *
+     * <p>Two interfaces may legitimately reuse the same opcode and message class - e.g. the same
+     * protocol wired up twice with a different {@code byteOrder} (see the {@code rada}/{@code
+     * rada-le} interfaces). That's fine for ingestion (each interface decodes against its own
+     * scoped registry below, unaffected by this method), but {@link MessageDefinitionRegistry}'s
+     * opcode/class-keyed maps require global uniqueness - there's no way for "encode by class"
+     * to know which interface's encoding a caller meant if the same class serves two. Rather than
+     * relaxing that registry's invariant (real config typos, like copy-pasting an interface block
+     * and forgetting to bump an opcode, should still fail fast), the first interface to register a
+     * given opcode/class wins here and later ones are silently excluded from this flat view only -
+     * {@code find(interfaceName, messageType)} and every scoped registry still see all of them.
      */
     @Bean
     public MessageDefinitionRegistry messageDefinitionRegistry(TrafficToolConfig config) throws ReflectiveOperationException {
         List<MessageDefinition> definitions = new ArrayList<>();
+        Set<Integer> seenOpcodes = new HashSet<>();
+        Set<Class<?>> seenMessageClasses = new HashSet<>();
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
-            definitions.addAll(buildDefinitions(interfaceConfig));
+            for (MessageDefinition definition : buildDefinitions(interfaceConfig)) {
+                boolean opcodeAlreadyRegistered = !seenOpcodes.add(definition.opcode());
+                boolean classAlreadyRegistered = !seenMessageClasses.add(definition.messageClass());
+
+                if (!opcodeAlreadyRegistered && !classAlreadyRegistered) {
+                    definitions.add(definition);
+                }
+            }
         }
 
         return new MessageDefinitionRegistry(definitions);
@@ -86,6 +109,20 @@ public class MessageSchemaWiringConfig {
                 interfaceConfig.getName(),
                 message.getType(),
                 message.getOpcode(),
-                messageClass.asSubclass(ProtocolMessage.class));
+                messageClass.asSubclass(ProtocolMessage.class),
+                resolveByteOrder(interfaceConfig, message));
+    }
+
+    /**
+     * {@link MessageConfig#getByteOrder()} overrides {@link InterfaceConfig#getByteOrder()}
+     * when set, so an interface can carry a default order while individual message types opt
+     * into a different one.
+     */
+    private ByteOrder resolveByteOrder(InterfaceConfig interfaceConfig, MessageConfig message) {
+        if (message.getByteOrder() == null) {
+            return interfaceConfig.resolveByteOrder();
+        }
+        return InterfaceConfig.parseByteOrder(
+                message.getByteOrder(), "message " + message.getType() + " on interface " + interfaceConfig.getKey());
     }
 }

@@ -21,6 +21,7 @@ import com.example.tester.config.WeatherPayloadConfig;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -170,6 +171,23 @@ class PayloadFactoryTest {
 
         RadaExtendedStatus decoded = ReflectiveStructCodec.decode(RadaExtendedStatus.class, payload);
         assertThat(decoded.getHeader().getMsgType()).isEqualTo(1);
+    }
+
+    @Test
+    void create_withRadaExtendedStatusLittleEndianMode_producesLittleEndianDecodablePayload() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.RADA_EXTENDED_STATUS_LITTLE_ENDIAN);
+
+        byte[] payload = factory.create(config);
+
+        RadaExtendedStatus decoded = ReflectiveStructCodec.decode(RadaExtendedStatus.class, payload, ByteOrder.LITTLE_ENDIAN);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(1);
+
+        // Sanity check the payload really is little-endian, not just decodable regardless of
+        // order: msgType is a non-palindromic 4-byte int (00 00 00 01), so misreading it
+        // big-endian must NOT resolve to opcode 1.
+        RadaExtendedStatus misreadAsBigEndian = ReflectiveStructCodec.decode(RadaExtendedStatus.class, payload, ByteOrder.BIG_ENDIAN);
+        assertThat(misreadAsBigEndian.getHeader().getMsgType()).isNotEqualTo(1);
     }
 
     @Test

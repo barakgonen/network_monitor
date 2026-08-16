@@ -21,7 +21,11 @@ public class RadaStatus implements ProtocolMessage {
     }
 
     public RadaStatus(byte[] message) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(message);
+        this(message, ByteOrder.BIG_ENDIAN);
+    }
+
+    public RadaStatus(byte[] message, ByteOrder byteOrder) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(message).order(byteOrder);
         fromByteArray(byteBuffer);
     }
 
@@ -101,7 +105,6 @@ public class RadaStatus implements ProtocolMessage {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         header.fromByteArray(byteBuffer);
         radarSoftwareVersion = byteBuffer.getInt();
         recordingState = byteBuffer.getInt();

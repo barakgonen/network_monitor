@@ -2,7 +2,10 @@ package com.example.monitor.schema;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteOrder;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InterfaceConfigTest {
 
@@ -29,5 +32,33 @@ class InterfaceConfigTest {
         config.setPort(5050);
 
         assertThat(config.hasDedicatedPort()).isTrue();
+    }
+
+    @Test
+    void resolveByteOrder_defaultsToBigEndian() {
+        InterfaceConfig config = new InterfaceConfig();
+
+        assertThat(config.resolveByteOrder()).isEqualTo(ByteOrder.BIG_ENDIAN);
+    }
+
+    @Test
+    void resolveByteOrder_reflectsLittleEndianOverride() {
+        InterfaceConfig config = new InterfaceConfig();
+        config.setByteOrder("LITTLE_ENDIAN");
+
+        assertThat(config.resolveByteOrder()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    @Test
+    void resolveByteOrder_failsFast_onInvalidValue() {
+        InterfaceConfig config = new InterfaceConfig();
+        config.setKey("stub");
+        config.setByteOrder("MIDDLE_ENDIAN");
+
+        assertThatThrownBy(config::resolveByteOrder)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MIDDLE_ENDIAN")
+                .hasMessageContaining("interface stub")
+                .hasMessageContaining("BIG_ENDIAN or LITTLE_ENDIAN");
     }
 }

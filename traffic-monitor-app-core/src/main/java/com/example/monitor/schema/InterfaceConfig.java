@@ -1,5 +1,6 @@
 package com.example.monitor.schema;
 
+import java.nio.ByteOrder;
 import java.util.List;
 
 public class InterfaceConfig {
@@ -151,6 +152,27 @@ public class InterfaceConfig {
 
     public void setByteOrder(String byteOrder) {
         this.byteOrder = byteOrder;
+    }
+
+    /**
+     * This interface's default order, used to decode the header itself (before the message
+     * type - and thus any per-message {@link MessageConfig#getByteOrder()} override - is even
+     * known) and as the fallback for messages that don't set their own override. See
+     * {@link #parseByteOrder(String, String)} for the shared string-to-{@link ByteOrder} rule.
+     */
+    public ByteOrder resolveByteOrder() {
+        return parseByteOrder(byteOrder, "interface " + key);
+    }
+
+    public static ByteOrder parseByteOrder(String raw, String context) {
+        if ("BIG_ENDIAN".equals(raw)) {
+            return ByteOrder.BIG_ENDIAN;
+        }
+        if ("LITTLE_ENDIAN".equals(raw)) {
+            return ByteOrder.LITTLE_ENDIAN;
+        }
+        throw new IllegalArgumentException(
+                "Invalid byteOrder '" + raw + "' for " + context + ". Expected BIG_ENDIAN or LITTLE_ENDIAN.");
     }
 
     public String getHeaderType() {

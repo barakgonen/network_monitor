@@ -93,18 +93,38 @@ Messages don't need a hand-written `MessageDefinition` + separate codec class pa
 `ReflectiveStructCodec` reflectively invokes methods/constructors that follow a convention:
 
 - **Decode** (first match wins): `public static T fromByteBuffer(ByteBuffer)` (used by
-  records — immutable, can't self-mutate) — else `public T(byte[])` constructor (used by
-  mutable classes like the rada messages, which parse themselves in the ctor).
-- **Encode** (first match wins): `public byte[] toByteArray()` no-arg, self-sizing (used when
-  a field is variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) —
-  else `public void toByteArray(ByteBuffer)`, buffer pre-sized via
-  `StructSizeCalculator.calculateStructSize(class)` (used for fixed-layout messages; array
-  fields need `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
+  records — immutable, can't self-mutate; the codec wraps the payload and applies the
+  requested `ByteOrder` to the buffer before invoking, so these classes are automatically
+  byte-order-aware with no class changes) — else `public T(byte[], ByteOrder)` constructor
+  (order-aware mutable structs, e.g. the rada messages) — else `public T(byte[])` constructor
+  (mutable classes that don't care about byte order; effectively fixed to whatever they
+  hardcode internally).
+- **Encode** (first match wins): `public byte[] toByteArray(ByteOrder)` (order-aware
+  self-sizing) — else `public byte[] toByteArray()` no-arg, self-sizing (used when a field is
+  variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) — else
+  `public void toByteArray(ByteBuffer)`, buffer pre-sized via
+  `StructSizeCalculator.calculateStructSize(class)` and given the requested `ByteOrder` by the
+  codec before invoking (used for fixed-layout messages; array fields need
+  `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
 
-`ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass)` wraps this
-into a `MessageDefinition` — one line of config replaces one hand-written Java class. Config
-supports both `definitionClass:` (legacy hand-written) and `messageClass:`+`opcode:`
-(reflective) per message entry; all current messages use the reflective style.
+`ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass, byteOrder)`
+wraps this into a `MessageDefinition` — one line of config replaces one hand-written Java
+class. Config supports both `definitionClass:` (legacy hand-written) and
+`messageClass:`+`opcode:` (reflective) per message entry; all current messages use the
+reflective style. `byteOrder:` can be set per-interface (`InterfaceConfig`, default
+`BIG_ENDIAN`) and/or per-message (`MessageConfig`, overrides the interface's value when set) -
+resolved once at startup in `MessageSchemaWiringConfig.resolveByteOrder` and threaded through
+to `ReflectiveStructCodec`. Header decoding (`MessageIngestionPipeline`/`TcpIngestionRunner`
+decoding `headerType`) uses `InterfaceConfig.resolveByteOrder()` - the interface-level value
+only, never a per-message override, since the header has to be parsed before the opcode (and
+thus which message-level override applies) is even known. `InterfaceConfig.resolveByteOrder()`
+/ the static `InterfaceConfig.parseByteOrder(String, String)` it delegates to is also what
+`MessageSchemaWiringConfig.resolveByteOrder` calls for the message-level case, so there's one
+place that turns a `byteOrder:` string into a `java.nio.ByteOrder` (and fails fast on anything
+other than `BIG_ENDIAN`/`LITTLE_ENDIAN`). `traffic-tester-app`'s `UdpListener` has no
+per-interface config to resolve from (it just decodes known legacy-envelope replies for
+display), so it passes `ByteOrder.BIG_ENDIAN` explicitly instead - the legacy envelope is
+always big-endian regardless.
 
 `ReflectiveFieldExtractor`/`ReflectiveFieldApplier` convert message objects ↔ generic
 `Map<String,Object>` (used for archival/analytics JSON and the generic publisher). Enums with
@@ -189,7 +209,49 @@ in flight has no live socket yet to force-close, so `stopInterface`'s worst-case
 Fruit (Orange, Banana — legacy envelope), Weather (TemperatureReading — legacy envelope), Ping
 (Ping, Pong — legacy envelope), Candy (Candy — legacy envelope), Rada (RadaStatus,
 RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port 5050, custom
-`RadaHeader`, sample/demo radar-style protocol used to prove out the dedicated-port path).
+`RadaHeader`, sample/demo radar-style protocol used to prove out the dedicated-port path), Rada
+Little-Endian (`rada-le`, dedicated port 5051, RadaExtendedStatus only, `byteOrder:
+LITTLE_ENDIAN` — demonstrates the same message class decoding under a different
+interface-level byte order; see "Per-message byteOrder only works for legacy envelope
+interfaces" below for why this had to be interface-level rather than a per-message override
+sharing rada's port).
+
+### Per-message `byteOrder:` only works for legacy envelope interfaces
+
+For `messageOwnsHeader: true` interfaces (rada-style), the ingestion pipeline has to peek the
+header (`ReflectiveStructCodec.decode(headerType, headerBytes, interfaceConfig.resolveByteOrder())`
+in `MessageIngestionPipeline`/`TcpIngestionRunner`) to read the opcode and route to the right
+message class *before* it knows the message type — so that peek can only ever use the
+interface's own default byte order, never a per-message override (there's no way to know an
+override applies until after the very read it would need to affect). Concretely: `rada-le`'s
+`RadaExtendedStatus` couldn't share `rada`'s port with a `byteOrder: LITTLE_ENDIAN` override on
+just that message — the header peek would misread `msgType` itself (confirmed by hand: opcode 1
+sent little-endian read back as `16777216` under the interface's big-endian default) and the
+message would never reach the message-specific decode logic at all. Per-message overrides work
+correctly (and are unit/wiring-tested, see `MessageSchemaWiringConfigTest`) for legacy envelope
+interfaces instead, where the header is a separate, always-big-endian fixed struct
+(`ProtocolHeaderCodec`) decoded independently of the body via its own buffer — a body-only
+override there never touches header routing. If a `messageOwnsHeader` interface genuinely needs
+mixed byte orders, split it into multiple interfaces (one dedicated port each), like
+`rada`/`rada-le`, rather than reaching for the message-level override.
+
+### Same message class registered on two interfaces (`rada`/`rada-le`)
+
+`rada` and `rada-le` both wire up `com.example.schemas.rada.messages.RadaExtendedStatus` at
+opcode 1. Per-interface *scoped* registries (`interfaceMessageDefinitionRegistries`, what
+ingestion actually decodes against) handle this fine — each interface gets its own isolated
+registry. The flat, cross-interface `messageDefinitionRegistry` bean (backs
+`MonitorPayloadFactory`'s "encode by opcode"/"encode by message class" API, used by
+`/api/publish/udp` and periodic publish) can't: its opcode/class-keyed maps require global
+uniqueness, by design (`MessageDefinitionRegistryTest` deliberately asserts duplicates throw —
+this catches real config typos, like copy-pasting an interface block and forgetting to bump an
+opcode). Rather than relaxing that invariant, `MessageSchemaWiringConfig.messageDefinitionRegistry`
+silently excludes a later interface's definition from this *flat view only* when its opcode or
+message class was already claimed by an earlier interface — `rada` (declared first) wins, so
+`/api/publish/udp` and periodic-publish can't target `rada-le`'s `RadaExtendedStatus` by
+interfaceName+messageType either (that lookup is also flat-registry-backed). The scoped-registry
+"Generic Publisher" UI (`PublisherService`/`PublisherMetadataService`) is unaffected and works
+for both interfaces, since it never touches the flat registry.
 
 ## Gotchas learned the hard way
 
@@ -212,6 +274,13 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   string (Orange/Banana/Candy/TemperatureReading) must use the no-arg self-sizing
   `toByteArray()` encode path, not the `StructSizeCalculator`-sized `toByteArray(ByteBuffer)`
   path.
+- **`ByteBuffer.order(...)` is a buffer property, not a per-call one**: rada's nested structs
+  (`RadaHeader`, `RadaTrackData`, `RadaPlotData`) all share one `ByteBuffer` instance passed
+  down from the top-level message's `fromByteArray`, so only the outermost entry point
+  (the `T(byte[], ByteOrder)` constructor) may call `.order(...)` — a nested struct's own
+  `fromByteArray` calling `.order(...)` again would silently clobber whatever order the caller
+  set. This is why none of the rada `fromByteArray(ByteBuffer)` methods set order themselves
+  anymore; they trust whatever order the buffer already has going in.
 - **Instancio + `@FixedArrayLength`**: Instancio doesn't know about this project's custom
   annotation and will generate arrays of its own default length, which then mismatches what
   `StructSizeCalculator` allocates. `RadaTracksExtended` (array-heavy) is deliberately *not*
@@ -246,3 +315,9 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   `com.example.messagehandlers`-shaped classes) but isn't split into a separate reusable artifact;
   after the shared-schemas/handler-app merge, extracting one would mean pulling packages back
   out of traffic-monitor-app rather than depending on an existing standalone module.
+- `traffic-tester-app`'s `PayloadFactory` always encodes rada payloads via the 2-arg
+  `ReflectiveStructCodec.encode(message)` (implicit `BIG_ENDIAN`), so it doesn't respect
+  message-level `byteOrder:` overrides in `config/traffic-tool.yml` — the tester and the
+  monitor would silently disagree on wire format if a message's configured order were flipped.
+  Not wired up because nothing in this repo currently needs a non-default order in practice;
+  see the commented-out example on the `rada` interface's `RadaExtendedStatus` entry.

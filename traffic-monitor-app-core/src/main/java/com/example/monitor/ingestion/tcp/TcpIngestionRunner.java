@@ -315,7 +315,7 @@ public class TcpIngestionRunner {
 
         Map<String, Object> headerFields;
         try {
-            Object header = ReflectiveStructCodec.decode(headerType, headerBytes);
+            Object header = ReflectiveStructCodec.decode(headerType, headerBytes, interfaceConfig.resolveByteOrder());
             headerFields = ReflectiveFieldExtractor.extractFields(header);
         } catch (Exception e) {
             throw new IOException(

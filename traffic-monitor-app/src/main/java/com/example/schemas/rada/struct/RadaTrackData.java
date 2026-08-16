@@ -3,7 +3,6 @@ package com.example.schemas.rada.struct;
 import com.example.schemacore.annotation.FixedArrayLength;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 public class RadaTrackData {
 
@@ -408,7 +407,6 @@ public class RadaTrackData {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         id = byteBuffer.getInt();
         type = byteBuffer.getInt();
         for (int i = 0; i < reserved.length; i++) {

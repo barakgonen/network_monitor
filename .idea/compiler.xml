@@ -6,9 +6,9 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="traffic-monitor-app-core" />
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
+        <module name="traffic-monitor-app-core" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

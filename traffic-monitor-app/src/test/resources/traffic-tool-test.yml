@@ -72,8 +72,27 @@ interfaces:
       - type: RadaStatus
         messageClass: com.example.schemas.rada.messages.RadaStatus
         opcode: 3
+      - type: RadaExtendedStatus
+        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+        opcode: 1
       - type: RadaTracksExtended
         messageClass: com.example.schemas.rada.messages.RadaTracksExtended
         opcode: 4
+    autoReply:
+      enabled: false
+
+  - key: rada-le
+    name: Rada Interface (Little Endian Extended Status)
+    enabled: false
+    protocol: UDP
+    port: 25051
+    byteOrder: LITTLE_ENDIAN
+    headerType: com.example.schemas.rada.struct.RadaHeader
+    opcodeFieldName: msgType
+    messageOwnsHeader: true
+    messages:
+      - type: RadaExtendedStatus
+        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+        opcode: 1
     autoReply:
       enabled: false

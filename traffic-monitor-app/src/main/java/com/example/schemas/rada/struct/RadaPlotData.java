@@ -1,7 +1,6 @@
 package com.example.schemas.rada.struct;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 public class RadaPlotData {
 
@@ -128,7 +127,6 @@ public class RadaPlotData {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         range = byteBuffer.getFloat();
         rangSTD = byteBuffer.getFloat();
         dopplerVelocity = byteBuffer.getFloat();

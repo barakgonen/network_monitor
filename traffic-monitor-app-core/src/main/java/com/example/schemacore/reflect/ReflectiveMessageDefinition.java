@@ -4,6 +4,7 @@ import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.ProtocolMessage;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 
 /**
@@ -16,6 +17,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     private final String messageType;
     private final int opcode;
     private final Class<? extends ProtocolMessage> messageClass;
+    private final ByteOrder byteOrder;
 
     public ReflectiveMessageDefinition(
             String interfaceName,
@@ -23,10 +25,21 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
             int opcode,
             Class<? extends ProtocolMessage> messageClass
     ) {
+        this(interfaceName, messageType, opcode, messageClass, ByteOrder.BIG_ENDIAN);
+    }
+
+    public ReflectiveMessageDefinition(
+            String interfaceName,
+            String messageType,
+            int opcode,
+            Class<? extends ProtocolMessage> messageClass,
+            ByteOrder byteOrder
+    ) {
         this.interfaceName = interfaceName;
         this.messageType = messageType;
         this.opcode = opcode;
         this.messageClass = messageClass;
+        this.byteOrder = byteOrder;
     }
 
     @Override
@@ -53,7 +66,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     public ProtocolMessage decodeMessage(ByteBuffer body) throws Exception {
         byte[] bytes = new byte[body.remaining()];
         body.get(bytes);
-        return messageClass.cast(ReflectiveStructCodec.decode(messageClass, bytes));
+        return messageClass.cast(ReflectiveStructCodec.decode(messageClass, bytes, byteOrder));
     }
 
     @Override
@@ -63,7 +76,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
 
     @Override
     public byte[] encodeBody(ProtocolMessage message) throws Exception {
-        return ReflectiveStructCodec.encode(message);
+        return ReflectiveStructCodec.encode(message, byteOrder);
     }
 
     @Override
