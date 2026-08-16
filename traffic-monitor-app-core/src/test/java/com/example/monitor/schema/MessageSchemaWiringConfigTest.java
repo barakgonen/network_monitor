@@ -100,4 +100,40 @@ class MessageSchemaWiringConfigTest {
                 .hasMessageContaining("MIDDLE_ENDIAN")
                 .hasMessageContaining("BIG_ENDIAN or LITTLE_ENDIAN");
     }
+
+    @Test
+    void twoInterfacesReusingSameOpcodeAndMessageClass_doesNotThrow_firstInterfaceWinsFlatRegistry() throws Exception {
+        InterfaceConfig first = interfaceConfig("BIG_ENDIAN", messageConfig(null));
+        InterfaceConfig second = interfaceConfig("LITTLE_ENDIAN", messageConfig(null));
+        second.setKey("stub-2");
+        second.setName("Stub Interface 2");
+
+        MessageDefinitionRegistry flatRegistry = wiring.messageDefinitionRegistry(trafficToolConfig(first, second));
+
+        assertThat(flatRegistry.findByOpcode(1)).hasValueSatisfying(
+                definition -> assertThat(definition.interfaceName()).isEqualTo("Stub Interface"));
+        assertThat(flatRegistry.findByMessageClass(StubOrderSensitiveMessage.class)).hasValueSatisfying(
+                definition -> assertThat(definition.interfaceName()).isEqualTo("Stub Interface"));
+    }
+
+    @Test
+    void twoInterfacesReusingSameOpcodeAndMessageClass_bothStayFullyUsable_viaScopedRegistries() throws Exception {
+        InterfaceConfig first = interfaceConfig("BIG_ENDIAN", messageConfig(null));
+        InterfaceConfig second = interfaceConfig("LITTLE_ENDIAN", messageConfig(null));
+        second.setKey("stub-2");
+        second.setName("Stub Interface 2");
+
+        Map<String, MessageDefinitionRegistry> scopedRegistries =
+                wiring.interfaceMessageDefinitionRegistries(trafficToolConfig(first, second));
+
+        MessageDefinition firstDefinition = scopedRegistries.get("stub").findByOpcode(1).orElseThrow();
+        MessageDefinition secondDefinition = scopedRegistries.get("stub-2").findByOpcode(1).orElseThrow();
+
+        // Each interface's own scoped registry resolves and encodes independently, honoring its
+        // own configured byte order, unaffected by the flat registry's first-wins dedup above.
+        assertThat(firstDefinition.encodeBody(new StubOrderSensitiveMessage(258)))
+                .containsExactly(0x00, 0x00, 0x01, 0x02);
+        assertThat(secondDefinition.encodeBody(new StubOrderSensitiveMessage(258)))
+                .containsExactly(0x02, 0x01, 0x00, 0x00);
+    }
 }

@@ -209,7 +209,49 @@ in flight has no live socket yet to force-close, so `stopInterface`'s worst-case
 Fruit (Orange, Banana — legacy envelope), Weather (TemperatureReading — legacy envelope), Ping
 (Ping, Pong — legacy envelope), Candy (Candy — legacy envelope), Rada (RadaStatus,
 RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port 5050, custom
-`RadaHeader`, sample/demo radar-style protocol used to prove out the dedicated-port path).
+`RadaHeader`, sample/demo radar-style protocol used to prove out the dedicated-port path), Rada
+Little-Endian (`rada-le`, dedicated port 5051, RadaExtendedStatus only, `byteOrder:
+LITTLE_ENDIAN` — demonstrates the same message class decoding under a different
+interface-level byte order; see "Per-message byteOrder only works for legacy envelope
+interfaces" below for why this had to be interface-level rather than a per-message override
+sharing rada's port).
+
+### Per-message `byteOrder:` only works for legacy envelope interfaces
+
+For `messageOwnsHeader: true` interfaces (rada-style), the ingestion pipeline has to peek the
+header (`ReflectiveStructCodec.decode(headerType, headerBytes, interfaceConfig.resolveByteOrder())`
+in `MessageIngestionPipeline`/`TcpIngestionRunner`) to read the opcode and route to the right
+message class *before* it knows the message type — so that peek can only ever use the
+interface's own default byte order, never a per-message override (there's no way to know an
+override applies until after the very read it would need to affect). Concretely: `rada-le`'s
+`RadaExtendedStatus` couldn't share `rada`'s port with a `byteOrder: LITTLE_ENDIAN` override on
+just that message — the header peek would misread `msgType` itself (confirmed by hand: opcode 1
+sent little-endian read back as `16777216` under the interface's big-endian default) and the
+message would never reach the message-specific decode logic at all. Per-message overrides work
+correctly (and are unit/wiring-tested, see `MessageSchemaWiringConfigTest`) for legacy envelope
+interfaces instead, where the header is a separate, always-big-endian fixed struct
+(`ProtocolHeaderCodec`) decoded independently of the body via its own buffer — a body-only
+override there never touches header routing. If a `messageOwnsHeader` interface genuinely needs
+mixed byte orders, split it into multiple interfaces (one dedicated port each), like
+`rada`/`rada-le`, rather than reaching for the message-level override.
+
+### Same message class registered on two interfaces (`rada`/`rada-le`)
+
+`rada` and `rada-le` both wire up `com.example.schemas.rada.messages.RadaExtendedStatus` at
+opcode 1. Per-interface *scoped* registries (`interfaceMessageDefinitionRegistries`, what
+ingestion actually decodes against) handle this fine — each interface gets its own isolated
+registry. The flat, cross-interface `messageDefinitionRegistry` bean (backs
+`MonitorPayloadFactory`'s "encode by opcode"/"encode by message class" API, used by
+`/api/publish/udp` and periodic publish) can't: its opcode/class-keyed maps require global
+uniqueness, by design (`MessageDefinitionRegistryTest` deliberately asserts duplicates throw —
+this catches real config typos, like copy-pasting an interface block and forgetting to bump an
+opcode). Rather than relaxing that invariant, `MessageSchemaWiringConfig.messageDefinitionRegistry`
+silently excludes a later interface's definition from this *flat view only* when its opcode or
+message class was already claimed by an earlier interface — `rada` (declared first) wins, so
+`/api/publish/udp` and periodic-publish can't target `rada-le`'s `RadaExtendedStatus` by
+interfaceName+messageType either (that lookup is also flat-registry-backed). The scoped-registry
+"Generic Publisher" UI (`PublisherService`/`PublisherMetadataService`) is unaffected and works
+for both interfaces, since it never touches the flat registry.
 
 ## Gotchas learned the hard way
 

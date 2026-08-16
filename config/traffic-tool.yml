@@ -69,15 +69,19 @@ interfaces:
     opcodeFieldName: msgType
     messageOwnsHeader: true
     messages:
-      # A message's own `byteOrder:` overrides the interface-level default above - e.g.
-      #   - type: RadaExtendedStatus
-      #     messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
-      #     opcode: 1
-      #     byteOrder: LITTLE_ENDIAN
-      # would decode/encode only RadaExtendedStatus as little-endian while every other rada
-      # message here still uses the interface's BIG_ENDIAN. Left inactive here since
-      # traffic-tester-app always encodes rada payloads big-endian (see PayloadFactory) -
-      # flip this on only alongside a matching change to whatever's actually sending the bytes.
+      # Interface-level byteOrder (BIG_ENDIAN above) applies to every message here, including
+      # this interface's own RadaExtendedStatus - compare with the `rada-le` interface below,
+      # which decodes the same message type as LITTLE_ENDIAN instead.
+      #
+      # Note this can only be an interface-level split, not a per-message byteOrder: override
+      # within a single messageOwnsHeader interface like this one: the ingestion pipeline must
+      # peek this header (to read msgType and route to the right message class) *before* it
+      # knows the message type, so that peek can only ever use the interface's own default -
+      # there's no way to know a message-specific override applies until after the very read
+      # that override would have needed to affect. Per-message byteOrder: overrides work
+      # cleanly on the legacy envelope interfaces below instead (fruit/weather/ping/candy),
+      # where the header is a separate, always-big-endian fixed struct decoded independently of
+      # the body, so a body-only override never affects header routing.
       - type: RadaExtendedStatus
         messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
         opcode: 1
@@ -90,5 +94,22 @@ interfaces:
       - type: RadaTracksExtended
         messageClass: com.example.schemas.rada.messages.RadaTracksExtended
         opcode: 4
+    autoReply:
+      enabled: false
+
+  - key: rada-le
+    name: Rada Interface (Little Endian Extended Status)
+    protocol: UDP
+    port: 5051
+    byteOrder: LITTLE_ENDIAN
+    headerType: com.example.schemas.rada.struct.RadaHeader
+    opcodeFieldName: msgType
+    messageOwnsHeader: true
+    messages:
+      # Only RadaExtendedStatus is wired up here - this interface exists purely to demonstrate
+      # the same message class decoding correctly under a different interface-level byteOrder.
+      - type: RadaExtendedStatus
+        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+        opcode: 1
     autoReply:
       enabled: false

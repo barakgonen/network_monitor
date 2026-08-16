@@ -70,5 +70,14 @@ messages:
       host: 127.0.0.1
       port: 5050
 
+  # rada-le (config/traffic-tool.yml) declares byteOrder: LITTLE_ENDIAN at the interface level
+  # and only wires up RadaExtendedStatus - this sends the same message type as RADA_EXTENDED_STATUS
+  # above, but little-endian-encoded and to rada-le's own port, proving the monitor decodes each
+  # interface's traffic using its own configured byte order.
+  - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
+    target:
+      host: 127.0.0.1
+      port: 5051
+
 repeat: 1231
 intervalMillis: 1000
