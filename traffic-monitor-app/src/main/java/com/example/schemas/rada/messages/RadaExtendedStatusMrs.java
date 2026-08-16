@@ -1,13 +1,12 @@
 package com.example.schemas.rada.messages;
 
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemas.rada.enums.FavoriteColor;
 import com.example.schemas.rada.struct.RadaHeader;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class RadaExtendedStatusMrs implements ProtocolMessage {
+public class RadaExtendedStatusMrs {
 
     private RadaHeader header = new RadaHeader();
     private double latitude;

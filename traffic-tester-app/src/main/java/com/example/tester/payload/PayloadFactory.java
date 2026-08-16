@@ -13,7 +13,6 @@ import com.example.schemas.rada.messages.RadaStatus;
 import com.example.schemas.rada.messages.RadaTracksExtended;
 import com.example.schemas.weather.TemperatureReadingMessage;
 import com.example.schemas.weather.WeatherCondition;
-import com.example.schemacore.ProtocolMessage;
 import com.example.tester.config.PayloadConfig;
 import org.instancio.Instancio;
 
@@ -155,7 +154,7 @@ public class PayloadFactory {
         return encodeMessage(CANDY_OPCODE, candyMessage);
     }
 
-    private byte[] encodeMessage(int opcode, ProtocolMessage message) {
+    private byte[] encodeMessage(int opcode, Object message) {
         byte[] body = ReflectiveStructCodec.encode(message);
         return ProtocolHeaderCodec.encodeMessage(opcode, Instant.now().toEpochMilli(), body);
     }

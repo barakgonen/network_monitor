@@ -9,7 +9,6 @@ import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemacore.reflect.ReflectiveFieldExtractor;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.schemacore.reflect.StructSizeCalculator;
@@ -147,7 +146,7 @@ public class MessageIngestionPipeline {
                             "Unknown opcode " + opcode + " for interface " + interfaceConfig.getName()));
 
             Map<String, Object> bodyFields = definition.decodeBody(bodyBuffer(payload, headerSize, interfaceConfig));
-            ProtocolMessage typedMessage = definition.decodeMessage(bodyBuffer(payload, headerSize, interfaceConfig));
+            Object typedMessage = definition.decodeMessage(bodyBuffer(payload, headerSize, interfaceConfig));
 
             return new DecodedPacket(definition, headerFields, bodyFields, typedMessage, null);
         } catch (Exception e) {
@@ -269,7 +268,7 @@ public class MessageIngestionPipeline {
             MessageDefinition definition,
             Map<String, Object> header,
             Map<String, Object> bodyFields,
-            ProtocolMessage typedMessage,
+            Object typedMessage,
             String parseError
     ) {
     }

@@ -248,4 +248,34 @@ class ReflectiveStructCodecTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not expose a supported encoder");
     }
+
+    @Test
+    void requireDecodable_passesSilently_forEachRecognizedDecodeShape() {
+        ReflectiveStructCodec.requireDecodable(FixedRecord.class); // fromByteBuffer
+        ReflectiveStructCodec.requireDecodable(MutableStruct.class); // (byte[])
+        ReflectiveStructCodec.requireDecodable(OrderAwareMutableStruct.class); // (byte[], ByteOrder)
+    }
+
+    @Test
+    void requireDecodable_failsFast_whenNoDecodeShapePresent() {
+        assertThatThrownBy(() -> ReflectiveStructCodec.requireDecodable(UnsupportedType.class))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not expose a supported decoder")
+                .hasMessageContaining(UnsupportedType.class.getName());
+    }
+
+    @Test
+    void requireEncodable_passesSilently_forEachRecognizedEncodeShape() {
+        ReflectiveStructCodec.requireEncodable(FixedRecord.class); // toByteArray(ByteBuffer)
+        ReflectiveStructCodec.requireEncodable(SelfSizingMessage.class); // toByteArray()
+        ReflectiveStructCodec.requireEncodable(OrderAwareSelfSizingMessage.class); // toByteArray(ByteOrder)
+    }
+
+    @Test
+    void requireEncodable_failsFast_whenNoEncodeShapePresent() {
+        assertThatThrownBy(() -> ReflectiveStructCodec.requireEncodable(UnsupportedType.class))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not expose a supported encoder")
+                .hasMessageContaining(UnsupportedType.class.getName());
+    }
 }

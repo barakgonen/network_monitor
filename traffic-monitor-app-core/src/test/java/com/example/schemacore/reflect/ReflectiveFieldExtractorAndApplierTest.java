@@ -1,7 +1,5 @@
 package com.example.schemacore.reflect;
 
-import com.example.schemacore.ProtocolMessage;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -30,13 +28,13 @@ class ReflectiveFieldExtractorAndApplierTest {
         SECOND
     }
 
-    record WithWireNameEnum(String stationId, Condition condition) implements ProtocolMessage {
+    record WithWireNameEnum(String stationId, Condition condition) {
     }
 
-    record WithPlainEnum(PlainEnum status) implements ProtocolMessage {
+    record WithPlainEnum(PlainEnum status) {
     }
 
-    record WithNumericFields(int id, double weight, long counter) implements ProtocolMessage {
+    record WithNumericFields(int id, double weight, long counter) {
     }
 
     @Test

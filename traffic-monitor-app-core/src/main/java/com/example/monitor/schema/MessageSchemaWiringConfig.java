@@ -2,8 +2,8 @@ package com.example.monitor.schema;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
+import com.example.schemacore.reflect.ReflectiveStructCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -105,12 +105,30 @@ public class MessageSchemaWiringConfig {
         }
 
         Class<?> messageClass = Class.forName(message.getMessageClass());
+        String messageContext = "message " + message.getType() + " on interface " + interfaceConfig.getKey();
+        requireReflectivelyCodable(messageClass, messageContext);
+
         return new ReflectiveMessageDefinition(
                 interfaceConfig.getName(),
                 message.getType(),
                 message.getOpcode(),
-                messageClass.asSubclass(ProtocolMessage.class),
+                messageClass,
                 resolveByteOrder(interfaceConfig, message));
+    }
+
+    /**
+     * No interface is required of {@code messageClass:} classes (they may come from a dependency
+     * this project doesn't control), so this is the only fail-fast check available at wiring time:
+     * does the class actually expose one of {@link ReflectiveStructCodec}'s recognized
+     * decode/encode shapes, rather than only discovering a mismatch on the first real message.
+     */
+    private void requireReflectivelyCodable(Class<?> messageClass, String context) {
+        try {
+            ReflectiveStructCodec.requireDecodable(messageClass);
+            ReflectiveStructCodec.requireEncodable(messageClass);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(context + ": " + e.getMessage(), e);
+        }
     }
 
     /**

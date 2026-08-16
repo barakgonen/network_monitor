@@ -1,7 +1,5 @@
 package com.example.schemas.weather;
 
-import com.example.schemacore.ProtocolMessage;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
@@ -9,7 +7,7 @@ public record TemperatureReadingMessage(
         String stationId,
         double temperatureCelsius,
         WeatherCondition condition
-) implements ProtocolMessage {
+) {
 
     public static TemperatureReadingMessage fromByteBuffer(ByteBuffer buffer) {
         if (buffer.remaining() < Integer.BYTES + Double.BYTES + Byte.BYTES) {

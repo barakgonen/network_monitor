@@ -1,14 +1,12 @@
 package com.example.schemas.fruit;
 
-import com.example.schemacore.ProtocolMessage;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public record OrangeMessage(
         String sourceFarm,
         FruitFreshness freshness
-) implements ProtocolMessage {
+) {
 
     public static OrangeMessage fromByteBuffer(ByteBuffer buffer) {
         if (buffer.remaining() < Integer.BYTES + Byte.BYTES) {

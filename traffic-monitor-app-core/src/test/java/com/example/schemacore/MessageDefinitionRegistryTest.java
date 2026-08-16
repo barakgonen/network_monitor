@@ -131,17 +131,17 @@ class MessageDefinitionRegistryTest {
                 .isInstanceOf(ReflectiveOperationException.class);
     }
 
-    private static final class StubMessage implements ProtocolMessage {
+    private static final class StubMessage {
     }
 
-    private static final class OtherStubMessage implements ProtocolMessage {
+    private static final class OtherStubMessage {
     }
 
     private record StubDefinition(
             String interfaceName,
             String messageType,
             int opcode,
-            Class<? extends ProtocolMessage> messageClass
+            Class<?> messageClass
     ) implements MessageDefinition {
         @Override
         public Map<String, Object> decodeBody(ByteBuffer body) {
@@ -149,7 +149,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public ProtocolMessage decodeMessage(ByteBuffer body) {
+        public Object decodeMessage(ByteBuffer body) {
             return null;
         }
 
@@ -159,7 +159,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public byte[] encodeBody(ProtocolMessage message) {
+        public byte[] encodeBody(Object message) {
             return new byte[0];
         }
     }
@@ -184,7 +184,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public Class<? extends ProtocolMessage> messageClass() {
+        public Class<?> messageClass() {
             return StubMessage.class;
         }
 
@@ -194,7 +194,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public ProtocolMessage decodeMessage(ByteBuffer body) {
+        public Object decodeMessage(ByteBuffer body) {
             return null;
         }
 
@@ -204,7 +204,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public byte[] encodeBody(ProtocolMessage message) {
+        public byte[] encodeBody(Object message) {
             return new byte[0];
         }
     }
@@ -232,7 +232,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public Class<? extends ProtocolMessage> messageClass() {
+        public Class<?> messageClass() {
             return OtherStubMessage.class;
         }
 
@@ -242,7 +242,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public ProtocolMessage decodeMessage(ByteBuffer body) {
+        public Object decodeMessage(ByteBuffer body) {
             return null;
         }
 
@@ -252,7 +252,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public byte[] encodeBody(ProtocolMessage message) {
+        public byte[] encodeBody(Object message) {
             return new byte[0];
         }
     }

@@ -1,11 +1,9 @@
 package com.example.schemas.candy;
 
-import com.example.schemacore.ProtocolMessage;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public record CandyMessage(String name, double calories) implements ProtocolMessage {
+public record CandyMessage(String name, double calories) {
     public static CandyMessage fromByteBuffer(ByteBuffer buffer) {
         if (buffer.remaining() < Integer.BYTES + Double.BYTES) {
             throw new IllegalArgumentException("Candy body is too short");

@@ -5,9 +5,11 @@ import java.util.Map;
 
 /**
  * Describes one wire message type: its opcode, the interface/message-type it belongs to, and how
- * to move between raw bytes, a typed {@link ProtocolMessage}, and a generic field map. Most
+ * to move between raw bytes, a typed message object, and a generic field map. Most
  * implementations are {@code com.example.schemacore.reflect.ReflectiveMessageDefinition}
- * instances built from YAML config rather than hand-written classes.
+ * instances built from YAML config rather than hand-written classes. The message type itself is
+ * a plain {@code Class<?>} - no marker interface required - so classes owned by an external
+ * dependency can be wired in as-is.
  */
 public interface MessageDefinition {
     String interfaceName();
@@ -16,13 +18,13 @@ public interface MessageDefinition {
 
     int opcode();
 
-    Class<? extends ProtocolMessage> messageClass();
+    Class<?> messageClass();
 
     Map<String, Object> decodeBody(ByteBuffer body) throws Exception;
 
-    ProtocolMessage decodeMessage(ByteBuffer body) throws Exception;
+    Object decodeMessage(ByteBuffer body) throws Exception;
 
     byte[] encodeBody(Map<String, Object> fields) throws Exception;
 
-    byte[] encodeBody(ProtocolMessage message) throws Exception;
+    byte[] encodeBody(Object message) throws Exception;
 }

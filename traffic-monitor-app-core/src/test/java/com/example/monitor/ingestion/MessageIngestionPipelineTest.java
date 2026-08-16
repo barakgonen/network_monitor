@@ -10,7 +10,6 @@ import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.envelope.DefaultEnvelopeHeader;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemacore.MessageDefinitionRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -283,7 +282,7 @@ class MessageIngestionPipelineTest {
         assertThat(message.interfaceName()).isEqualTo("Unknown");
     }
 
-    private static final class StubMessage implements ProtocolMessage {
+    private static final class StubMessage {
     }
 
     private static final class StubDefinition implements MessageDefinition {
@@ -303,7 +302,7 @@ class MessageIngestionPipelineTest {
         }
 
         @Override
-        public Class<? extends ProtocolMessage> messageClass() {
+        public Class<?> messageClass() {
             return StubMessage.class;
         }
 
@@ -313,7 +312,7 @@ class MessageIngestionPipelineTest {
         }
 
         @Override
-        public ProtocolMessage decodeMessage(ByteBuffer body) {
+        public Object decodeMessage(ByteBuffer body) {
             return new StubMessage();
         }
 
@@ -323,7 +322,7 @@ class MessageIngestionPipelineTest {
         }
 
         @Override
-        public byte[] encodeBody(ProtocolMessage message) {
+        public byte[] encodeBody(Object message) {
             return new byte[0];
         }
     }

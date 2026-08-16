@@ -19,8 +19,10 @@ traffic-monitor-app-core   The generic engine, plus what used to be two separate
                       this module already compile-depended on handler-core, so schema-core
                       couldn't move here alone without a cycle. Package layout:
                         - `com.example.schemacore` (+ `.annotation`/`.envelope`/`.reflect`
-                          sub-packages) — MessageDefinition/Registry, ProtocolMessage marker,
-                          the legacy fixed envelope codec, the reflective codec engine.
+                          sub-packages) — MessageDefinition/Registry, the legacy fixed envelope
+                          codec, the reflective codec engine. Message classes are plain
+                          `Object`s — no marker interface — identified by `Class<?>` and the
+                          reflective codec's method-naming convention only (see below).
                         - `com.example.handlercore` — MessageArrivedHandler<T>,
                           MessageHandlerRegistry, MessageArrivedDispatcher, ReplySender,
                           DestinationConfig.
@@ -106,6 +108,20 @@ Messages don't need a hand-written `MessageDefinition` + separate codec class pa
   `StructSizeCalculator.calculateStructSize(class)` and given the requested `ByteOrder` by the
   codec before invoking (used for fixed-layout messages; array fields need
   `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
+
+**No marker interface required.** `messageClass:` in config just needs a class following the
+convention above — it doesn't need to implement anything this project defines. This is
+deliberate: message classes can come from an external dependency (e.g. a client's own schema
+library) that this project doesn't get to modify, and previously requiring `implements
+ProtocolMessage` would have forced a compile-time dependency back onto this engine just to be
+wire-compatible with it. `MessageDefinition`/`ReflectiveMessageDefinition` are typed on
+`Class<?>`/`Object` throughout for this reason (there used to be a `ProtocolMessage` marker
+interface; it added no behavior and was removed). Since there's no interface to lean on for
+fail-fast validation, `MessageSchemaWiringConfig.resolveDefinition` instead calls
+`ReflectiveStructCodec.requireDecodable`/`requireEncodable` right after `Class.forName(...)` —
+these check (without needing an instance) that the class actually exposes one of the recognized
+decode/encode shapes above, so a shape mismatch still fails at startup instead of on the first
+real message.
 
 `ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass, byteOrder)`
 wraps this into a `MessageDefinition` — one line of config replaces one hand-written Java
