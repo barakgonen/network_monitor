@@ -69,6 +69,15 @@ interfaces:
     opcodeFieldName: msgType
     messageOwnsHeader: true
     messages:
+      # A message's own `byteOrder:` overrides the interface-level default above - e.g.
+      #   - type: RadaExtendedStatus
+      #     messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
+      #     opcode: 1
+      #     byteOrder: LITTLE_ENDIAN
+      # would decode/encode only RadaExtendedStatus as little-endian while every other rada
+      # message here still uses the interface's BIG_ENDIAN. Left inactive here since
+      # traffic-tester-app always encodes rada payloads big-endian (see PayloadFactory) -
+      # flip this on only alongside a matching change to whatever's actually sending the bytes.
       - type: RadaExtendedStatus
         messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
         opcode: 1

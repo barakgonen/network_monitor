@@ -40,13 +40,17 @@ public class RadaTracksExtended implements ProtocolMessage {
     }
 
     public RadaTracksExtended(byte[] message) {
+        this(message, ByteOrder.BIG_ENDIAN);
+    }
+
+    public RadaTracksExtended(byte[] message, ByteOrder byteOrder) {
         for (int i = 0; i < trackData.length; i++) {
             trackData[i] = new RadaTrackData();
         }
         for (int i = 0; i < plotData.length; i++) {
             plotData[i] = new RadaPlotData();
         }
-        ByteBuffer byteBuffer = ByteBuffer.wrap(message);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(message).order(byteOrder);
         fromByteArray(byteBuffer);
     }
 
@@ -202,7 +206,6 @@ public class RadaTracksExtended implements ProtocolMessage {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         header.fromByteArray(byteBuffer);
         updateTimeTag = byteBuffer.getLong();
         chunkNumber = byteBuffer.getShort();

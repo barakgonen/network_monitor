@@ -17,7 +17,11 @@ public class RadaHeader {
     }
 
     public RadaHeader(byte[] msg) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(msg);
+        this(msg, ByteOrder.BIG_ENDIAN);
+    }
+
+    public RadaHeader(byte[] msg, ByteOrder byteOrder) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(msg).order(byteOrder);
         fromByteArray(byteBuffer);
     }
 
@@ -88,7 +92,6 @@ public class RadaHeader {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         msgCounter = byteBuffer.getInt();
         msgType = byteBuffer.getInt();
         icdVersion = byteBuffer.get();

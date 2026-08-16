@@ -132,7 +132,7 @@ public class MessageIngestionPipeline {
             }
 
             byte[] headerBytes = java.util.Arrays.copyOfRange(payload, 0, headerSize);
-            Object header = ReflectiveStructCodec.decode(headerType, headerBytes);
+            Object header = ReflectiveStructCodec.decode(headerType, headerBytes, interfaceConfig.resolveByteOrder());
             Map<String, Object> headerFields = ReflectiveFieldExtractor.extractFields(header);
 
             if (!interfaceConfig.isMessageOwnsHeader()) {

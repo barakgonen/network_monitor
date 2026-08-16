@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.ByteOrder;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -86,6 +87,20 @@ public class MessageSchemaWiringConfig {
                 interfaceConfig.getName(),
                 message.getType(),
                 message.getOpcode(),
-                messageClass.asSubclass(ProtocolMessage.class));
+                messageClass.asSubclass(ProtocolMessage.class),
+                resolveByteOrder(interfaceConfig, message));
+    }
+
+    /**
+     * {@link MessageConfig#getByteOrder()} overrides {@link InterfaceConfig#getByteOrder()}
+     * when set, so an interface can carry a default order while individual message types opt
+     * into a different one.
+     */
+    private ByteOrder resolveByteOrder(InterfaceConfig interfaceConfig, MessageConfig message) {
+        if (message.getByteOrder() == null) {
+            return interfaceConfig.resolveByteOrder();
+        }
+        return InterfaceConfig.parseByteOrder(
+                message.getByteOrder(), "message " + message.getType() + " on interface " + interfaceConfig.getKey());
     }
 }

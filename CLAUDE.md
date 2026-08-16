@@ -93,18 +93,38 @@ Messages don't need a hand-written `MessageDefinition` + separate codec class pa
 `ReflectiveStructCodec` reflectively invokes methods/constructors that follow a convention:
 
 - **Decode** (first match wins): `public static T fromByteBuffer(ByteBuffer)` (used by
-  records — immutable, can't self-mutate) — else `public T(byte[])` constructor (used by
-  mutable classes like the rada messages, which parse themselves in the ctor).
-- **Encode** (first match wins): `public byte[] toByteArray()` no-arg, self-sizing (used when
-  a field is variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) —
-  else `public void toByteArray(ByteBuffer)`, buffer pre-sized via
-  `StructSizeCalculator.calculateStructSize(class)` (used for fixed-layout messages; array
-  fields need `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
+  records — immutable, can't self-mutate; the codec wraps the payload and applies the
+  requested `ByteOrder` to the buffer before invoking, so these classes are automatically
+  byte-order-aware with no class changes) — else `public T(byte[], ByteOrder)` constructor
+  (order-aware mutable structs, e.g. the rada messages) — else `public T(byte[])` constructor
+  (mutable classes that don't care about byte order; effectively fixed to whatever they
+  hardcode internally).
+- **Encode** (first match wins): `public byte[] toByteArray(ByteOrder)` (order-aware
+  self-sizing) — else `public byte[] toByteArray()` no-arg, self-sizing (used when a field is
+  variable-length, e.g. a `String` — `StructSizeCalculator` can't size those) — else
+  `public void toByteArray(ByteBuffer)`, buffer pre-sized via
+  `StructSizeCalculator.calculateStructSize(class)` and given the requested `ByteOrder` by the
+  codec before invoking (used for fixed-layout messages; array fields need
+  `@FixedArrayLength(n)` from `com.example.schemacore.annotation` for this to work).
 
-`ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass)` wraps this
-into a `MessageDefinition` — one line of config replaces one hand-written Java class. Config
-supports both `definitionClass:` (legacy hand-written) and `messageClass:`+`opcode:`
-(reflective) per message entry; all current messages use the reflective style.
+`ReflectiveMessageDefinition(interfaceName, messageType, opcode, messageClass, byteOrder)`
+wraps this into a `MessageDefinition` — one line of config replaces one hand-written Java
+class. Config supports both `definitionClass:` (legacy hand-written) and
+`messageClass:`+`opcode:` (reflective) per message entry; all current messages use the
+reflective style. `byteOrder:` can be set per-interface (`InterfaceConfig`, default
+`BIG_ENDIAN`) and/or per-message (`MessageConfig`, overrides the interface's value when set) -
+resolved once at startup in `MessageSchemaWiringConfig.resolveByteOrder` and threaded through
+to `ReflectiveStructCodec`. Header decoding (`MessageIngestionPipeline`/`TcpIngestionRunner`
+decoding `headerType`) uses `InterfaceConfig.resolveByteOrder()` - the interface-level value
+only, never a per-message override, since the header has to be parsed before the opcode (and
+thus which message-level override applies) is even known. `InterfaceConfig.resolveByteOrder()`
+/ the static `InterfaceConfig.parseByteOrder(String, String)` it delegates to is also what
+`MessageSchemaWiringConfig.resolveByteOrder` calls for the message-level case, so there's one
+place that turns a `byteOrder:` string into a `java.nio.ByteOrder` (and fails fast on anything
+other than `BIG_ENDIAN`/`LITTLE_ENDIAN`). `traffic-tester-app`'s `UdpListener` has no
+per-interface config to resolve from (it just decodes known legacy-envelope replies for
+display), so it passes `ByteOrder.BIG_ENDIAN` explicitly instead - the legacy envelope is
+always big-endian regardless.
 
 `ReflectiveFieldExtractor`/`ReflectiveFieldApplier` convert message objects ↔ generic
 `Map<String,Object>` (used for archival/analytics JSON and the generic publisher). Enums with
@@ -212,6 +232,13 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   string (Orange/Banana/Candy/TemperatureReading) must use the no-arg self-sizing
   `toByteArray()` encode path, not the `StructSizeCalculator`-sized `toByteArray(ByteBuffer)`
   path.
+- **`ByteBuffer.order(...)` is a buffer property, not a per-call one**: rada's nested structs
+  (`RadaHeader`, `RadaTrackData`, `RadaPlotData`) all share one `ByteBuffer` instance passed
+  down from the top-level message's `fromByteArray`, so only the outermost entry point
+  (the `T(byte[], ByteOrder)` constructor) may call `.order(...)` — a nested struct's own
+  `fromByteArray` calling `.order(...)` again would silently clobber whatever order the caller
+  set. This is why none of the rada `fromByteArray(ByteBuffer)` methods set order themselves
+  anymore; they trust whatever order the buffer already has going in.
 - **Instancio + `@FixedArrayLength`**: Instancio doesn't know about this project's custom
   annotation and will generate arrays of its own default length, which then mismatches what
   `StructSizeCalculator` allocates. `RadaTracksExtended` (array-heavy) is deliberately *not*
@@ -246,3 +273,9 @@ RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended — dedicated port
   `com.example.messagehandlers`-shaped classes) but isn't split into a separate reusable artifact;
   after the shared-schemas/handler-app merge, extracting one would mean pulling packages back
   out of traffic-monitor-app rather than depending on an existing standalone module.
+- `traffic-tester-app`'s `PayloadFactory` always encodes rada payloads via the 2-arg
+  `ReflectiveStructCodec.encode(message)` (implicit `BIG_ENDIAN`), so it doesn't respect
+  message-level `byteOrder:` overrides in `config/traffic-tool.yml` — the tester and the
+  monitor would silently disagree on wire format if a message's configured order were flipped.
+  Not wired up because nothing in this repo currently needs a non-default order in practice;
+  see the commented-out example on the `rada` interface's `RadaExtendedStatus` entry.

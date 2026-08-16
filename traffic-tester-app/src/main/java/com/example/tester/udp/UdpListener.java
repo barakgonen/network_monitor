@@ -14,6 +14,7 @@ import com.example.schemas.weather.TemperatureReadingMessage;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -109,7 +110,10 @@ public class UdpListener implements AutoCloseable {
             byte[] body = new byte[buffer.remaining()];
             buffer.get(body);
 
-            Object message = ReflectiveStructCodec.decode(messageClass, body);
+            // The legacy envelope this listener decodes against (see ProtocolHeaderCodec) is
+            // always big-endian - unlike the monitor side, this tester tool has no per-interface
+            // config to resolve a byte order from, so the expectation is spelled out explicitly.
+            Object message = ReflectiveStructCodec.decode(messageClass, body, ByteOrder.BIG_ENDIAN);
             Map<String, Object> fields = ReflectiveFieldExtractor.extractFields(message);
 
             System.out.println("Decoded as " + messageClass.getSimpleName() + ":");

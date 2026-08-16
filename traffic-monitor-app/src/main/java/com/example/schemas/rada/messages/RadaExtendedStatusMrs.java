@@ -34,7 +34,11 @@ public class RadaExtendedStatusMrs implements ProtocolMessage {
     }
 
     public RadaExtendedStatusMrs(byte[] message) {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(message);
+        this(message, ByteOrder.BIG_ENDIAN);
+    }
+
+    public RadaExtendedStatusMrs(byte[] message, ByteOrder byteOrder) {
+        ByteBuffer byteBuffer = ByteBuffer.wrap(message).order(byteOrder);
         fromByteArray(byteBuffer);
     }
 
@@ -222,7 +226,6 @@ public class RadaExtendedStatusMrs implements ProtocolMessage {
     }
 
     public void fromByteArray(ByteBuffer byteBuffer) {
-        byteBuffer.order(ByteOrder.BIG_ENDIAN);
         header.fromByteArray(byteBuffer);
         latitude = byteBuffer.getDouble();
         longitude = byteBuffer.getDouble();

@@ -3,6 +3,7 @@ package com.example.schemacore.reflect;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +37,71 @@ class ReflectiveStructCodecTest {
 
         void toByteArray(ByteBuffer buffer) {
             buffer.putInt(value);
+        }
+
+        int getValue() {
+            return value;
+        }
+
+        void setValue(int value) {
+            this.value = value;
+        }
+    }
+
+    static class OrderAwareMutableStruct {
+        private int value;
+        private ByteOrder decodedWith;
+
+        public OrderAwareMutableStruct() {
+        }
+
+        public OrderAwareMutableStruct(byte[] payload, ByteOrder byteOrder) {
+            ByteBuffer buffer = ByteBuffer.wrap(payload).order(byteOrder);
+            value = buffer.getInt();
+            decodedWith = byteOrder;
+        }
+
+        public OrderAwareMutableStruct(byte[] payload) {
+            throw new AssertionError("order-aware constructor should be preferred");
+        }
+
+        void toByteArray(ByteBuffer buffer) {
+            buffer.putInt(value);
+        }
+
+        int getValue() {
+            return value;
+        }
+
+        void setValue(int value) {
+            this.value = value;
+        }
+
+        ByteOrder getDecodedWith() {
+            return decodedWith;
+        }
+    }
+
+    static class OrderAwareSelfSizingMessage {
+        private int value;
+
+        public OrderAwareSelfSizingMessage() {
+        }
+
+        byte[] toByteArray(ByteOrder byteOrder) {
+            ByteBuffer buffer = ByteBuffer.allocate(4).order(byteOrder);
+            buffer.putInt(value);
+            return buffer.array();
+        }
+
+        byte[] toByteArray() {
+            throw new AssertionError("order-aware encode should be preferred");
+        }
+
+        static OrderAwareSelfSizingMessage fromByteBuffer(ByteBuffer buffer) {
+            OrderAwareSelfSizingMessage message = new OrderAwareSelfSizingMessage();
+            message.value = buffer.getInt();
+            return message;
         }
 
         int getValue() {
@@ -119,6 +185,51 @@ class ReflectiveStructCodecTest {
         SelfSizingMessage decoded = ReflectiveStructCodec.decode(SelfSizingMessage.class, encoded);
 
         assertThat(decoded.text).isEqualTo("hello");
+    }
+
+    @Test
+    void fromByteBufferDecode_honorsRequestedByteOrder() {
+        ByteBuffer buffer = ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(7);
+        buffer.putShort((short) 3);
+
+        FixedRecord decoded = ReflectiveStructCodec.decode(FixedRecord.class, buffer.array(), ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(decoded).isEqualTo(new FixedRecord(7, (short) 3));
+    }
+
+    @Test
+    void sizedToByteArrayEncode_honorsRequestedByteOrder() {
+        FixedRecord record = new FixedRecord(7, (short) 3);
+
+        byte[] encoded = ReflectiveStructCodec.encode(record, ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(ReflectiveStructCodec.decode(FixedRecord.class, encoded, ByteOrder.LITTLE_ENDIAN)).isEqualTo(record);
+        assertThat(ReflectiveStructCodec.decode(FixedRecord.class, encoded, ByteOrder.BIG_ENDIAN)).isNotEqualTo(record);
+    }
+
+    @Test
+    void prefersByteOrderAwareConstructor_forMutableStructs() {
+        ByteBuffer buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(42);
+
+        OrderAwareMutableStruct decoded =
+                ReflectiveStructCodec.decode(OrderAwareMutableStruct.class, buffer.array(), ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(decoded.getValue()).isEqualTo(42);
+        assertThat(decoded.getDecodedWith()).isEqualTo(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    @Test
+    void prefersByteOrderAwareToByteArray_forSelfSizingMessages() {
+        OrderAwareSelfSizingMessage message = new OrderAwareSelfSizingMessage();
+        message.setValue(123);
+
+        byte[] encoded = ReflectiveStructCodec.encode(message, ByteOrder.LITTLE_ENDIAN);
+        OrderAwareSelfSizingMessage decoded =
+                ReflectiveStructCodec.decode(OrderAwareSelfSizingMessage.class, encoded, ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(decoded.getValue()).isEqualTo(123);
     }
 
     static class UnsupportedType {

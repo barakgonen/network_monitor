@@ -6,6 +6,22 @@ public class MessageConfig {
     private String messageClass;
     private Integer opcode;
 
+    /**
+     * Per-message override of {@link InterfaceConfig#getByteOrder()}. {@code null} (default)
+     * means "inherit the interface's byte order" - see
+     * {@code MessageSchemaWiringConfig.resolveByteOrder}, which is the only place this field is
+     * read.
+     */
+    private String byteOrder;
+
+    public String getByteOrder() {
+        return byteOrder;
+    }
+
+    public void setByteOrder(String byteOrder) {
+        this.byteOrder = byteOrder;
+    }
+
     public String getType() {
         return type;
     }

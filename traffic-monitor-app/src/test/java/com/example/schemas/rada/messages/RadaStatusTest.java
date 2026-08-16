@@ -6,6 +6,7 @@ import com.example.schemacore.reflect.StructSizeCalculator;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,6 +49,28 @@ class RadaStatusTest {
         RadaStatus decoded = ReflectiveStructCodec.decode(RadaStatus.class, encoded);
 
         assertThat(decoded.getRadarSoftwareVersion()).isEqualTo(11);
+    }
+
+    @Test
+    void reflectiveStructCodec_encodeThenDecode_roundTrips_withLittleEndianByteOrder() {
+        RadaStatus original = new RadaStatus();
+        original.getHeader().setMsgCounter(7);
+        original.getHeader().setMsgType(3);
+        original.setRadarSoftwareVersion(42);
+        original.setStatusFlags(0xBEEF);
+
+        byte[] encoded = ReflectiveStructCodec.encode(original, ByteOrder.LITTLE_ENDIAN);
+        RadaStatus decoded = ReflectiveStructCodec.decode(RadaStatus.class, encoded, ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(decoded.getHeader().getMsgCounter()).isEqualTo(7);
+        assertThat(decoded.getHeader().getMsgType()).isEqualTo(3);
+        assertThat(decoded.getRadarSoftwareVersion()).isEqualTo(42);
+        assertThat(decoded.getStatusFlags()).isEqualTo(0xBEEF);
+
+        // Sanity check that little-endian really was used, not silently ignored: decoding the
+        // same bytes as big-endian must NOT reproduce the original value for a non-palindromic field.
+        RadaStatus misreadAsBigEndian = ReflectiveStructCodec.decode(RadaStatus.class, encoded, ByteOrder.BIG_ENDIAN);
+        assertThat(misreadAsBigEndian.getRadarSoftwareVersion()).isNotEqualTo(42);
     }
 
     @Test
