@@ -1,14 +1,12 @@
 package com.example.monitor.publisher;
 
-import com.example.schemacore.ProtocolMessage;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Test-only {@link ProtocolMessage} fixtures standing in for real shared-schemas message classes
- * (candy/rada), so publisher unit tests don't need shared-schemas on the classpath -- shared-schemas
+ * Test-only message fixtures standing in for real shared-schemas message classes (candy/rada),
+ * so publisher unit tests don't need shared-schemas on the classpath -- shared-schemas
  * compile-depends on this module, so a test dependency back onto it would be circular. Mirror the
  * two shapes {@code ReflectiveStructCodec} supports: a self-sizing record (legacy envelope path)
  * and a mutable class with its own embedded header (dedicated-port path).
@@ -19,7 +17,7 @@ final class StubMessages {
     }
 
     /** Mirrors {@code CandyMessage}: self-sizing record, exercises the legacy-envelope encode path. */
-    public record StubLegacyMessage(String name, double calories) implements ProtocolMessage {
+    public record StubLegacyMessage(String name, double calories) {
         public static StubLegacyMessage fromByteBuffer(ByteBuffer buffer) {
             int nameLength = buffer.getInt();
             byte[] nameBytes = new byte[nameLength];
@@ -64,7 +62,7 @@ final class StubMessages {
      * Mirrors {@code RadaStatus}: mutable class embedding its own header, exercises the
      * dedicated-port encode path (no {@code ProtocolHeaderCodec} envelope).
      */
-    public static class StubDedicatedPortMessage implements ProtocolMessage {
+    public static class StubDedicatedPortMessage {
         private StubHeader header = new StubHeader();
         private int radarSoftwareVersion;
         private short statusFlags;

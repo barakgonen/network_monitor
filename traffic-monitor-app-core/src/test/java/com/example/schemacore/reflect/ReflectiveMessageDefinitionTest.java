@@ -1,7 +1,5 @@
 package com.example.schemacore.reflect;
 
-import com.example.schemacore.ProtocolMessage;
-
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -17,7 +15,7 @@ class ReflectiveMessageDefinitionTest {
         STALE
     }
 
-    record TestMessage(int id, Freshness freshness) implements ProtocolMessage {
+    record TestMessage(int id, Freshness freshness) {
         static TestMessage fromByteBuffer(ByteBuffer buffer) {
             int idValue = buffer.getInt();
             Freshness freshnessValue = Freshness.values()[buffer.getInt()];
@@ -46,7 +44,7 @@ class ReflectiveMessageDefinitionTest {
         TestMessage original = new TestMessage(3, Freshness.STALE);
         byte[] encoded = definition.encodeBody(original);
 
-        ProtocolMessage decoded = definition.decodeMessage(ByteBuffer.wrap(encoded));
+        Object decoded = definition.decodeMessage(ByteBuffer.wrap(encoded));
 
         assertThat(decoded).isEqualTo(original);
     }

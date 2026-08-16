@@ -2,7 +2,6 @@ package com.example.monitor.schema;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.ProtocolMessage;
 
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MessageSchemaWiringConfigTest {
 
     /** Order-sensitive fixture: a single int field, decoded/encoded differently depending on byte order. */
-    public record StubOrderSensitiveMessage(int value) implements ProtocolMessage {
+    public record StubOrderSensitiveMessage(int value) {
         public static StubOrderSensitiveMessage fromByteBuffer(ByteBuffer buffer) {
             return new StubOrderSensitiveMessage(buffer.getInt());
         }
@@ -24,6 +23,40 @@ class MessageSchemaWiringConfigTest {
         public void toByteArray(ByteBuffer buffer) {
             buffer.putInt(value);
         }
+    }
+
+    /**
+     * Stands in for a class owned by an external dependency: implements nothing this project
+     * defines (no marker interface required), just follows the reflective codec's naming
+     * convention. This is the regression guard for "messageClass: no longer requires implementing
+     * anything" - if wiring ever again required a specific interface, this fixture would fail to
+     * compile/wire, not just happen to pass because it also implements something optional.
+     */
+    public static final class ExternalDependencyMessage {
+        private int value;
+
+        public ExternalDependencyMessage() {
+        }
+
+        public ExternalDependencyMessage(byte[] payload) {
+            value = ByteBuffer.wrap(payload).getInt();
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+
+        public byte[] toByteArray() {
+            return ByteBuffer.allocate(4).putInt(value).array();
+        }
+    }
+
+    /** No fromByteBuffer/toByteArray/(byte[]) shape at all - should fail wiring, not just decode. */
+    public static final class NotReflectivelyCodable {
     }
 
     private final MessageSchemaWiringConfig wiring = new MessageSchemaWiringConfig();
@@ -41,9 +74,13 @@ class MessageSchemaWiringConfigTest {
     }
 
     private MessageConfig messageConfig(String byteOrder) {
+        return messageConfig(StubOrderSensitiveMessage.class, byteOrder);
+    }
+
+    private MessageConfig messageConfig(Class<?> messageClass, String byteOrder) {
         MessageConfig message = new MessageConfig();
-        message.setType("StubOrderSensitiveMessage");
-        message.setMessageClass(StubOrderSensitiveMessage.class.getName());
+        message.setType(messageClass.getSimpleName());
+        message.setMessageClass(messageClass.getName());
         message.setOpcode(1);
         message.setByteOrder(byteOrder);
         return message;
@@ -135,5 +172,32 @@ class MessageSchemaWiringConfigTest {
                 .containsExactly(0x00, 0x00, 0x01, 0x02);
         assertThat(secondDefinition.encodeBody(new StubOrderSensitiveMessage(258)))
                 .containsExactly(0x02, 0x01, 0x00, 0x00);
+    }
+
+    @Test
+    void messageClass_withNoInterfaceImplemented_wiresAndRoundTrips() throws Exception {
+        InterfaceConfig config = interfaceConfig(null, messageConfig(ExternalDependencyMessage.class, null));
+
+        MessageDefinitionRegistry registry = wiring.messageDefinitionRegistry(trafficToolConfig(config));
+        MessageDefinition definition = registry.findByOpcode(1).orElseThrow();
+
+        ExternalDependencyMessage original = new ExternalDependencyMessage();
+        original.setValue(42);
+        byte[] encoded = definition.encodeBody(original);
+        Object decoded = definition.decodeMessage(ByteBuffer.wrap(encoded));
+
+        assertThat(decoded).isInstanceOf(ExternalDependencyMessage.class);
+        assertThat(((ExternalDependencyMessage) decoded).getValue()).isEqualTo(42);
+    }
+
+    @Test
+    void messageClass_withNoDecodeOrEncodeShape_failsFastAtWiringTime() {
+        InterfaceConfig config = interfaceConfig(null, messageConfig(NotReflectivelyCodable.class, null));
+
+        assertThatThrownBy(() -> wiring.messageDefinitionRegistry(trafficToolConfig(config)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("NotReflectivelyCodable")
+                .hasMessageContaining("stub")
+                .hasMessageContaining("does not expose a supported decoder");
     }
 }

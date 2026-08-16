@@ -1,12 +1,11 @@
 package com.example.schemas.rada.messages;
 
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemas.rada.struct.RadaHeader;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class RadaStatus implements ProtocolMessage {
+public class RadaStatus {
 
     private RadaHeader header = new RadaHeader();
     private int radarSoftwareVersion = 0;

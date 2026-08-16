@@ -1,7 +1,6 @@
 package com.example.schemacore.reflect;
 
 import com.example.schemacore.MessageDefinition;
-import com.example.schemacore.ProtocolMessage;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -10,20 +9,22 @@ import java.util.Map;
 /**
  * A {@link MessageDefinition} that needs no hand-written pair of definition + codec classes:
  * decode/encode are dispatched reflectively via {@link ReflectiveStructCodec} against the message
- * class's own {@code toByteArray}/{@code fromByteBuffer}-style methods.
+ * class's own {@code toByteArray}/{@code fromByteBuffer}-style methods. The message class needs
+ * no marker interface - any class following that convention works, including ones owned by an
+ * external dependency.
  */
 public final class ReflectiveMessageDefinition implements MessageDefinition {
     private final String interfaceName;
     private final String messageType;
     private final int opcode;
-    private final Class<? extends ProtocolMessage> messageClass;
+    private final Class<?> messageClass;
     private final ByteOrder byteOrder;
 
     public ReflectiveMessageDefinition(
             String interfaceName,
             String messageType,
             int opcode,
-            Class<? extends ProtocolMessage> messageClass
+            Class<?> messageClass
     ) {
         this(interfaceName, messageType, opcode, messageClass, ByteOrder.BIG_ENDIAN);
     }
@@ -32,7 +33,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
             String interfaceName,
             String messageType,
             int opcode,
-            Class<? extends ProtocolMessage> messageClass,
+            Class<?> messageClass,
             ByteOrder byteOrder
     ) {
         this.interfaceName = interfaceName;
@@ -58,15 +59,15 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     }
 
     @Override
-    public Class<? extends ProtocolMessage> messageClass() {
+    public Class<?> messageClass() {
         return messageClass;
     }
 
     @Override
-    public ProtocolMessage decodeMessage(ByteBuffer body) throws Exception {
+    public Object decodeMessage(ByteBuffer body) throws Exception {
         byte[] bytes = new byte[body.remaining()];
         body.get(bytes);
-        return messageClass.cast(ReflectiveStructCodec.decode(messageClass, bytes, byteOrder));
+        return ReflectiveStructCodec.decode(messageClass, bytes, byteOrder);
     }
 
     @Override
@@ -75,7 +76,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     }
 
     @Override
-    public byte[] encodeBody(ProtocolMessage message) throws Exception {
+    public byte[] encodeBody(Object message) throws Exception {
         return ReflectiveStructCodec.encode(message, byteOrder);
     }
 

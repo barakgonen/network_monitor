@@ -3,7 +3,6 @@ package com.example.monitor.publishing;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.ProtocolMessage;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -47,7 +46,7 @@ class MonitorPayloadFactoryTest {
     }
 
     @Test
-    void create_fromProtocolMessageInstance_findsDefinitionByMessageClassAndEncodes() {
+    void create_fromMessageInstance_findsDefinitionByMessageClassAndEncodes() {
         MonitorPayloadFactory factory = new MonitorPayloadFactory(
                 new MessageDefinitionRegistry(List.of(new StubDefinition())));
 
@@ -58,7 +57,7 @@ class MonitorPayloadFactoryTest {
     }
 
     @Test
-    void create_fromProtocolMessageInstance_whenClassNotRegistered_throwsIllegalArgumentException() {
+    void create_fromMessageInstance_whenClassNotRegistered_throwsIllegalArgumentException() {
         MonitorPayloadFactory factory = new MonitorPayloadFactory(new MessageDefinitionRegistry(List.of()));
 
         assertThatThrownBy(() -> factory.create(new StubMessage("world")))
@@ -66,7 +65,7 @@ class MonitorPayloadFactoryTest {
                 .hasMessageContaining("No MessageDefinition registered");
     }
 
-    private record StubMessage(String value) implements ProtocolMessage {
+    private record StubMessage(String value) {
     }
 
     private static final class StubDefinition implements MessageDefinition {
@@ -86,7 +85,7 @@ class MonitorPayloadFactoryTest {
         }
 
         @Override
-        public Class<? extends ProtocolMessage> messageClass() {
+        public Class<?> messageClass() {
             return StubMessage.class;
         }
 
@@ -96,7 +95,7 @@ class MonitorPayloadFactoryTest {
         }
 
         @Override
-        public ProtocolMessage decodeMessage(ByteBuffer body) {
+        public Object decodeMessage(ByteBuffer body) {
             return null;
         }
 
@@ -109,7 +108,7 @@ class MonitorPayloadFactoryTest {
         }
 
         @Override
-        public byte[] encodeBody(ProtocolMessage message) {
+        public byte[] encodeBody(Object message) {
             return ((StubMessage) message).value().getBytes();
         }
     }

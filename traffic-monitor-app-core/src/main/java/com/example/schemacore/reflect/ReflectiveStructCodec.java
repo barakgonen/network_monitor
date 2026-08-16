@@ -8,7 +8,9 @@ import java.nio.ByteOrder;
 
 /**
  * Reflectively invokes a hand-written codec pair on a message/header class, so the ingestion
- * pipeline and publisher never need per-message decode/encode branches.
+ * pipeline and publisher never need per-message decode/encode branches. The class needs no
+ * marker interface - any class following this convention works, including ones owned by an
+ * external dependency this project doesn't otherwise touch.
  *
  * Decode dispatch (first match wins):
  * - public static T fromByteBuffer(ByteBuffer) — records use this (immutable, no in-place mutation);
@@ -53,9 +55,7 @@ public final class ReflectiveStructCodec {
                 return constructor.newInstance((Object) payload);
             }
 
-            throw new IllegalArgumentException(
-                    "Class does not expose a supported decoder. Expected static fromByteBuffer(ByteBuffer) "
-                            + "or a (byte[]) constructor: " + type.getName());
+            throw new IllegalArgumentException(decoderErrorMessage(type));
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -73,14 +73,14 @@ public final class ReflectiveStructCodec {
         }
 
         try {
-            byte[] orderAware = tryOrderAwareByteArrayEncode(message, byteOrder);
-            if (orderAware != null) {
-                return orderAware;
+            Method orderAwareEncode = findOrderAwareByteArrayEncodeMethod(message.getClass());
+            if (orderAwareEncode != null) {
+                return (byte[]) orderAwareEncode.invoke(message, byteOrder);
             }
 
-            byte[] direct = tryNoArgByteArrayEncode(message);
-            if (direct != null) {
-                return direct;
+            Method noArgEncode = findNoArgByteArrayEncodeMethod(message.getClass());
+            if (noArgEncode != null) {
+                return (byte[]) noArgEncode.invoke(message);
             }
 
             Method sizedEncode = findSizedEncodeMethod(message.getClass());
@@ -98,14 +98,47 @@ public final class ReflectiveStructCodec {
                 return buffer.array();
             }
 
-            throw new IllegalArgumentException(
-                    "Class does not expose a supported encoder. Expected toByteArray() or toByteArray(ByteBuffer): "
-                            + message.getClass().getName());
+            throw new IllegalArgumentException(encoderErrorMessage(message.getClass()));
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to encode " + message.getClass().getName() + ": " + rootMessage(e), e);
         }
+    }
+
+    /**
+     * Fail-fast check for config-time wiring (e.g. {@code messageClass:} in {@code
+     * traffic-tool.yml}): does {@code type} expose any of the recognized decode shapes, without
+     * needing an instance to try decoding against.
+     */
+    public static void requireDecodable(Class<?> type) {
+        if (findStaticFactory(type) != null) {
+            return;
+        }
+        if (findByteArrayByteOrderConstructor(type) != null) {
+            return;
+        }
+        if (findByteArrayConstructor(type) != null) {
+            return;
+        }
+        throw new IllegalArgumentException(decoderErrorMessage(type));
+    }
+
+    /**
+     * Fail-fast check for config-time wiring: does {@code type} expose any of the recognized
+     * encode shapes, without needing an instance to try encoding.
+     */
+    public static void requireEncodable(Class<?> type) {
+        if (findOrderAwareByteArrayEncodeMethod(type) != null) {
+            return;
+        }
+        if (findNoArgByteArrayEncodeMethod(type) != null) {
+            return;
+        }
+        if (findSizedEncodeMethod(type) != null) {
+            return;
+        }
+        throw new IllegalArgumentException(encoderErrorMessage(type));
     }
 
     private static Method findStaticFactory(Class<?> type) {
@@ -143,27 +176,27 @@ public final class ReflectiveStructCodec {
         }
     }
 
-    private static byte[] tryOrderAwareByteArrayEncode(Object message, ByteOrder byteOrder) throws Exception {
+    private static Method findOrderAwareByteArrayEncodeMethod(Class<?> type) {
         try {
-            Method method = message.getClass().getDeclaredMethod("toByteArray", ByteOrder.class);
+            Method method = type.getDeclaredMethod("toByteArray", ByteOrder.class);
             if (method.getReturnType() != byte[].class) {
                 return null;
             }
             method.setAccessible(true);
-            return (byte[]) method.invoke(message, byteOrder);
+            return method;
         } catch (NoSuchMethodException e) {
             return null;
         }
     }
 
-    private static byte[] tryNoArgByteArrayEncode(Object message) throws Exception {
+    private static Method findNoArgByteArrayEncodeMethod(Class<?> type) {
         try {
-            Method method = message.getClass().getDeclaredMethod("toByteArray");
+            Method method = type.getDeclaredMethod("toByteArray");
             if (method.getReturnType() != byte[].class) {
                 return null;
             }
             method.setAccessible(true);
-            return (byte[]) method.invoke(message);
+            return method;
         } catch (NoSuchMethodException e) {
             return null;
         }
@@ -177,6 +210,16 @@ public final class ReflectiveStructCodec {
         } catch (NoSuchMethodException e) {
             return null;
         }
+    }
+
+    private static String decoderErrorMessage(Class<?> type) {
+        return "Class does not expose a supported decoder. Expected static fromByteBuffer(ByteBuffer), "
+                + "a (byte[], ByteOrder) constructor, or a (byte[]) constructor: " + type.getName();
+    }
+
+    private static String encoderErrorMessage(Class<?> type) {
+        return "Class does not expose a supported encoder. Expected toByteArray(ByteOrder), toByteArray(), "
+                + "or toByteArray(ByteBuffer): " + type.getName();
     }
 
     private static String rootMessage(Exception e) {

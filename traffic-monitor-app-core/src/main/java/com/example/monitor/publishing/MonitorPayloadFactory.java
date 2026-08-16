@@ -3,7 +3,6 @@ package com.example.monitor.publishing;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.ProtocolMessage;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -30,7 +29,7 @@ public class MonitorPayloadFactory {
         }
     }
 
-    public byte[] create(ProtocolMessage message) {
+    public byte[] create(Object message) {
         MessageDefinition definition = messageDefinitionRegistry.findByMessageClass(message.getClass())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "No MessageDefinition registered for message class " + message.getClass()));

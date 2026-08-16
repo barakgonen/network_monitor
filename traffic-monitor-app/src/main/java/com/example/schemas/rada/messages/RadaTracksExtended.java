@@ -1,7 +1,6 @@
 package com.example.schemas.rada.messages;
 
 import com.example.schemacore.annotation.FixedArrayLength;
-import com.example.schemacore.ProtocolMessage;
 import com.example.schemas.rada.struct.RadaHeader;
 import com.example.schemas.rada.struct.RadaPlotData;
 import com.example.schemas.rada.struct.RadaTrackData;
@@ -9,7 +8,7 @@ import com.example.schemas.rada.struct.RadaTrackData;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-public class RadaTracksExtended implements ProtocolMessage {
+public class RadaTracksExtended {
 
     private RadaHeader header = new RadaHeader();
     private long updateTimeTag;
