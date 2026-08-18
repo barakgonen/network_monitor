@@ -3,12 +3,18 @@ package com.example.messagehandlers.ping;
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.MessageArrivedHandler;
 import com.example.handlercore.ReplySender;
+import com.example.monitor.publishing.MonitorPayloadFactory;
 import com.example.schemas.ping.PingMessage;
 import com.example.schemas.ping.PongMessage;
 import org.springframework.stereotype.Component;
 
 @Component
 public class PingMessageHandler implements MessageArrivedHandler<PingMessage> {
+    private final MonitorPayloadFactory payloadFactory;
+
+    public PingMessageHandler(MonitorPayloadFactory payloadFactory) {
+        this.payloadFactory = payloadFactory;
+    }
 
     @Override
     public String interfaceName() {
@@ -23,7 +29,8 @@ public class PingMessageHandler implements MessageArrivedHandler<PingMessage> {
     @Override
     public void onMessageArrived(PingMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         if (destinationConfig != null) {
-            replySender.reply(new PongMessage(message.sequence()), destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
+            PongMessage pong = new PongMessage(message.sequence());
+            replySender.reply(payloadFactory.create(pong), destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         }
     }
 }

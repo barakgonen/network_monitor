@@ -23,7 +23,8 @@ public class TemperatureReadingMessageHandler implements MessageArrivedHandler<T
     public void onMessageArrived(TemperatureReadingMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         // TODO: decide what to do when a TemperatureReading message arrives, e.g.:
         // if (destinationConfig != null) {
-        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port());
+        //     replySender.reply(payloadFactory.create(message),
+        //             destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         // }
     }
 }

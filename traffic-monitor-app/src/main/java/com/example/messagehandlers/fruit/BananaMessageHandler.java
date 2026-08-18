@@ -23,8 +23,9 @@ public class BananaMessageHandler implements MessageArrivedHandler<BananaMessage
     public void onMessageArrived(BananaMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         // TODO: decide what to do when a Banana message arrives, e.g.:
         // if (destinationConfig != null) {
-        //     replySender.reply(new OrangeMessage("some-farm", FruitFreshness.VERY_FRESH),
-        //             destinationConfig.host(), destinationConfig.port());
+        //     OrangeMessage orange = new OrangeMessage("some-farm", FruitFreshness.VERY_FRESH);
+        //     replySender.reply(payloadFactory.create(orange),
+        //             destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         // }
     }
 }

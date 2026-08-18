@@ -4,7 +4,6 @@ import com.example.handlercore.MessageArrivedDispatcher;
 import com.example.handlercore.MessageArrivedHandler;
 import com.example.handlercore.MessageHandlerRegistry;
 import com.example.handlercore.ReplySender;
-import com.example.monitor.publishing.MonitorPayloadFactory;
 import com.example.monitor.publishing.TcpMessagePublisher;
 import com.example.monitor.publishing.TransportSelector;
 import com.example.monitor.publishing.UdpMessagePublisher;
@@ -18,13 +17,10 @@ public class HandlerWiringConfig {
 
     @Bean
     public ReplySender replySender(
-            MonitorPayloadFactory payloadFactory,
             UdpMessagePublisher udpMessagePublisher,
             TcpMessagePublisher tcpMessagePublisher
     ) {
-        return (message, host, port, transport) -> {
-            byte[] payload = payloadFactory.create(message);
-
+        return (payload, host, port, transport) -> {
             if ("TCP".equals(TransportSelector.normalize(transport))) {
                 tcpMessagePublisher.send(host, port, payload);
             } else {

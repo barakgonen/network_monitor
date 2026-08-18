@@ -2,9 +2,11 @@ package com.example.messagehandlers.fruit;
 
 import com.example.handlercore.DestinationConfig;
 import com.example.handlercore.ReplySender;
+import com.example.monitor.publishing.MonitorPayloadFactory;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.OrangeMessage;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrangeMessageHandlerTest {
@@ -22,7 +25,15 @@ class OrangeMessageHandlerTest {
     @Mock
     private ReplySender replySender;
 
-    private final OrangeMessageHandler handler = new OrangeMessageHandler();
+    @Mock
+    private MonitorPayloadFactory payloadFactory;
+
+    private OrangeMessageHandler handler;
+
+    @BeforeEach
+    void setUp() {
+        handler = new OrangeMessageHandler(payloadFactory);
+    }
 
     @Test
     void interfaceName_and_messageType_returnFruitInterfaceAndOrange() {
@@ -31,21 +42,25 @@ class OrangeMessageHandlerTest {
     }
 
     @Test
-    void onMessageArrived_whenFreshnessNotFreshAndDestinationConfigPresent_repliesWithYellowBanana100Weight() {
+    void onMessageArrived_whenFreshnessNotFreshAndDestinationConfigPresent_repliesWithEncodedYellowBanana100Weight() {
         DestinationConfig destinationConfig = new DestinationConfig("localhost", 7001, "UDP");
+        byte[] encoded = {1, 2, 3};
+        when(payloadFactory.create(new BananaMessage("yellow", 100.0))).thenReturn(encoded);
 
         handler.onMessageArrived(new OrangeMessage("farm", FruitFreshness.NOT_FRESH), replySender, destinationConfig);
 
-        verify(replySender).reply(new BananaMessage("yellow", 100.0), "localhost", 7001, "UDP");
+        verify(replySender).reply(encoded, "localhost", 7001, "UDP");
     }
 
     @Test
     void onMessageArrived_whenFreshnessNotFreshAndDestinationConfigIsTcp_repliesWithTcpTransport() {
         DestinationConfig destinationConfig = new DestinationConfig("localhost", 7001, "TCP");
+        byte[] encoded = {4, 5, 6};
+        when(payloadFactory.create(new BananaMessage("yellow", 100.0))).thenReturn(encoded);
 
         handler.onMessageArrived(new OrangeMessage("farm", FruitFreshness.NOT_FRESH), replySender, destinationConfig);
 
-        verify(replySender).reply(new BananaMessage("yellow", 100.0), "localhost", 7001, "TCP");
+        verify(replySender).reply(encoded, "localhost", 7001, "TCP");
     }
 
     @ParameterizedTest
