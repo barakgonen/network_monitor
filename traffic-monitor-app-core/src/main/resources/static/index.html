@@ -436,7 +436,7 @@
         <td><span class="protocol-pill">${escapeHtml(msg.protocol || '')}</span></td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
-        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
+        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.payload || {}))}</div></td>
         <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
       `;
 
@@ -453,7 +453,7 @@
       protocol: msg.protocol,
       interfaceName: msg.interfaceName,
       messageName: msg.messageType,
-      body: msg.body,
+      payload: msg.payload,
       parseError: msg.parseError
     }, null, 2);
 

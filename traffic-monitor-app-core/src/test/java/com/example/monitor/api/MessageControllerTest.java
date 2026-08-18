@@ -51,6 +51,8 @@ class MessageControllerTest {
                 .andExpect(jsonPath("$[0].interfaceName").value("Fruit Interface"))
                 .andExpect(jsonPath("$[0].messageType").value("Orange"))
                 .andExpect(jsonPath("$[0].protocol").value("UDP"))
+                .andExpect(jsonPath("$[0].payload.sourceFarm").value("farm"))
+                .andExpect(jsonPath("$[0].body").doesNotExist())
                 .andExpect(jsonPath("$[0].localPort").doesNotExist())
                 .andExpect(jsonPath("$[0].remoteAddress").doesNotExist())
                 .andExpect(jsonPath("$[0].header").doesNotExist())

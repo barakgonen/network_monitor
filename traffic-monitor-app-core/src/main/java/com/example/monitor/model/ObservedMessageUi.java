@@ -9,7 +9,7 @@ public record ObservedMessageUi(
         String protocol,
         String interfaceName,
         String messageType,
-        Map<String, Object> body,
+        Map<String, Object> payload,
         String parseError
 ) {
     public static ObservedMessageUi from(ObservedMessage message) {
