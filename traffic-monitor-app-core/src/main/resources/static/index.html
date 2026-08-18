@@ -72,7 +72,6 @@
             <tr>
               <th>Observed At</th>
               <th>Protocol</th>
-              <th>Port</th>
               <th>Interface</th>
               <th>Message Name</th>
               <th>Message Body</th>
@@ -434,8 +433,7 @@
 
       row.innerHTML = `
         <td>${escapeHtml(formatTime(msg.observedAt))}</td>
-        <td><span class="protocol-pill">${escapeHtml(msg.transportProtocol || '')}</span></td>
-        <td>${escapeHtml(msg.localPort)}</td>
+        <td><span class="protocol-pill">${escapeHtml(msg.protocol || '')}</span></td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
         <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
@@ -450,12 +448,11 @@
   function selectMessage(msg) {
     selectedMessageId = msg.id;
     document.getElementById('eventDetails').innerText = JSON.stringify({
+      id: msg.id,
       observedAt: msg.observedAt,
-      protocol: msg.transportProtocol,
-      port: msg.localPort,
+      protocol: msg.protocol,
       interfaceName: msg.interfaceName,
       messageName: msg.messageType,
-      header: msg.header,
       body: msg.body,
       parseError: msg.parseError
     }, null, 2);

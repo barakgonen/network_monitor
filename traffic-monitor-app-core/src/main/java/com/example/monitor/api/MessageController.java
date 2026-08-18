@@ -1,6 +1,6 @@
 package com.example.monitor.api;
 
-import com.example.monitor.model.ObservedMessage;
+import com.example.monitor.model.ObservedMessageUi;
 import com.example.monitor.store.RecentMessageStore;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,7 +16,7 @@ public class MessageController {
     }
 
     @GetMapping("/api/messages/recent")
-    public List<ObservedMessage> recentMessages() {
-        return recentMessageStore.recent();
+    public List<ObservedMessageUi> recentMessages() {
+        return recentMessageStore.recent().stream().map(ObservedMessageUi::from).toList();
     }
 }

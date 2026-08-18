@@ -49,7 +49,14 @@ class MessageControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value("id-1"))
                 .andExpect(jsonPath("$[0].interfaceName").value("Fruit Interface"))
-                .andExpect(jsonPath("$[0].messageType").value("Orange"));
+                .andExpect(jsonPath("$[0].messageType").value("Orange"))
+                .andExpect(jsonPath("$[0].protocol").value("UDP"))
+                .andExpect(jsonPath("$[0].localPort").doesNotExist())
+                .andExpect(jsonPath("$[0].remoteAddress").doesNotExist())
+                .andExpect(jsonPath("$[0].header").doesNotExist())
+                .andExpect(jsonPath("$[0].payloadSizeBytes").doesNotExist())
+                .andExpect(jsonPath("$[0].payloadText").doesNotExist())
+                .andExpect(jsonPath("$[0].payloadBase64").doesNotExist());
     }
 
     @Test
