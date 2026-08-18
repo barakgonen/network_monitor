@@ -22,8 +22,12 @@ public class CandyMessageHandler implements MessageArrivedHandler<CandyMessage> 
     @Override
     public void onMessageArrived(CandyMessage message, ReplySender replySender, DestinationConfig destinationConfig) {
         // TODO: decide what to do when a Candy message arrives, e.g.:
+        // Candy is a dedicated-port (messageOwnsHeader) interface, so unlike the legacy-envelope
+        // examples above, a reply here should NOT go through MonitorPayloadFactory.create(...)
+        // (that always legacy-envelope-wraps) - encode via the interface's own message class
+        // convention instead (see CLAUDE.md's reflective codec convention) and pass the raw bytes:
         // if (destinationConfig != null) {
-        //     replySender.reply(message, destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
+        //     replySender.reply(rawEncodedBytes, destinationConfig.host(), destinationConfig.port(), destinationConfig.transport());
         // }
     }
 }
