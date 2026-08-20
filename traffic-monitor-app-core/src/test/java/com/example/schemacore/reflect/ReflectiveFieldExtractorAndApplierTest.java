@@ -37,6 +37,42 @@ class ReflectiveFieldExtractorAndApplierTest {
     record WithNumericFields(int id, double weight, long counter) {
     }
 
+    public static class Nested {
+        private int value;
+
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+    }
+
+    public static class WithNestedField {
+        private Nested inner = new Nested();
+        private String label;
+
+        public Nested getInner() {
+            return inner;
+        }
+
+        public void setInner(Nested inner) {
+            this.inner = inner;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        public void setLabel(String label) {
+            this.label = label;
+        }
+    }
+
+    record WithNestedRecordField(Nested inner, String label) {
+    }
+
     @Test
     void extractFields_usesGetWireName_whenEnumExposesIt() throws Exception {
         Map<String, Object> fields = ReflectiveFieldExtractor.extractFields(
@@ -77,5 +113,26 @@ class ReflectiveFieldExtractorAndApplierTest {
         assertThat(built.id()).isEqualTo(42);
         assertThat(built.weight()).isEqualTo(123.5);
         assertThat(built.counter()).isEqualTo(9999999999L);
+    }
+
+    @Test
+    void build_regroupsDottedKeys_intoNestedSetterBasedField() throws Exception {
+        // Regression test: the generic publisher UI flattens nested/complex fields to dotted
+        // paths (e.g. "inner.value"); build() must regroup those back into a nested object
+        // rather than looking for a literal "inner.value" setter.
+        WithNestedField built = ReflectiveFieldApplier.build(
+                WithNestedField.class, Map.of("inner.value", "7", "label", "abc"));
+
+        assertThat(built.getInner().getValue()).isEqualTo(7);
+        assertThat(built.getLabel()).isEqualTo("abc");
+    }
+
+    @Test
+    void build_regroupsDottedKeys_intoNestedRecordField() throws Exception {
+        WithNestedRecordField built = ReflectiveFieldApplier.build(
+                WithNestedRecordField.class, Map.of("inner.value", "9", "label", "xyz"));
+
+        assertThat(built.inner().getValue()).isEqualTo(9);
+        assertThat(built.label()).isEqualTo("xyz");
     }
 }

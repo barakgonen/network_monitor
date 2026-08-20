@@ -25,6 +25,14 @@ class PublisherFieldMetadataServiceTest {
     void describeFields_forGetterBasedClass_usesGetterNamesAndTypes() {
         List<PublisherFieldDto> fields = service.describeFields(StubDedicatedPortMessage.class);
 
-        assertThat(fields).extracting(PublisherFieldDto::name).contains("radarSoftwareVersion", "statusFlags", "header");
+        assertThat(fields).extracting(PublisherFieldDto::name).contains("radarSoftwareVersion", "statusFlags");
+    }
+
+    @Test
+    void describeFields_forNestedComplexField_flattensToDottedPaths() {
+        List<PublisherFieldDto> fields = service.describeFields(StubDedicatedPortMessage.class);
+
+        assertThat(fields).contains(new PublisherFieldDto("header.msgType", "int"));
+        assertThat(fields).extracting(PublisherFieldDto::name).doesNotContain("header");
     }
 }
