@@ -1,7 +1,11 @@
 package com.example.monitor.publisher;
 
+import com.example.monitor.ingestion.MessageIngestionPipeline;
+import com.example.monitor.publishing.RestOperationInvoker;
 import com.example.monitor.publishing.TcpMessagePublisher;
 import com.example.monitor.publishing.UdpMessagePublisher;
+import com.example.monitor.rest.RestApiDefinition;
+import com.example.monitor.rest.RestRequestBodyAssembler;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
@@ -13,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,6 +39,15 @@ class PublisherServiceTest {
 
     @Mock
     private TcpMessagePublisher tcpMessagePublisher;
+
+    @Mock
+    private RestOperationInvoker restOperationInvoker;
+
+    @Mock
+    private MessageIngestionPipeline messageIngestionPipeline;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     private InterfaceConfig candyConfig;
     private InterfaceConfig radaConfig;
@@ -61,7 +75,10 @@ class PublisherServiceTest {
         PublisherMetadataService metadataService = new PublisherMetadataService(
                 buildConfig(), Map.of("candy", candyRegistry, "rada", radaRegistry));
 
-        service = new PublisherService(metadataService, udpMessagePublisher, tcpMessagePublisher);
+        service = new PublisherService(
+                metadataService, udpMessagePublisher, tcpMessagePublisher,
+                Map.<String, RestApiDefinition>of(), new RestRequestBodyAssembler(),
+                restOperationInvoker, messageIngestionPipeline, objectMapper);
     }
 
     private com.example.monitor.schema.TrafficToolConfig buildConfig() {

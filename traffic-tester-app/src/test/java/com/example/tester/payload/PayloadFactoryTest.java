@@ -214,6 +214,30 @@ class PayloadFactoryTest {
         assertThat(decoded.getPlotData()).hasSize(10);
     }
 
+    @Test
+    void create_withPetsCreateMode_throwsUnsupportedOperationException() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.PETS_CREATE);
+
+        // REST modes are dispatched via RestPublisher in TesterMain before PayloadFactory.create()
+        // is ever called - this documents that PayloadFactory itself refuses to encode them as
+        // wire-format bytes, rather than silently doing something wrong if that dispatch is ever
+        // accidentally bypassed.
+        assertThatThrownBy(() -> factory.create(config))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("RestPublisher");
+    }
+
+    @Test
+    void create_withPetsGetMode_throwsUnsupportedOperationException() {
+        PayloadConfig config = new PayloadConfig();
+        config.setMode(PayloadMode.PETS_GET);
+
+        assertThatThrownBy(() -> factory.create(config))
+                .isInstanceOf(UnsupportedOperationException.class)
+                .hasMessageContaining("RestPublisher");
+    }
+
     private Object decodeBody(byte[] payload, int expectedOpcode, Class<?> messageClass) {
         ByteBuffer buffer = ByteBuffer.wrap(payload);
         ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);

@@ -86,14 +86,57 @@ public class MessageIngestionPipeline {
         return finishIngest(payload, transportProtocol, remoteAddress, localPort, decoded);
     }
 
+    /**
+     * REST analogue of {@link #ingestForInterface} - skips {@link #decodeForInterface} entirely
+     * (there's no opcode/byte-decode step: the JSON body is already a {@code Map<String,Object>}
+     * via Jackson) and, unlike {@link #finishIngest}, does not dispatch to a {@link
+     * com.example.handlercore.MessageArrivedHandler} - REST operations have no backing
+     * {@code Class<?>} to key handler dispatch on. "Auto-reply" for REST is instead the
+     * synchronous HTTP response {@code RestIngestionRunner} writes back on the same exchange.
+     */
+    public ObservedMessage ingestRestOperation(
+            String transportProtocol,
+            String remoteAddress,
+            int localPort,
+            String interfaceName,
+            String operationId,
+            Map<String, Object> header,
+            Map<String, Object> body,
+            byte[] rawPayload,
+            String parseError
+    ) {
+        ObservedMessage message = new ObservedMessage(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                transportProtocol,
+                remoteAddress,
+                localPort,
+                interfaceName,
+                operationId,
+                header,
+                body,
+                rawPayload.length,
+                new String(rawPayload, StandardCharsets.UTF_8),
+                Base64.getEncoder().encodeToString(rawPayload),
+                parseError
+        );
+
+        storeAndArchive(message);
+        return message;
+    }
+
     private ObservedMessage finishIngest(
             byte[] payload, String transportProtocol, String remoteAddress, int localPort, DecodedPacket decoded) {
         ObservedMessage message = toObservedMessage(transportProtocol, remoteAddress, localPort, payload, decoded);
+        storeAndArchive(message);
+        dispatchIfEligible(decoded);
+        return message;
+    }
+
+    private void storeAndArchive(ObservedMessage message) {
         recordMetrics(message);
         recentMessageStore.add(message);
         archiveMessage(message);
-        dispatchIfEligible(decoded);
-        return message;
     }
 
     private void recordMetrics(ObservedMessage message) {

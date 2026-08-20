@@ -89,6 +89,11 @@ public class ScenarioLoader {
             if (message.getMode() == PayloadMode.CANDY && message.getCandy() == null) {
                 throw new IllegalArgumentException("messages[" + i + "].candy is required for " + message.getMode());
             }
+
+            if ((message.getMode() == PayloadMode.PETS_CREATE || message.getMode() == PayloadMode.PETS_GET)
+                    && message.getPets() == null) {
+                throw new IllegalArgumentException("messages[" + i + "].pets is required for " + message.getMode());
+            }
         }
 
         if (scenario.getRepeat() <= 0) {

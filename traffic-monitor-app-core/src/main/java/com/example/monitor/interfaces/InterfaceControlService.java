@@ -1,5 +1,6 @@
 package com.example.monitor.interfaces;
 
+import com.example.monitor.ingestion.rest.RestIngestionRunner;
 import com.example.monitor.ingestion.tcp.TcpIngestionRunner;
 import com.example.monitor.ingestion.udp.UdpIngestionRunner;
 import org.springframework.stereotype.Component;
@@ -11,15 +12,18 @@ public class InterfaceControlService {
     private final InterfaceRuntimeRegistry runtimeRegistry;
     private final UdpIngestionRunner udpIngestionRunner;
     private final TcpIngestionRunner tcpIngestionRunner;
+    private final RestIngestionRunner restIngestionRunner;
 
     public InterfaceControlService(
             InterfaceRuntimeRegistry runtimeRegistry,
             UdpIngestionRunner udpIngestionRunner,
-            TcpIngestionRunner tcpIngestionRunner
+            TcpIngestionRunner tcpIngestionRunner,
+            RestIngestionRunner restIngestionRunner
     ) {
         this.runtimeRegistry = runtimeRegistry;
         this.udpIngestionRunner = udpIngestionRunner;
         this.tcpIngestionRunner = tcpIngestionRunner;
+        this.restIngestionRunner = restIngestionRunner;
     }
 
     /** Every configured interface now has its own dedicated socket and runtime state. */
@@ -32,20 +36,20 @@ public class InterfaceControlService {
     public void start(String key) {
         InterfaceRuntimeState state = requireState(key);
 
-        if (isTcp(state)) {
-            tcpIngestionRunner.startInterface(state.config());
-        } else {
-            udpIngestionRunner.startInterface(state.config());
+        switch (resolveTransport(state)) {
+            case TCP -> tcpIngestionRunner.startInterface(state.config());
+            case REST -> restIngestionRunner.startInterface(state.config());
+            case UDP -> udpIngestionRunner.startInterface(state.config());
         }
     }
 
     public void stop(String key) {
         InterfaceRuntimeState state = requireState(key);
 
-        if (isTcp(state)) {
-            tcpIngestionRunner.stopInterface(key);
-        } else {
-            udpIngestionRunner.stopInterface(key);
+        switch (resolveTransport(state)) {
+            case TCP -> tcpIngestionRunner.stopInterface(key);
+            case REST -> restIngestionRunner.stopInterface(key);
+            case UDP -> udpIngestionRunner.stopInterface(key);
         }
     }
 
@@ -59,15 +63,22 @@ public class InterfaceControlService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown interface: " + key));
     }
 
+    private enum TransportKind {
+        UDP, TCP, REST
+    }
+
     /** Dispatches to whichever runner matches the interface's *current* protocol - switchable at runtime via {@link #configure}. */
-    private boolean isTcp(InterfaceRuntimeState state) {
+    private TransportKind resolveTransport(InterfaceRuntimeState state) {
         String protocol = state.config().getProtocol();
 
         if ("TCP".equalsIgnoreCase(protocol)) {
-            return true;
+            return TransportKind.TCP;
+        }
+        if ("REST".equalsIgnoreCase(protocol)) {
+            return TransportKind.REST;
         }
         if ("UDP".equalsIgnoreCase(protocol)) {
-            return false;
+            return TransportKind.UDP;
         }
 
         throw new IllegalArgumentException("Unsupported protocol '" + protocol + "' for interface: " + state.config().getKey());

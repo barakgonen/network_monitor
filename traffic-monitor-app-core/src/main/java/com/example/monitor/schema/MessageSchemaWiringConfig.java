@@ -58,6 +58,10 @@ public class MessageSchemaWiringConfig {
         Set<Class<?>> seenMessageClasses = new HashSet<>();
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
+            if (isRest(interfaceConfig)) {
+                continue;
+            }
+
             for (MessageDefinition definition : buildDefinitions(interfaceConfig)) {
                 boolean opcodeAlreadyRegistered = !seenOpcodes.add(definition.opcode());
                 boolean classAlreadyRegistered = !seenMessageClasses.add(definition.messageClass());
@@ -81,10 +85,25 @@ public class MessageSchemaWiringConfig {
         Map<String, MessageDefinitionRegistry> registries = new LinkedHashMap<>();
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {
+            if (isRest(interfaceConfig)) {
+                continue;
+            }
+
             registries.put(interfaceConfig.getKey(), new MessageDefinitionRegistry(buildDefinitions(interfaceConfig)));
         }
 
         return registries;
+    }
+
+    /**
+     * REST interfaces have no {@code messages:} list (operations are discovered from their
+     * {@code swaggerFile} instead, by {@code RestSchemaWiringConfig}) and no backing {@code
+     * Class<?>}/opcode at all, so they're excluded from every opcode/{@link MessageDefinition}-
+     * keyed bean this class builds - {@link InterfaceConfig#getMessages()} would otherwise be
+     * {@code null} here and NPE.
+     */
+    private boolean isRest(InterfaceConfig interfaceConfig) {
+        return "REST".equalsIgnoreCase(interfaceConfig.getProtocol());
     }
 
     private List<MessageDefinition> buildDefinitions(InterfaceConfig interfaceConfig) throws ReflectiveOperationException {

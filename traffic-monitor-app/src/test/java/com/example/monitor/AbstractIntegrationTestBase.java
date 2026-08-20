@@ -70,6 +70,9 @@ public abstract class AbstractIntegrationTestBase {
     @Value("${traffic.test.rada-le-port}")
     protected int radaLePort;
 
+    @Value("${traffic.test.pets-port}")
+    protected int petsPort;
+
     @Autowired
     protected RecentMessageStore recentMessageStore;
 
@@ -102,6 +105,7 @@ public abstract class AbstractIntegrationTestBase {
         int candyPort = findFreePort();
         int radaPort = findFreePort();
         int radaLePort = findFreePort();
+        int petsPort = findFreePort();
 
         String yaml = loadTemplateYaml()
                 .replace("port: 25001", "port: " + fruitPort)
@@ -109,7 +113,8 @@ public abstract class AbstractIntegrationTestBase {
                 .replace("port: 25003", "port: " + weatherPort)
                 .replace("port: 25004", "port: " + candyPort)
                 .replace("port: 25050", "port: " + radaPort)
-                .replace("port: 25051", "port: " + radaLePort);
+                .replace("port: 25051", "port: " + radaLePort)
+                .replace("port: 25060", "port: " + petsPort);
 
         Path tempConfig = Files.createTempFile("traffic-tool-test-", ".yml");
         Files.writeString(tempConfig, yaml);
@@ -122,6 +127,7 @@ public abstract class AbstractIntegrationTestBase {
         registry.add("traffic.test.candy-port", () -> candyPort);
         registry.add("traffic.test.rada-port", () -> radaPort);
         registry.add("traffic.test.rada-le-port", () -> radaLePort);
+        registry.add("traffic.test.pets-port", () -> petsPort);
     }
 
     private static String loadTemplateYaml() throws IOException {

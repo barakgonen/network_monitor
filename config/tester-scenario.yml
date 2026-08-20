@@ -79,5 +79,36 @@ messages:
       host: 127.0.0.1
       port: 5051
 
+  # pets (config/traffic-tool.yml) is a protocol: REST, mode: SERVER interface hosting the
+  # operations described by swagger/pets-demo.yml - unlike every entry above, this is a JSON-
+  # over-HTTP request/response call (RestPublisher), not a raw UDP/TCP payload, so transport:
+  # REST is required (not just a value like TCP that changes which socket type is used).
+  #
+  # pets.method: (optional, on either PETS_CREATE or PETS_GET below) overrides the HTTP verb
+  # actually sent - e.g. "DELETE" or "PUT" - independently of which mode built the path/body.
+  # Omit it (as both entries below do) to get the mode's natural default: POST for PETS_CREATE,
+  # GET for PETS_GET.
+  - mode: PETS_CREATE
+    target:
+      host: 127.0.0.1
+      port: 5060
+      transport: REST
+    pets:
+      name: "Fluffy"
+      species: "dog"
+      age: 3
+      ownerName: "Alice"
+      ownerEmail: "alice@example.com"
+      tags: ["good boy", "loyal"]
+
+  - mode: PETS_GET
+    target:
+      host: 127.0.0.1
+      port: 5060
+      transport: REST
+    pets:
+      petId: "1"
+      includeVaccinations: true
+
 repeat: 1231
 intervalMillis: 1000

@@ -56,6 +56,12 @@ public class PublisherMetadataService {
     }
 
     private List<PublisherMessageDto> messagesFor(InterfaceConfig interfaceConfig) {
+        // REST interfaces have no MessageDefinitionRegistry entry at all (see
+        // MessageSchemaWiringConfig) - they're listed separately via /api/rest/interfaces instead.
+        if ("REST".equalsIgnoreCase(interfaceConfig.getProtocol())) {
+            return List.of();
+        }
+
         MessageDefinitionRegistry registry = registryFor(interfaceConfig);
         List<PublisherMessageDto> messages = new ArrayList<>();
 

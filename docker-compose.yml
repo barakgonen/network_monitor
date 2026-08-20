@@ -11,8 +11,11 @@ services:
       - "5003:5003/udp"
       - "5004:5004/tcp"
       - "5050:5050/udp"
+      - "5051:5051/udp"
+      - "5060:5060/tcp"
     volumes:
       - ./config:/app/config:ro
+      - ./swagger:/app/swagger:ro
       - ./data:/app/data
     environment:
       TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml

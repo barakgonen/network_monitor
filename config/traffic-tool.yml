@@ -113,3 +113,12 @@ interfaces:
         opcode: 1
     autoReply:
       enabled: false
+
+  - key: pets
+    name: Pets REST Interface
+    protocol: REST
+    port: 5060
+    swaggerFile: swagger/pets-demo.yml
+    # Operations (getPet, createPet) are auto-discovered from swaggerFile at startup - there's no
+    # messages: list to hand-declare, unlike UDP/TCP interfaces, since REST has no per-operation
+    # Java class to wire up.
