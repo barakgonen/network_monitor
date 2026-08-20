@@ -1,5 +1,6 @@
 package com.example.schemacore.reflect;
 
+import com.example.schemacore.annotation.FixedArrayLength;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -73,6 +74,31 @@ class ReflectiveFieldExtractorAndApplierTest {
     record WithNestedRecordField(Nested inner, String label) {
     }
 
+    public static class WithFixedArrayField {
+        @FixedArrayLength(3)
+        private Nested[] items = new Nested[]{new Nested(), new Nested(), new Nested()};
+
+        public Nested[] getItems() {
+            return items;
+        }
+
+        public void setItems(Nested[] items) {
+            this.items = items;
+        }
+    }
+
+    public static class WithUnannotatedArrayField {
+        private Nested[] items = new Nested[0];
+
+        public Nested[] getItems() {
+            return items;
+        }
+
+        public void setItems(Nested[] items) {
+            this.items = items;
+        }
+    }
+
     @Test
     void extractFields_usesGetWireName_whenEnumExposesIt() throws Exception {
         Map<String, Object> fields = ReflectiveFieldExtractor.extractFields(
@@ -134,5 +160,30 @@ class ReflectiveFieldExtractorAndApplierTest {
 
         assertThat(built.inner().getValue()).isEqualTo(9);
         assertThat(built.label()).isEqualTo("xyz");
+    }
+
+    @Test
+    void build_regroupsIndexedKeys_intoStructArray_paddingMissingIndicesToFixedLength() throws Exception {
+        // Regression test: the generic publisher UI lets rows be added/removed independently of
+        // array position (e.g. only index 0 and 2 submitted for a 3-element field); the missing
+        // index 1 must still come out as a default-constructed element, not be skipped, since
+        // the wire format demands exactly @FixedArrayLength(3) elements.
+        WithFixedArrayField built = ReflectiveFieldApplier.build(
+                WithFixedArrayField.class, Map.of("items[0].value", "1", "items[2].value", "3"));
+
+        assertThat(built.getItems()).hasSize(3);
+        assertThat(built.getItems()[0].getValue()).isEqualTo(1);
+        assertThat(built.getItems()[1].getValue()).isEqualTo(0);
+        assertThat(built.getItems()[2].getValue()).isEqualTo(3);
+    }
+
+    @Test
+    void build_regroupsIndexedKeys_intoStructArray_sizedByHighestIndex_whenNotFixedLength() throws Exception {
+        WithUnannotatedArrayField built = ReflectiveFieldApplier.build(
+                WithUnannotatedArrayField.class, Map.of("items[0].value", "5", "items[1].value", "6"));
+
+        assertThat(built.getItems()).hasSize(2);
+        assertThat(built.getItems()[0].getValue()).isEqualTo(5);
+        assertThat(built.getItems()[1].getValue()).isEqualTo(6);
     }
 }

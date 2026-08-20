@@ -1,5 +1,6 @@
 package com.example.monitor.publisher;
 
+import com.example.monitor.publisher.StubMessages.StubArrayMessage;
 import com.example.monitor.publisher.StubMessages.StubDedicatedPortMessage;
 import com.example.monitor.publisher.StubMessages.StubLegacyMessage;
 import org.junit.jupiter.api.Test;
@@ -34,5 +35,16 @@ class PublisherFieldMetadataServiceTest {
 
         assertThat(fields).contains(new PublisherFieldDto("header.msgType", "int"));
         assertThat(fields).extracting(PublisherFieldDto::name).doesNotContain("header");
+    }
+
+    @Test
+    void describeFields_forStructArrayField_describesOneElementAndFixedLength_insteadOfFlattening() {
+        List<PublisherFieldDto> fields = service.describeFields(StubArrayMessage.class);
+
+        assertThat(fields).hasSize(1);
+        PublisherFieldDto arrayField = fields.get(0);
+        assertThat(arrayField.name()).isEqualTo("trackData");
+        assertThat(arrayField.maxLength()).isEqualTo(3);
+        assertThat(arrayField.itemFields()).containsExactly(new PublisherFieldDto("id", "int"));
     }
 }

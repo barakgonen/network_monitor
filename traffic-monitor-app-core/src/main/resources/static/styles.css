@@ -891,3 +891,25 @@ tbody tr.selected-row {
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
+
+/* Array-of-struct fields (e.g. "trackData"): an add/remove-able list of item sub-forms inside
+   the same boxed-group style used for nested objects. */
+
+.generic-array-items {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.generic-array-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.generic-array-add {
+    align-self: flex-start;
+}
