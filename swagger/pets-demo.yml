@@ -1,0 +1,92 @@
+openapi: 3.0.3
+info:
+  title: Pets Demo API
+  description: >
+    Demo OpenAPI spec used to exercise the traffic-monitor's dynamic REST support -
+    protocol: REST interfaces in config/traffic-tool.yml reference a file like this one via
+    swaggerFile:. Nothing here is hand-wired to Java: operations, path/query params, and request/
+    response schemas are all discovered at startup by parsing this file.
+  version: "1.0.0"
+paths:
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      summary: Fetch a single pet by id
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: includeVaccinations
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: The requested pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+  /pets:
+    post:
+      operationId: createPet
+      summary: Register a new pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Pet"
+      responses:
+        "201":
+          description: The created pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+components:
+  schemas:
+    Owner:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+    Vaccination:
+      type: object
+      properties:
+        vaccine:
+          type: string
+        administeredOn:
+          type: string
+          format: date
+    Pet:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Rex
+        species:
+          type: string
+          example: dog
+        age:
+          type: integer
+          format: int32
+        owner:
+          $ref: "#/components/schemas/Owner"
+        tags:
+          type: array
+          items:
+            type: string
+        vaccinations:
+          type: array
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/Vaccination"

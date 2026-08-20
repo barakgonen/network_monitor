@@ -1,14 +1,16 @@
 # Traffic Interface Tool
 
 A Java 21 / Maven multi-module toolkit for simulating and observing custom binary protocol
-traffic over **UDP and TCP**. Two runnable apps talk to each other:
+traffic over **UDP, TCP, and REST**. Two runnable apps talk to each other:
 
 - **traffic-monitor-app** — a Spring Boot service that listens for traffic on a set of
   configurable interfaces, decodes it, stores recent messages in memory (plus a durable
   H2-backed history with search/analytics endpoints), exposes a REST API, and serves a
   dark-themed live-monitoring web UI. It can also *publish* messages (once or on a repeating
   schedule), auto-reply to specific inbound message types via pluggable handlers, and exposes
-  Micrometer/Actuator metrics (including a Prometheus scrape endpoint).
+  Micrometer/Actuator metrics (including a Prometheus scrape endpoint). Beyond the binary
+  UDP/TCP protocols, it can also host or call REST APIs described entirely by an OpenAPI/Swagger
+  YAML file — no Java code required per API (see [REST interfaces](#rest-interfaces-dynamic-no-codegen)).
 - **traffic-tester-app** — a standalone CLI app that sends synthetic traffic (defined in a YAML
   scenario file) at the monitor, and can optionally listen for messages sent back.
 
@@ -23,9 +25,13 @@ traffic-monitor-app-core   The generic engine: ingestion, persistence, analytics
                               - com.example.handlercore — MessageArrivedHandler<T>,
                                 MessageHandlerRegistry, MessageArrivedDispatcher, ReplySender,
                                 DestinationConfig.
-                              - com.example.monitor — the engine itself.
+                              - com.example.monitor — the engine itself, including .rest
+                                (+ .ingestion.rest) — dynamic, no-codegen OpenAPI/Swagger-driven
+                                REST interface support (see REST interfaces below).
                             Has zero compile dependency on any concrete protocol/handler
-                            classes — enforced by its pom.xml, not just convention.
+                            classes — enforced by its pom.xml, not just convention. (REST
+                            interfaces take this further still — they need no Java class at
+                            all, concrete or otherwise.)
 
 traffic-monitor-app        The runnable app. Package layout adds two more top-level packages
                             alongside com.example.monitor:
@@ -67,6 +73,11 @@ Every interface owns its **own dedicated socket** — its own port and its own p
 | Weather Interface | 5003 | UDP | TemperatureReading | default envelope |
 | Candy Interface | 5004 | TCP | Candy | default envelope |
 | Rada Interface | 5050 | UDP | RadaStatus, RadaExtendedStatus, RadaExtendedStatusMrs, RadaTracksExtended | custom `RadaHeader`, self-parsing |
+| Rada Interface (Little Endian Extended Status) | 5051 | UDP | RadaExtendedStatus (same class as Rada above, decoded `byteOrder: LITTLE_ENDIAN` instead) | custom `RadaHeader`, self-parsing |
+| Pets REST Interface | 5060 | REST | `getPet`, `createPet` — auto-discovered from `swagger/pets-demo.yml`, not hand-declared | n/a — JSON over HTTP, described by the OpenAPI schema, not a binary header |
+
+Pets is a **REST** interface, not UDP/TCP — see [REST interfaces](#rest-interfaces-dynamic-no-codegen)
+below; the rest of this section (header models, `messageClass:`, opcodes) is UDP/TCP-specific.
 
 "Default envelope" vs "custom header, self-parsing" is explained in
 [The reflective codec convention](#the-reflective-codec-convention) below — it's the single most
@@ -396,6 +407,119 @@ append a new entry under that interface's existing `messages:` list in
 handler (Step 4) and tester support (Step 5), and test (Step 6). No new port, no new top-level
 config entry.
 
+## REST interfaces (dynamic, no codegen)
+
+Everything above (message classes, `messageClass:`/`opcode:`, handlers) is for the two **binary**
+protocols. `protocol: REST` interfaces are a completely different, much simpler path: describe
+the API with an OpenAPI/Swagger YAML file, point a config entry at it, and restart — **no Java
+code at all**, not even a message class. This is deliberate: dropping in a new REST API is a
+restart, not a rebuild, unlike UDP/TCP where a message still needs a hand-written/reflective class.
+
+A REST interface can run in either direction, same as TCP:
+
+- **`mode: SERVER`** (default) — the monitor **hosts** the API: it binds its own dedicated
+  embedded HTTP server on `port`, and every inbound request that matches one of the swagger
+  file's operations is decoded, stored, and shown in Live/History exactly like an inbound
+  UDP/TCP message — with `messageType` set to the OpenAPI `operationId` (e.g. `getPet`) instead
+  of a `messages[].type:`. Every request also gets a response written back synchronously (see
+  [REST auto-reply](#rest-auto-reply) below) — HTTP requires *some* response, so there's no
+  "auto-reply disabled" state the way there is for UDP/TCP.
+- **`mode: CLIENT`** — the monitor **calls out** to an external REST API at `host:port` instead.
+  There's no persistent connection to maintain (unlike TCP client mode) — client mode is purely
+  on-demand, driven by the same Generic Publisher UI/API used for UDP/TCP (see
+  [REST Publisher](#rest-publisher) below). The HTTP response comes back and is itself captured
+  as a newly-observed message (`messageType` suffixed `" (response)"`), so calling an external API
+  and inspecting what it returned both happen in the same place as everything else in this tool.
+
+Because REST messages have no backing Java class, they're handled by an entirely separate code
+path (`com.example.monitor.rest` + `com.example.monitor.ingestion.rest`) keyed by `operationId`
+instead of opcode/message class — they don't go through `ReflectiveStructCodec`,
+`MessageDefinitionRegistry`, or `MessageArrivedHandler`. One consequence: **you can't write a
+custom handler that reacts to a REST message** the way `OrangeMessageHandler`/`PingMessageHandler`
+do for UDP/TCP — see [Known gaps](#known-gaps).
+
+### Adding a new REST interface
+
+1. **Get (or write) an OpenAPI/Swagger YAML file** describing the API and drop it under
+   `swagger/` at the repo root (e.g. `swagger/orders-api.yml`). Standard OpenAPI 3.x — paths,
+   operations (`operationId`, path/query parameters, JSON request/response bodies), and
+   `components.schemas` are all supported; `$ref`/`allOf`/`oneOf`/`anyOf` are resolved
+   automatically at startup. JSON media types only — a non-JSON `content:` entry is skipped with
+   a startup warning, not supported. `oneOf`/`anyOf` collapse to their first listed alternative
+   for form-rendering purposes (full polymorphic body support is a known gap).
+2. **Add an interface entry** to `config/traffic-tool.yml`:
+
+   ```yaml
+     - key: orders
+       name: Orders REST Interface
+       protocol: REST
+       port: 5061                 # SERVER mode: the local bind port. CLIENT mode: the port to call.
+       swaggerFile: swagger/orders-api.yml
+       # mode: SERVER (default) — omit for server mode.
+       # For CLIENT mode instead:
+       # mode: CLIENT
+       # host: orders.example.internal
+   ```
+
+   No `messages:` list — operations (`operationId`s) are auto-discovered from `swaggerFile` at
+   startup, not hand-declared. `TrafficToolConfigLoader` fails fast at startup if `swaggerFile` is
+   missing, blank, or doesn't exist on disk.
+3. **That's it for server mode.** Build and run, then confirm the operations were discovered:
+
+   ```bash
+   curl localhost:8080/api/rest/interfaces
+   ```
+
+   should list `orders` with every operation the swagger file defines. Hit one directly:
+
+   ```bash
+   curl -X POST localhost:5061/orders -H 'Content-Type: application/json' -d '{"item":"widget"}'
+   ```
+
+   and confirm it shows up in `curl localhost:8080/api/messages/recent`.
+4. **(Optional) Configure the auto-reply** for server mode — see
+   [REST auto-reply](#rest-auto-reply) below; if you skip this, requests still get a response,
+   just a placeholder synthesized from the OpenAPI response schema rather than one you chose.
+5. **For client mode**, trigger a call via the **REST Publisher** card in the web UI's Sample
+   Publisher tab (or `POST /api/publisher/send` directly — see [REST Publisher](#rest-publisher)),
+   and confirm the response lands in Live/History as `<operationId> (response)`.
+6. **Add to the test config and write tests** — same idea as
+   [Step 6](#step-6--add-to-the-test-config-and-write-tests) for UDP/TCP, except REST's own
+   integration tests live in `traffic-monitor-app-core` (not `traffic-monitor-app`), specifically
+   because REST needs no concrete schema/handler class at all — see `RestServerIngestionIT`/
+   `RestClientPublishingIT` and `src/test/resources/rest/sample-openapi.yml` for the pattern
+   (a `@DynamicPropertySource`-generated temp config with a fresh free port, same technique
+   `AbstractIntegrationTestBase` uses for UDP/TCP).
+
+### REST auto-reply
+
+REST server mode's "auto-reply" is the synchronous HTTP response written back for every request —
+mandatory, not an optional switch like UDP/TCP's. Configure one via the **REST Auto-Reply** card
+on the Auto-Reply tab (interface + operation + status code + JSON response body), or:
+
+```bash
+curl -X POST localhost:8080/api/rest/orders/autoreply/getOrder \
+  -H 'Content-Type: application/json' \
+  -d '{"statusCode": 200, "bodyTemplate": "{\"status\":\"shipped\"}"}'
+```
+
+If nothing's configured for an operation, the response falls back to the OpenAPI spec's own
+response schema — its `example` if present, else a synthesized placeholder instance (`""` for
+strings, `0` for numbers, `false` for booleans, recursively for nested objects/arrays). Response
+bodies are **fully static** — no variable interpolation (e.g. echoing a path parameter back into
+the reply) — see [Known gaps](#known-gaps).
+
+### REST Publisher
+
+The Sample Publisher tab's **REST Publisher** card lists every REST interface + operation
+(`/api/rest/interfaces`), builds a form from the operation's path/query parameters and request
+body (`/api/rest/fields`, using the exact same field-rendering UI as the Generic Publisher,
+including boxed nested objects and add/remove-able array-of-struct rows), and sends via the same
+`POST /api/publisher/send` endpoint UDP/TCP's Generic Publisher already uses — `messageType` is
+the `operationId`. The external API's HTTP response is captured as a newly-observed message,
+which is the entire point of REST client mode (unlike UDP/TCP's fire-and-forget publish).
+**Periodic** REST publish isn't wired up yet — see [Known gaps](#known-gaps).
+
 ## Interface runtime control
 
 Beyond config-time defaults, every interface can be started, stopped, and reconfigured (port
@@ -422,7 +546,13 @@ curl -X POST localhost:8080/api/interfaces/beacon/start
 Switching an interface's protocol works because both `UdpIngestionRunner` and
 `TcpIngestionRunner` implement the identical dedicated-socket-per-interface mechanism against the
 same `InterfaceConfig`/`MessageIngestionPipeline` — `InterfaceControlService` just dispatches to
-whichever runner matches the interface's *current* protocol.
+whichever runner matches the interface's *current* protocol. `RestIngestionRunner` is the third
+option the protocol dropdown offers, but with one asymmetry worth knowing: **switching an
+existing UDP/TCP interface to `REST` at runtime doesn't actually work** —
+`InterfaceConfigureRequest` has no `swaggerFile` field, and even if it did, the set of REST
+interfaces is parsed from config once at startup, not rebuilt on reconfigure. The dropdown still
+needs the `REST` option so a REST interface's *own* row displays its protocol correctly — only
+interfaces already declared `protocol: REST` in `traffic-tool.yml` at startup are functional.
 
 ## Config files
 
@@ -430,6 +560,9 @@ whichever runner matches the interface's *current* protocol.
   `config/traffic-tool.yml` relative to the working directory — run from the repo root) — the
   interfaces/messages/auto-reply config described above. Test equivalent:
   `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`.
+- **`swagger/`** — OpenAPI/Swagger YAML files for `protocol: REST` interfaces, referenced by
+  `swaggerFile:` (see [REST interfaces](#rest-interfaces-dynamic-no-codegen)).
+  `swagger/pets-demo.yml` is the demo spec behind the `pets` interface.
 - **`traffic-monitor-app-core/src/main/resources/application.yml`** (Spring Boot) — HTTP port,
   UDP receive buffer size, TCP max body length, recent-message store size, the H2 datasource, and
   Actuator endpoint exposure:
@@ -465,7 +598,10 @@ whichever runner matches the interface's *current* protocol.
 - **`config/tester-scenario.yml`** — `traffic-tester-app`'s scenario definition (what to send,
   how often, to which target) — see [Scenario configuration](#scenario-configuration).
 
-## REST API
+## Monitor's own REST API
+
+(Not to be confused with `protocol: REST` *interfaces* — this is the control-plane/data-access
+API the monitor app itself exposes, always present regardless of which interfaces you configure.)
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
@@ -474,15 +610,20 @@ whichever runner matches the interface's *current* protocol.
 | GET | `/api/analytics/timeseries` | — (query params) | Message counts bucketed by time (`minute`/`hour`/`day`) |
 | GET | `/api/analytics/breakdown` | — (query params) | Message counts grouped by `interfaceName` or `messageType` |
 | GET / POST / POST | `/api/interfaces*` | see above | [Interface runtime control](#interface-runtime-control) |
-| GET | `/api/publisher/interfaces` | — | Every configured interface + its message types (backs the generic Sample Publisher UI and the left sidebar) |
-| GET | `/api/publisher/fields` | — (query params) | Field metadata (name/type/enum options) for one message type, via reflection |
-| POST | `/api/publish/udp` | `PublishRequest` | Sends one message over UDP or TCP (`transport` in the body selects the transport, default UDP) |
-| POST | `/api/publish/udp/periodic/start` | `PeriodicPublishRequest` | Starts repeating publish |
+| GET | `/api/publisher/interfaces` | — | Every configured UDP/TCP interface + its message types (backs the Generic Publisher UI and the left sidebar) |
+| GET | `/api/publisher/fields` | — (query params) | Field metadata (name/type/enum options, incl. nested/array-of-struct) for one message class, via reflection |
+| POST | `/api/publisher/send` | `PublisherSendRequest` | Sends one message for any UDP/TCP/REST interface (`interfaceKey`+`messageType`+`fields`) — the endpoint behind both the Generic Publisher and the REST Publisher |
+| GET | `/api/rest/interfaces` | — | Every configured `protocol: REST` interface + its operations, auto-discovered from `swaggerFile` |
+| GET | `/api/rest/fields` | `interfaceKey`, `operationId` (query params) | Field metadata for one REST operation's request body, walking the OpenAPI schema instead of reflecting a class |
+| GET | `/api/rest/{key}/autoreply` | — | Resolved (configured-or-fallback) auto-reply for every operation on one REST interface |
+| POST | `/api/rest/{key}/autoreply/{operationId}` | `{ statusCode, bodyTemplate }` | Configures the static response for one REST operation |
+| POST | `/api/publish/udp` | `PublishRequest` | Sends one message over UDP or TCP (`transport` in the body selects the transport, default UDP) — the legacy/Sample Publisher endpoint, fruit/weather/ping/candy only |
+| POST | `/api/publish/udp/periodic/start` | `PeriodicPublishRequest` | Starts repeating publish (legacy `PublishRequest`-based — UDP/TCP only, no REST support yet) |
 | POST | `/api/publish/udp/periodic/stop` | — | Stops the periodic publisher |
 | GET | `/api/publish/udp/periodic/status` | — | Current `PeriodicPublishStatus` |
-| GET | `/api/autoreply/settings` | — | Global + per-interface auto-reply settings |
+| GET | `/api/autoreply/settings` | — | Global + per-interface UDP/TCP auto-reply settings |
 | POST | `/api/autoreply/global` | `{ enabled }` | Sets the global auto-reply switch |
-| POST | `/api/autoreply/interface` | `{ interfaceName, enabled, host, port, transport }` | Sets one interface's switch + destination + reply transport |
+| POST | `/api/autoreply/interface` | `{ interfaceName, enabled, host, port, transport }` | Sets one UDP/TCP interface's switch + destination + reply transport |
 
 `PublishRequest`: `interfaceName`, `messageType`, `host`, `port`, `transport`
 (`"UDP"` \| `"TCP"`, optional, defaults to `"UDP"`), `fields` (`Map<String,Object>`).
@@ -512,10 +653,16 @@ Five tabs:
 - **Interfaces** — one row per configured interface: editable port input + protocol dropdown +
   Save, plus Start/Stop, listening state, received/parse-error counts, last-observed time — see
   [Interface runtime control](#interface-runtime-control).
-- **Sample Publisher** — pick any configured interface/message, target host:port:transport, and
-  per-field inputs (enum fields render as dropdowns); "Send Once" plus periodic controls.
-- **Auto-Reply** — master toggle + one row per interface (host/port/transport), built entirely
-  from the API response so new interfaces show up automatically.
+- **Sample Publisher** — three cards: the original hand-coded Sample Publisher (Fruit/Weather
+  only, host:port:transport + per-field inputs, enum fields as dropdowns, "Send Once" plus
+  periodic controls); the **Generic Publisher**, which works for any UDP/TCP interface via
+  reflection (no hardcoded per-message forms, including nested/array-of-struct field rendering);
+  and the **REST Publisher** (see [REST Publisher](#rest-publisher)), which reuses the Generic
+  Publisher's field-rendering for any `protocol: REST` interface's operations.
+- **Auto-Reply** — master toggle + one row per UDP/TCP interface (host/port/transport), built
+  entirely from the API response so new interfaces show up automatically, plus a separate
+  **REST Auto-Reply** card (see [REST auto-reply](#rest-auto-reply)) since REST's response model
+  is different enough (mandatory, per-operation, status+body) not to fit the same UI.
 - **History** — search/filter the durable H2-backed history plus time-series/breakdown analytics
   charts.
 
@@ -653,8 +800,10 @@ docker compose --profile tester up --build traffic-tester-app
 ```
 
 Exposed ports: `8080/tcp` (HTTP+UI+REST+`/actuator/*`), `5001/udp` (Fruit), `5002/udp` (Ping),
-`5003/udp` (Weather), `5004/tcp` (Candy), `5050/udp` (Rada), `7001/udp` (tester listener). If you
-add a new interface, add its port to `docker-compose.yml` too.
+`5003/udp` (Weather), `5004/tcp` (Candy), `5050/udp` (Rada), `5051/udp` (Rada Little-Endian),
+`5060/tcp` (Pets REST interface), `7001/udp` (tester listener). If you add a new interface, add
+its port to `docker-compose.yml` too — for a REST interface, also make sure `./swagger` is
+bind-mounted (it already is, alongside `./config`) so the container can see your swagger file.
 
 The `./data` host directory is bind-mounted and holds the H2 database file — survives
 `docker compose down`/`up`. Delete `./data` manually to start with an empty history.
@@ -692,3 +841,18 @@ fat jar is the separate `-exec.jar`.) Run the tester locally: see
 - Multi-select interface filtering in the Live/History UI tabs is still single-select in the
   History tab's dropdown (the sidebar's click-to-toggle filter on the Live tab is effectively
   multi-select already).
+- **No custom handler support for REST messages** — REST operations have no backing Java class,
+  so there's nothing for a `MessageArrivedHandler<T>`-style handler to type against; REST server
+  mode's response is always the static configured/fallback body (see
+  [REST auto-reply](#rest-auto-reply)), never programmable logic.
+- **No periodic REST publish** — `PeriodicPublisherService` is hard-wired to the legacy flat
+  `PublishRequest`/`MonitorPayloadFactory` path, which can't represent a REST operation. On-demand
+  REST publish (REST Publisher UI / `POST /api/publisher/send`) works fully.
+- **REST auto-reply bodies are fully static** — no variable interpolation/templating (e.g. can't
+  echo a path parameter back into the configured response).
+- **No HTTPS for REST** — REST client-mode calls are `http://` only, no TLS config surface.
+- **`oneOf`/`anyOf` OpenAPI schemas collapse to their first alternative** rather than fully
+  modeling a polymorphic request/response body in the REST Publisher's generated form.
+- **Switching a UDP/TCP interface to `protocol: REST` at runtime doesn't work** (see
+  [Interface runtime control](#interface-runtime-control)) — only interfaces already declared
+  `protocol: REST` in config at startup are functional.

@@ -16,8 +16,8 @@ public final class InterfaceModeValidator {
      *                any thrown message (e.g. {@code "interfaces[key=fruit]"} or
      *                {@code "interface fruit"})
      * @throws IllegalArgumentException if {@code mode} isn't {@code SERVER}/{@code CLIENT}, or if
-     *                                   {@code mode=CLIENT} is paired with a non-TCP protocol or a
-     *                                   blank host
+     *                                   {@code mode=CLIENT} is paired with a protocol other than
+     *                                   TCP/REST or a blank host
      */
     public static void validate(String mode, String protocol, String host, String context) {
         if (mode == null || !("SERVER".equalsIgnoreCase(mode) || "CLIENT".equalsIgnoreCase(mode))) {
@@ -25,8 +25,8 @@ public final class InterfaceModeValidator {
         }
 
         if ("CLIENT".equalsIgnoreCase(mode)) {
-            if (!"TCP".equalsIgnoreCase(protocol)) {
-                throw new IllegalArgumentException(context + " mode=CLIENT requires protocol=TCP");
+            if (!("TCP".equalsIgnoreCase(protocol) || "REST".equalsIgnoreCase(protocol))) {
+                throw new IllegalArgumentException(context + " mode=CLIENT requires protocol=TCP or protocol=REST");
             }
             if (host == null || host.isBlank()) {
                 throw new IllegalArgumentException(context + " mode=CLIENT requires a non-blank host");

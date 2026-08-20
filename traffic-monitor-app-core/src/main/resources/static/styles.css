@@ -283,7 +283,7 @@ body {
     color: var(--cyan);
 }
 
-button, input {
+button, input, textarea {
     font-family: var(--sans);
     font-size: 13px;
     color: var(--text);
@@ -292,6 +292,11 @@ button, input {
     border-radius: var(--radius-sm);
     padding: 7px 13px;
     outline: none;
+}
+
+textarea {
+    font-family: var(--mono);
+    resize: vertical;
 }
 
 button {

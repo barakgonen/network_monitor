@@ -54,3 +54,6 @@ build/
 /output/
 /runtime/
 /data/
+# H2 test database files created by running tests from within a module directory (e.g.
+# traffic-monitor-app-core's REST ITs boot a real H2 datasource with a relative jdbc:h2:file: url)
+**/data/

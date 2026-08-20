@@ -5,6 +5,8 @@ import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
 import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
+import com.example.tester.rest.RestPublisher;
+import com.example.tester.rest.RestSendResult;
 import com.example.tester.tcp.TcpPublisher;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
@@ -25,6 +27,7 @@ public class TesterMain {
         PayloadFactory payloadFactory = new PayloadFactory();
         UdpPublisher udpPublisher = new UdpPublisher();
         TcpPublisher tcpPublisher = new TcpPublisher();
+        RestPublisher restPublisher = new RestPublisher();
 
         UdpListener listener = null;
 
@@ -54,11 +57,34 @@ public class TesterMain {
 
             for (int messageIndex = 0; messageIndex < messages.size(); messageIndex++) {
                 PayloadConfig messageConfig = messages.get(messageIndex);
-                byte[] payload = payloadFactory.create(messageConfig);
-
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
                 String transport = resolveTransport(messageConfig);
+
+                if ("REST".equals(transport)) {
+                    RestSendResult result = restPublisher.send(host, port, messageConfig);
+                    totalSent++;
+
+                    System.out.println("Sent message "
+                            + (messageIndex + 1)
+                            + "/"
+                            + messages.size()
+                            + " type="
+                            + messageConfig.getMode()
+                            + ", transport=REST, method="
+                            + result.method()
+                            + ", target="
+                            + host
+                            + ":"
+                            + port
+                            + ", status="
+                            + result.statusCode()
+                            + ", responseBody="
+                            + result.body());
+                    continue;
+                }
+
+                byte[] payload = payloadFactory.create(messageConfig);
 
                 if ("TCP".equals(transport)) {
                     tcpPublisher.send(host, port, payload);

@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: Test Items API
+  description: Minimal fixture spec used by RestServerIngestionIT/RestClientPublishingIT - not the demo repo-root swagger/pets-demo.yml, kept separate so these tests don't depend on that file's contents.
+  version: "1.0.0"
+paths:
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "abc"
+                  name:
+                    type: string
+                    example: "Widget"
+  /items:
+    post:
+      operationId: createItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: created

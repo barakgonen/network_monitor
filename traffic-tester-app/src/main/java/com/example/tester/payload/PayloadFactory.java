@@ -49,6 +49,9 @@ public class PayloadFactory {
             case RADA_EXTENDED_STATUS_LITTLE_ENDIAN -> createRadaExtendedStatusLittleEndian();
             case RADA_EXTENDED_STATUS_MRS -> createRadaExtendedStatusMrs();
             case RADA_TRACKS_EXTENDED -> createRadaTracksExtended();
+            case PETS_CREATE, PETS_GET -> throw new UnsupportedOperationException(
+                    "REST payload modes are sent via RestPublisher (JSON over HTTP), not encoded as wire-format "
+                            + "bytes - TesterMain must dispatch these before ever calling PayloadFactory.create()");
         };
     }
 

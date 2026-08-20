@@ -1,5 +1,6 @@
 package com.example.monitor.interfaces;
 
+import com.example.monitor.ingestion.rest.RestIngestionRunner;
 import com.example.monitor.ingestion.tcp.TcpIngestionRunner;
 import com.example.monitor.ingestion.udp.UdpIngestionRunner;
 import com.example.monitor.schema.InterfaceConfig;
@@ -26,6 +27,9 @@ class InterfaceControlServiceTest {
     @Mock
     private TcpIngestionRunner tcpIngestionRunner;
 
+    @Mock
+    private RestIngestionRunner restIngestionRunner;
+
     private InterfaceRuntimeRegistry runtimeRegistry;
     private InterfaceControlService service;
     private InterfaceConfig radaConfig;
@@ -42,7 +46,7 @@ class InterfaceControlServiceTest {
         config.setInterfaces(List.of(radaConfig));
 
         runtimeRegistry = new InterfaceRuntimeRegistry(config);
-        service = new InterfaceControlService(runtimeRegistry, udpIngestionRunner, tcpIngestionRunner);
+        service = new InterfaceControlService(runtimeRegistry, udpIngestionRunner, tcpIngestionRunner, restIngestionRunner);
     }
 
     @Test
@@ -79,6 +83,26 @@ class InterfaceControlServiceTest {
 
         verify(tcpIngestionRunner).stopInterface("rada");
         verifyNoInteractions(udpIngestionRunner);
+    }
+
+    @Test
+    void start_withRestProtocol_delegatesToRestIngestionRunner() {
+        radaConfig.setProtocol("REST");
+
+        service.start("rada");
+
+        verify(restIngestionRunner).startInterface(radaConfig);
+        verifyNoInteractions(udpIngestionRunner, tcpIngestionRunner);
+    }
+
+    @Test
+    void stop_withRestProtocol_delegatesToRestIngestionRunner() {
+        radaConfig.setProtocol("REST");
+
+        service.stop("rada");
+
+        verify(restIngestionRunner).stopInterface("rada");
+        verifyNoInteractions(udpIngestionRunner, tcpIngestionRunner);
     }
 
     @Test

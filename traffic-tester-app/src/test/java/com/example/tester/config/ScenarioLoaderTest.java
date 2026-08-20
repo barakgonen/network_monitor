@@ -204,6 +204,48 @@ class ScenarioLoaderTest {
     }
 
     @Test
+    void load_withPetsCreateModeMissingPetsSection_throwsIllegalArgumentException() throws Exception {
+        Path file = tempDir.resolve("scenario.yml");
+        Files.writeString(file, """
+                udp:
+                  host: 127.0.0.1
+                  port: 5001
+                messages:
+                  - mode: PETS_CREATE
+                    pets: null
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pets is required");
+    }
+
+    @Test
+    void load_withPetsCreateModeAndRestTransport_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("scenario.yml");
+        Files.writeString(file, """
+                udp:
+                  host: 127.0.0.1
+                  port: 5001
+                messages:
+                  - mode: PETS_CREATE
+                    target:
+                      host: 127.0.0.1
+                      port: 5060
+                      transport: REST
+                    pets:
+                      name: "Fluffy"
+                """);
+
+        TesterScenario scenario = loader.load(file);
+
+        assertThat(scenario.effectiveMessages()).hasSize(1);
+        assertThat(scenario.effectiveMessages().get(0).getMode()).isEqualTo(PayloadMode.PETS_CREATE);
+        assertThat(scenario.effectiveMessages().get(0).getTarget().getTransport()).isEqualTo("REST");
+        assertThat(scenario.effectiveMessages().get(0).getPets().getName()).isEqualTo("Fluffy");
+    }
+
+    @Test
     void load_withZeroRepeat_throwsIllegalArgumentException() throws Exception {
         Path file = tempDir.resolve("scenario.yml");
         Files.writeString(file, """

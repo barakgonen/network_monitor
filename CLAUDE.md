@@ -28,11 +28,15 @@ traffic-monitor-app-core   The generic engine, plus what used to be two separate
                           DestinationConfig.
                         - `com.example.monitor` — the engine itself: ingestion, persistence,
                           analytics, auto-reply, publisher, interface runtime control, REST API,
-                          UI resources.
+                          UI resources. Includes `.rest` (+ `.ingestion.rest`) — the dynamic,
+                          no-codegen OpenAPI/Swagger-driven REST interface support (see "REST
+                          interfaces" below); unlike everything else here, this sub-area's own
+                          end-to-end IT suite lives in *this* module, not traffic-monitor-app.
                       Has zero compile dependency on shared-schemas/handler-app (see invariant
-                      below) — its own test tree only holds pure unit/slice tests; the real
-                      end-to-end integration-test suite lives in traffic-monitor-app instead
-                      (see "IT suite lives in traffic-monitor-app" below).
+                      below) — its own test tree mostly holds pure unit/slice tests (the real
+                      end-to-end integration-test suite for UDP/TCP lives in traffic-monitor-app
+                      instead), except for REST's own IT suite (see "IT suite lives in
+                      traffic-monitor-app... (except REST)" below).
 traffic-monitor-app  The runnable app, and also what used to be two more separate modules
                       (shared-schemas, handler-app) folded directly into it — merged the same
                       way, since neither has any other consumer besides this module and
@@ -77,7 +81,7 @@ generic engine to concrete protocol classes happens by fully-qualified class nam
 from YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at startup
 (`MessageSchemaWiringConfig`). This means new protocols never require touching the engine.
 
-## IT suite lives in traffic-monitor-app, not traffic-monitor-app-core
+## IT suite lives in traffic-monitor-app, not traffic-monitor-app-core (except REST)
 
 traffic-monitor-app-core's test Spring context boots the full app wiring (its trimmed
 `TrafficMonitorTestApplication` only scans `com.example.monitor`, no handler packages), so it
@@ -88,6 +92,20 @@ suite (`*IT.java`, real UDP/TCP sockets + real Spring context wired to real inte
 directly and has a real bootable `TrafficMonitorApplication` (scanning `com.example.messagehandlers`
 too) for the tests to boot against. Test config:
 `traffic-monitor-app/src/test/resources/traffic-tool-test.yml` + `application.yml`.
+
+**Exception: REST ITs** (`RestServerIngestionIT`, `RestClientPublishingIT`) live in
+traffic-monitor-app-core instead, under `com.example.monitor.rest`. The reason for the split above
+doesn't apply to REST — a REST interface needs no concrete schema/handler class at all (fully
+dynamic, no codegen), so `TrafficMonitorTestApplication` can boot one just fine. This required
+adding a `<build><plugins><plugin>maven-failsafe-plugin</plugin>` block to
+`traffic-monitor-app-core/pom.xml` (previously absent — that module relied only on the root
+pom's `pluginManagement` defaults for failsafe, which configure the plugin *if* referenced but
+never invoke it on their own), binding to failsafe's default `integration-test`/`verify` phases —
+no `test`-phase workaround needed, since this module has no `spring-boot-maven-plugin` to clash
+with (see the repackage-ordering gotcha below). Fixture config lives inline in each IT via
+`@DynamicPropertySource` (a temp YAML file with a freshly-chosen free port), plus
+`src/test/resources/rest/sample-openapi.yml` — deliberately separate from the demo
+`swagger/pets-demo.yml` at the repo root, so these tests don't depend on that file's contents.
 
 ## The reflective codec convention (traffic-monitor-app-core's com.example.schemacore)
 
@@ -208,13 +226,91 @@ server mode uses. `stopInterface`'s cleanup is shared across both modes via the 
 in flight has no live socket yet to force-close, so `stopInterface`'s worst-case latency for a
 `CLIENT` interface is bounded by `client-connect-timeout-ms`, not instant.
 
+## REST interfaces (dynamic, no codegen)
+
+`protocol: REST` interfaces are driven entirely by an OpenAPI/Swagger YAML file (`swaggerFile:`
+on `InterfaceConfig`, path relative to CWD like `config/traffic-tool.yml` itself, conventionally
+under the repo-root `swagger/` directory) — parsed at startup (`io.swagger.parser.v3:swagger-parser`,
+new dependency in `traffic-monitor-app-core/pom.xml`) with zero Java code required per new API,
+unlike UDP/TCP where a message still needs a hand-written/reflective-codec-compatible class. This
+was a deliberate choice: dropping in a new swagger file is a restart, not a rebuild.
+
+Because REST messages have no backing `Class<?>`, they're a **parallel universe** alongside
+`com.example.schemacore`/`com.example.handlercore` rather than plugging into either — all new code
+lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), keyed by
+`operationId` instead of opcode/`Class<?>`:
+
+- `RestSchemaNode` — the `Schema`-walking analogue of a Java field tree (built by
+  `RestSchemaConverter`, same recursion shape and `MAX_DEPTH` guard as
+  `PublisherFieldMetadataService`'s reflection-based one — more important here, since OpenAPI
+  schemas can genuinely self-reference).
+- `RestOperationDefinition`/`RestApiDefinition` — one per discovered operation/per interface,
+  built by `RestApiDefinitionBuilder` walking the parsed `OpenAPI` model (JSON request/response
+  media types only; other content types are skipped with a startup warning). Auto-discovered —
+  there's no `messages:` list to hand-declare, unlike UDP/TCP.
+- `RestSchemaWiringConfig` — the REST analogue of `MessageSchemaWiringConfig.interfaceMessageDefinitionRegistries`:
+  a `@Bean Map<String, RestApiDefinition> restApiDefinitions`, one entry per REST interface. Same
+  `@Qualifier("restApiDefinitions")` requirement as that other map bean (see the `Map<String, X>`
+  gotcha below).
+- `RestFieldMetadataService`/`RestRequestBodyAssembler` — the REST analogues of
+  `PublisherFieldMetadataService`/`ReflectiveFieldApplier`, producing/consuming the exact same
+  `PublisherFieldDto` shape, so the Generic Publisher UI's field-rendering JS
+  (`buildGenericFieldRow`/`buildGenericArrayGroup`/`renderFieldsInto`) needs no changes to also
+  render REST operation forms. The dotted/indexed flattened-path parsing
+  (`unflatten`/`trackData[0].id`-style keys) was extracted out of `ReflectiveFieldApplier` into
+  `com.example.schemacore.reflect.FlattenedFieldPathUtil` specifically so both sides could share
+  it without a `com.example.monitor` → `com.example.schemacore` dependency going the wrong
+  direction.
+- `RestIngestionRunner` (`SERVER` mode) — mirrors `TcpIngestionRunner`'s one-dedicated-socket-per-interface
+  pattern, but using the JDK's built-in `com.sun.net.httpserver.HttpServer` (no new dependency)
+  instead of a raw `ServerSocket`, since HTTP framing is the server's job, not ours — considerably
+  simpler than `TcpIngestionRunner`, with no per-connection accept loop to run. `RestOperationRouter`
+  matches incoming method+path against discovered operations (path templates compiled to `Pattern`s
+  with positional, not named, capture groups — OpenAPI path param names can contain characters
+  Java's named-group syntax rejects). `mode: CLIENT` is a deliberate **no-op** here (unlike TCP
+  client mode, which still runs a background reconnect loop) — REST client mode has no persistent
+  connection/server concept at all.
+- `MessageIngestionPipeline.ingestRestOperation` — the REST entry point, sitting alongside
+  `ingestForInterface`. Skips `decodeForInterface` entirely (the JSON body is already a
+  `Map<String,Object>` via Jackson) and reuses only the shared store+archive tail
+  (`storeAndArchive`, extracted out of `finishIngest` for this purpose) — it deliberately does
+  **not** call `dispatchIfEligible`, since there's no `MessageArrivedHandler` to dispatch to for a
+  dynamically-discovered operation.
+- `RestAutoReplySettingsService` — REST server mode's "auto-reply" is a **mandatory** synchronous
+  HTTP response (every request gets *some* response, by necessity of the protocol), not an
+  optional async dispatch like `AutoReplySettingsService`, so it's a deliberately independent,
+  equally in-memory-only settings store keyed by `(interfaceKey, operationId)`. Falls back to the
+  OpenAPI spec's own response schema when nothing's configured: its `example` if present, else a
+  synthesized placeholder instance (`""`/`0`/`false`/`[]`/recursive `{}` per leaf type).
+- `RestOperationInvoker` — REST client-mode/on-demand publishing, using the JDK's built-in
+  `java.net.http.HttpClient` (no new dependency). Wired into `PublisherService.send()` as a REST
+  branch (`sendRest`) — unlike UDP/TCP's fire-and-forget send, the whole point is the response:
+  it's captured via `MessageIngestionPipeline.ingestRestOperation` as a newly-observed message
+  (`messageType` suffixed `" (response)"`), reusing the existing Generic Publisher send flow
+  rather than a new independent poller. **Periodic** REST publish is a known gap (see below) —
+  `PeriodicPublisherService` is hard-wired to the legacy flat/opcode `PublishRequest` +
+  `MonitorPayloadFactory`, which has no way to represent a REST operation at all.
+- UI: a separate "REST Publisher" card (not merged into the Generic Publisher's interface/message
+  dropdowns, since `PublisherMessageDto` is `Class<?>`+opcode-shaped and doesn't fit an operation)
+  plus a "REST Auto-Reply" config panel, both in `index.html`, backed by
+  `RestOperationsController` (`/api/rest/interfaces`, `/api/rest/fields`) and
+  `RestAutoReplyController` (`/api/rest/{key}/autoreply[/{operationId}]`).
+
+`http://` only in v1 (no HTTPS config surface); `oneOf`/`anyOf` schemas collapse to their first
+alternative for form-rendering (`RestSchemaConverter.firstAlternative`) rather than fully modeling
+polymorphic bodies.
+
 ## Config files
 
 - `config/traffic-tool.yml` — the interfaces/messages/auto-reply config, loaded by
   `TrafficToolConfigLoader` (env var `TRAFFIC_TOOL_CONFIG`, default path
   `config/traffic-tool.yml` relative to CWD — run from repo root). This is where
-  `messageClass:`/`definitionClass:`, dedicated ports, `headerType:`, broadcast targets, etc.
-  live. Test equivalent: `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`.
+  `messageClass:`/`definitionClass:`, dedicated ports, `headerType:`, broadcast targets,
+  `swaggerFile:`, etc. live. Test equivalent: `traffic-monitor-app/src/test/resources/traffic-tool-test.yml`.
+- `swagger/` — OpenAPI/Swagger YAML files for `protocol: REST` interfaces, referenced by
+  `swaggerFile:` (see "REST interfaces" above). `swagger/pets-demo.yml` is a demo spec proving out
+  the dedicated-port REST path, wired up as the `pets` interface, the same role `rada` plays for
+  the dedicated-port UDP path.
 - `traffic-monitor-app-core/src/main/resources/application.yml` — Spring config: server port,
   H2 datasource, `traffic.udp`/`traffic.tcp`/`traffic.store` (legacy fixed-port settings).
 - `config/tester-scenario.yml` — traffic-tester-app's scenario definition (what to send, how
@@ -230,7 +326,9 @@ Little-Endian (`rada-le`, dedicated port 5051, RadaExtendedStatus only, `byteOrd
 LITTLE_ENDIAN` — demonstrates the same message class decoding under a different
 interface-level byte order; see "Per-message byteOrder only works for legacy envelope
 interfaces" below for why this had to be interface-level rather than a per-message override
-sharing rada's port).
+sharing rada's port), Pets (`pets`, `protocol: REST`, dedicated port 5060, `swagger/pets-demo.yml`
+— `getPet`/`createPet` operations, demo REST-over-swagger interface used to prove out the
+dynamic REST path the same way `rada` proves out the dedicated-port UDP path).
 
 ### Per-message `byteOrder:` only works for legacy envelope interfaces
 
@@ -313,13 +411,42 @@ for both interfaces, since it never touches the flat registry.
   isolated (looks like repackage leaves some JVM-process-level state that corrupts annotation
   merging for Failsafe's forked test JVM), but the fix is straightforward: traffic-monitor-app's
   failsafe execution binds its `integration-test`/`verify` goals to the `test` phase instead of
-  their defaults, so it completes before `package`/repackage ever runs. This never surfaced when
-  the IT suite lived in traffic-monitor-app-core because that module has no
-  spring-boot-maven-plugin at all.
+  their defaults, so it completes before `package`/repackage ever runs. This doesn't surface for
+  traffic-monitor-app-core's own REST ITs (see "IT suite lives in traffic-monitor-app... (except
+  REST)" above) because that module has no spring-boot-maven-plugin at all, so its failsafe
+  execution can safely use the default phases unmodified.
+- **`cond ? Long.parseLong(...) : Integer.parseInt(...)` silently returns `Long` always** — Java's
+  conditional-expression numeric promotion widens the `int` branch to `long` (binary numeric
+  promotion of the two operand types) regardless of which branch actually executes at runtime, so
+  a ternary mixing primitive `long`/`int` results autoboxes to `Long` unconditionally. Bit
+  `RestRequestBodyAssembler.coerceScalar` coercing an OpenAPI `integer`+`format: int32` field —
+  every "integer" field came out as `Long`, not just the `int64` ones. Fix: explicit boxed
+  `if`/`yield` branches in the switch expression, not a ternary mixing primitive numeric types.
+  Caught by an actual assertion failure (`expected: 3, but was: 3L`), not by inspection.
 
 ## Known gaps / natural follow-ups
 
 - `RadaTracksExtended` Instancio generation (see above).
+- **Periodic REST publish** isn't wired up — `PeriodicPublisherService` is hard-wired to the
+  legacy flat/opcode `PublishRequest` + `MonitorPayloadFactory`, which has no way to represent a
+  REST operation at all. On-demand REST publish (`PublisherService.send`/the REST Publisher UI)
+  works fully; a periodic variant would need its own scheduler bound to the scoped/generic send
+  path (`PublisherSendRequest`), which would also generically benefit UDP/TCP's Generic Publisher
+  (today only the legacy Sample Publisher has periodic send at all).
+- **REST auto-reply bodies are fully static** — no variable interpolation/templating (e.g. can't
+  echo a path parameter back into the configured response). A templated version is a materially
+  bigger feature than what's built.
+- **No HTTPS for REST** — `RestOperationInvoker` only builds `http://` URIs; there's no TLS config
+  surface for REST client-mode targets.
+- **`oneOf`/`anyOf` OpenAPI schemas collapse to their first alternative** (`RestSchemaConverter.firstAlternative`)
+  rather than fully modeling a polymorphic request/response body in the Generic Publisher UI.
+- **Switching a UDP/TCP interface to `protocol: REST` at runtime (via the Interfaces tab) doesn't
+  actually work** — `swaggerFile:` isn't part of `InterfaceConfigureRequest`, and even if it were,
+  `restApiDefinitions` is built once at Spring context startup from the interfaces already
+  `protocol: REST` in config, not rebuilt on reconfigure. The protocol dropdown still lists REST
+  (needed so a REST interface's *own* row displays correctly), but only interfaces already
+  declared `protocol: REST` in `traffic-tool.yml` from startup are actually functional — unlike
+  UDP↔TCP switching, which fully works at runtime.
 - TCP client mode reconnects/backoff apply uniformly regardless of how many prior attempts
   failed (flat delay, no exponential backoff) — fine at today's scale (~5 interfaces), but
   would need revisiting if that count grows a lot.

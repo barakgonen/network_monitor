@@ -282,6 +282,42 @@ class MessageIngestionPipelineTest {
         assertThat(message.interfaceName()).isEqualTo("Unknown");
     }
 
+    @Test
+    void ingestRestOperation_storesArchivesAndReturnsPopulatedMessage_withoutDispatching() {
+        Map<String, Object> header = Map.of("petId", "42");
+        Map<String, Object> body = Map.of("name", "Rex");
+        byte[] rawPayload = "{\"name\":\"Rex\"}".getBytes();
+
+        ObservedMessage message = pipeline.ingestRestOperation(
+                "REST", "127.0.0.1:9000", 5060, "Pets REST Interface", "getPet", header, body, rawPayload, null);
+
+        assertThat(message.transportProtocol()).isEqualTo("REST");
+        assertThat(message.interfaceName()).isEqualTo("Pets REST Interface");
+        assertThat(message.messageType()).isEqualTo("getPet");
+        assertThat(message.header()).isEqualTo(header);
+        assertThat(message.body()).isEqualTo(body);
+        assertThat(message.parseError()).isNull();
+
+        verify(recentMessageStore).add(message);
+        verify(messageArchiveRepository).save(message);
+        verifyNoInteractions(messageArrivedDispatcher);
+
+        assertThat(meterRegistry.counter("network_monitor.messages.received",
+                "transport", "REST", "interfaceName", "Pets REST Interface", "parseError", "false").count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void ingestRestOperation_withParseError_stillStoresMessage() {
+        byte[] rawPayload = "not json".getBytes();
+
+        ObservedMessage message = pipeline.ingestRestOperation(
+                "REST", "127.0.0.1:9000", 5060, "Pets REST Interface", "createPet",
+                Map.of(), Map.of(), rawPayload, "Failed to parse JSON request body");
+
+        assertThat(message.parseError()).isEqualTo("Failed to parse JSON request body");
+        verify(recentMessageStore).add(message);
+    }
+
     private static final class StubMessage {
     }
 

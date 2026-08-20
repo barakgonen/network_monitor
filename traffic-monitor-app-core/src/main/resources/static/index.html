@@ -264,6 +264,44 @@
             broadcast targets, if any.
           </div>
         </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>REST Publisher</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row">
+              <label for="restPublisherInterface">Interface</label>
+              <select id="restPublisherInterface" onchange="onRestPublisherInterfaceChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="restPublisherOperation">Operation</label>
+              <select id="restPublisherOperation" onchange="onRestPublisherOperationChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="restPublisherHost">Target Host</label>
+              <input id="restPublisherHost" value="localhost">
+            </div>
+
+            <div class="form-row">
+              <label for="restPublisherPort">Target Port</label>
+              <input id="restPublisherPort" type="number" min="1" max="65535">
+            </div>
+
+            <div id="restPublisherFields"></div>
+
+            <button class="primary-btn" onclick="sendRestPublish()">Send</button>
+          </div>
+
+          <div id="restPublisherResult" class="publisher-result">
+            Fields cover the operation's path/query parameters and request body, discovered from
+            the interface's swagger file - the HTTP response is captured as a newly-observed
+            message, shown in Live/History like any inbound one.
+          </div>
+        </div>
       </div>
     </section>
 
@@ -300,6 +338,41 @@
             <h3>Per-Interface Destinations</h3>
           </div>
           <div id="autoReplyAccordion" class="accordion"></div>
+        </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>REST Auto-Reply</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row">
+              <label for="restAutoReplyInterface">Interface</label>
+              <select id="restAutoReplyInterface" onchange="onRestAutoReplyInterfaceChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="restAutoReplyOperation">Operation</label>
+              <select id="restAutoReplyOperation" onchange="onRestAutoReplyOperationChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="restAutoReplyStatus">Status Code</label>
+              <input id="restAutoReplyStatus" type="number" min="100" max="599">
+            </div>
+
+            <div class="form-row">
+              <label for="restAutoReplyBody">Response Body (JSON)</label>
+              <textarea id="restAutoReplyBody" rows="6"></textarea>
+            </div>
+
+            <button class="primary-btn" onclick="saveRestAutoReply()">Save</button>
+          </div>
+
+          <div id="restAutoReplyResult" class="publisher-result">
+            Every REST server-mode request gets some response, by necessity of HTTP - configure
+            one here, or leave it as-is to fall back to the operation's OpenAPI response example.
+          </div>
         </div>
       </div>
     </section>
@@ -479,6 +552,7 @@
 
     if (tab === 'autoreply') {
       loadAutoReplySettings();
+      loadRestAutoReplyInterfaces();
     }
 
     if (tab === 'history') {
@@ -994,6 +1068,7 @@
           <select class="interface-protocol-input" ${disabledWhileListening}>
             <option value="UDP">UDP</option>
             <option value="TCP">TCP</option>
+            <option value="REST">REST</option>
           </select>
         </td>
         <td>
@@ -1116,12 +1191,20 @@
     const response = await fetch(`/api/publisher/fields?messageClass=${encodeURIComponent(selectedOption.dataset.messageClass)}`);
     const fields = await response.json();
 
-    // Nested/complex fields arrive flattened as dotted paths (e.g. "header.msgType"), grouped
-    // consecutively by their top-level prefix. Box up each run of fields sharing a prefix so it
-    // reads as one nested object instead of a flat list of unrelated-looking fields.
-    // Array-of-struct fields (e.g. "trackData") arrive as one entry with itemFields describing a
-    // single element instead - rendered as an add/remove-able list of item groups (see
-    // buildGenericArrayGroup) rather than flattened, since the element count isn't known here.
+    renderFieldsInto(fieldsContainer, fields);
+  }
+
+  // Shared by the Generic Publisher (Class<?>-reflected fields) and REST Publisher
+  // (RestSchemaNode-walked fields) - both produce the exact same PublisherFieldDto shape
+  // (name/type/itemFields/maxLength), so one rendering function covers both.
+  //
+  // Nested/complex fields arrive flattened as dotted paths (e.g. "header.msgType"), grouped
+  // consecutively by their top-level prefix. Box up each run of fields sharing a prefix so it
+  // reads as one nested object instead of a flat list of unrelated-looking fields.
+  // Array-of-struct fields (e.g. "trackData") arrive as one entry with itemFields describing a
+  // single element instead - rendered as an add/remove-able list of item groups (see
+  // buildGenericArrayGroup) rather than flattened, since the element count isn't known here.
+  function renderFieldsInto(fieldsContainer, fields) {
     let currentGroup = null;
     let currentGroupKey = null;
 
@@ -1280,11 +1363,194 @@
     }
   }
 
+  // --- REST publisher: lists REST interfaces/operations discovered from swagger files (kept
+  // separate from the Generic Publisher above since PublisherMessageDto is Class<?>+opcode-shaped
+  // and doesn't fit a REST operation) - reuses buildGenericFieldRow/buildGenericArrayGroup/
+  // renderFieldsInto unchanged, since those only ever consume the shared PublisherFieldDto shape.
+
+  async function loadRestPublisherInterfaces() {
+    const response = await fetch('/api/rest/interfaces');
+    const interfaces = await response.json();
+
+    const select = document.getElementById('restPublisherInterface');
+    select.innerHTML = '';
+
+    for (const iface of interfaces) {
+      const option = document.createElement('option');
+      option.value = iface.key;
+      option.innerText = iface.name;
+      option.dataset.operations = JSON.stringify(iface.operations);
+      select.appendChild(option);
+    }
+
+    onRestPublisherInterfaceChanged();
+  }
+
+  function onRestPublisherInterfaceChanged() {
+    const select = document.getElementById('restPublisherInterface');
+    const selectedOption = select.options[select.selectedIndex];
+    const operations = selectedOption ? JSON.parse(selectedOption.dataset.operations || '[]') : [];
+
+    const operationSelect = document.getElementById('restPublisherOperation');
+    operationSelect.innerHTML = '';
+
+    for (const operation of operations) {
+      const option = document.createElement('option');
+      option.value = operation.operationId;
+      option.innerText = `${operation.httpMethod} ${operation.pathTemplate} (${operation.operationId})`;
+      operationSelect.appendChild(option);
+    }
+
+    onRestPublisherOperationChanged();
+  }
+
+  async function onRestPublisherOperationChanged() {
+    const interfaceKey = document.getElementById('restPublisherInterface').value;
+    const operationSelect = document.getElementById('restPublisherOperation');
+    const operationId = operationSelect.value;
+    const fieldsContainer = document.getElementById('restPublisherFields');
+    fieldsContainer.innerHTML = '';
+
+    if (!interfaceKey || !operationId) {
+      return;
+    }
+
+    const response = await fetch(
+      `/api/rest/fields?interfaceKey=${encodeURIComponent(interfaceKey)}&operationId=${encodeURIComponent(operationId)}`);
+    const fields = await response.json();
+
+    renderFieldsInto(fieldsContainer, fields);
+  }
+
+  async function sendRestPublish() {
+    const interfaceKey = document.getElementById('restPublisherInterface').value;
+    const messageType = document.getElementById('restPublisherOperation').value;
+    const host = document.getElementById('restPublisherHost').value;
+    const portValue = document.getElementById('restPublisherPort').value;
+
+    const fields = {};
+    document.querySelectorAll('#restPublisherFields [data-field-name]').forEach(input => {
+      fields[input.dataset.fieldName] = input.value;
+    });
+
+    const result = document.getElementById('restPublisherResult');
+    result.className = 'publisher-result';
+    result.innerText = 'Sending...';
+
+    const response = await fetch('/api/publisher/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        interfaceKey,
+        messageType,
+        host: host || null,
+        port: portValue ? Number(portValue) : null,
+        transport: 'REST',
+        fields
+      })
+    });
+
+    const responseBody = await response.json();
+
+    if (responseBody.success) {
+      result.className = 'publisher-result ok';
+      result.innerText = `Received ${responseBody.bytesSent}-byte response from ${responseBody.targets.join(', ')}`;
+      setTimeout(loadMessages, 300);
+    } else {
+      result.className = 'publisher-result error';
+      result.innerText = `Failed: ${responseBody.error}`;
+    }
+  }
+
+  // --- REST auto-reply: configures the static response a REST server-mode interface writes back
+  // per operation - every request gets some response by necessity of HTTP, so this always shows
+  // the resolved (configured-or-fallback) value, not just what's explicitly been set.
+
+  async function loadRestAutoReplyInterfaces() {
+    const response = await fetch('/api/rest/interfaces');
+    const interfaces = await response.json();
+
+    const select = document.getElementById('restAutoReplyInterface');
+    select.innerHTML = '';
+
+    for (const iface of interfaces) {
+      const option = document.createElement('option');
+      option.value = iface.key;
+      option.innerText = iface.name;
+      option.dataset.operations = JSON.stringify(iface.operations);
+      select.appendChild(option);
+    }
+
+    await onRestAutoReplyInterfaceChanged();
+  }
+
+  async function onRestAutoReplyInterfaceChanged() {
+    const select = document.getElementById('restAutoReplyInterface');
+    const selectedOption = select.options[select.selectedIndex];
+    const operations = selectedOption ? JSON.parse(selectedOption.dataset.operations || '[]') : [];
+
+    const operationSelect = document.getElementById('restAutoReplyOperation');
+    operationSelect.innerHTML = '';
+
+    for (const operation of operations) {
+      const option = document.createElement('option');
+      option.value = operation.operationId;
+      option.innerText = `${operation.httpMethod} ${operation.pathTemplate} (${operation.operationId})`;
+      operationSelect.appendChild(option);
+    }
+
+    await onRestAutoReplyOperationChanged();
+  }
+
+  async function onRestAutoReplyOperationChanged() {
+    const interfaceKey = document.getElementById('restAutoReplyInterface').value;
+    const operationId = document.getElementById('restAutoReplyOperation').value;
+
+    if (!interfaceKey || !operationId) {
+      return;
+    }
+
+    const response = await fetch(`/api/rest/${encodeURIComponent(interfaceKey)}/autoreply`);
+    const settings = await response.json();
+    const resolved = settings[operationId];
+
+    document.getElementById('restAutoReplyStatus').value = resolved ? resolved.statusCode : 200;
+    document.getElementById('restAutoReplyBody').value = resolved ? resolved.body : '{}';
+  }
+
+  async function saveRestAutoReply() {
+    const interfaceKey = document.getElementById('restAutoReplyInterface').value;
+    const operationId = document.getElementById('restAutoReplyOperation').value;
+    const statusCode = Number(document.getElementById('restAutoReplyStatus').value);
+    const bodyTemplate = document.getElementById('restAutoReplyBody').value;
+
+    const result = document.getElementById('restAutoReplyResult');
+    result.className = 'publisher-result';
+    result.innerText = 'Saving...';
+
+    const response = await fetch(
+      `/api/rest/${encodeURIComponent(interfaceKey)}/autoreply/${encodeURIComponent(operationId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusCode, bodyTemplate })
+      });
+
+    if (response.ok) {
+      result.className = 'publisher-result ok';
+      result.innerText = 'Saved.';
+    } else {
+      result.className = 'publisher-result error';
+      result.innerText = `Failed: ${await response.text()}`;
+    }
+  }
+
   onPublisherInterfaceChanged();
   loadPeriodicStatus();
   loadMessages();
   loadSidebarInterfaces();
   loadGenericPublisherInterfaces();
+  loadRestPublisherInterfaces();
   setInterval(loadMessages, 2000);
 </script>
 </body>

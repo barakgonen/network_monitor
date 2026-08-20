@@ -63,6 +63,16 @@ public class InterfaceConfig {
     private boolean shouldBroadcast = false;
     private List<String> broadcastTargets = List.of();
 
+    /**
+     * Only meaningful when {@link #getProtocol()} is {@code "REST"} - a path (relative to the
+     * working directory, same convention as {@code config/traffic-tool.yml} itself) to an
+     * OpenAPI/Swagger YAML file under the repo's {@code swagger/} directory. Operations are
+     * auto-discovered from this file at startup ({@code RestSchemaWiringConfig}); REST interfaces
+     * don't populate {@link #getMessages()} at all, since there's no per-operation Java class to
+     * hand-declare.
+     */
+    private String swaggerFile;
+
     public String getKey() {
         return key;
     }
@@ -221,5 +231,13 @@ public class InterfaceConfig {
 
     public void setBroadcastTargets(List<String> broadcastTargets) {
         this.broadcastTargets = broadcastTargets;
+    }
+
+    public String getSwaggerFile() {
+        return swaggerFile;
+    }
+
+    public void setSwaggerFile(String swaggerFile) {
+        this.swaggerFile = swaggerFile;
     }
 }

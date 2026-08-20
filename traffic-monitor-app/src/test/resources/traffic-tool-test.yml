@@ -96,3 +96,13 @@ interfaces:
         opcode: 1
     autoReply:
       enabled: false
+
+  - key: pets
+    name: Pets REST Interface
+    enabled: false
+    protocol: REST
+    port: 25060
+    # Points at the real repo-root demo spec (not a synthetic test-only fixture) - proving the
+    # actual demo config works when wired through the full real app (real schemas/messagehandlers
+    # alongside it), not just in traffic-monitor-app-core's isolated REST-only test app.
+    swaggerFile: ../swagger/pets-demo.yml
