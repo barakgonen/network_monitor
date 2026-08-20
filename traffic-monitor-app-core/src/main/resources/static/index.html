@@ -1116,14 +1116,125 @@
     const response = await fetch(`/api/publisher/fields?messageClass=${encodeURIComponent(selectedOption.dataset.messageClass)}`);
     const fields = await response.json();
 
+    // Nested/complex fields arrive flattened as dotted paths (e.g. "header.msgType"), grouped
+    // consecutively by their top-level prefix. Box up each run of fields sharing a prefix so it
+    // reads as one nested object instead of a flat list of unrelated-looking fields.
+    // Array-of-struct fields (e.g. "trackData") arrive as one entry with itemFields describing a
+    // single element instead - rendered as an add/remove-able list of item groups (see
+    // buildGenericArrayGroup) rather than flattened, since the element count isn't known here.
+    let currentGroup = null;
+    let currentGroupKey = null;
+
     for (const field of fields) {
-      const row = document.createElement('div');
-      row.className = 'form-row';
-      row.innerHTML = `
-        <label for="generic-field-${field.name}">${escapeHtml(field.name)} <span class="field-type">${escapeHtml(field.type)}</span></label>
-        <input id="generic-field-${field.name}" data-field-name="${escapeHtml(field.name)}">
-      `;
-      fieldsContainer.appendChild(row);
+      if (field.itemFields && field.itemFields.length > 0) {
+        currentGroup = null;
+        currentGroupKey = null;
+        fieldsContainer.appendChild(buildGenericArrayGroup(field));
+        continue;
+      }
+
+      const dotIndex = field.name.indexOf('.');
+
+      if (dotIndex === -1) {
+        currentGroup = null;
+        currentGroupKey = null;
+        fieldsContainer.appendChild(buildGenericFieldRow(field.name, field.type, field.name));
+        continue;
+      }
+
+      const groupKey = field.name.slice(0, dotIndex);
+      const label = field.name.slice(dotIndex + 1);
+
+      if (groupKey !== currentGroupKey) {
+        currentGroupKey = groupKey;
+        currentGroup = document.createElement('div');
+        currentGroup.className = 'generic-field-group';
+
+        const heading = document.createElement('div');
+        heading.className = 'generic-field-group-label';
+        heading.textContent = groupKey;
+        currentGroup.appendChild(heading);
+
+        fieldsContainer.appendChild(currentGroup);
+      }
+
+      currentGroup.appendChild(buildGenericFieldRow(label, field.type, field.name));
+    }
+  }
+
+  function buildGenericFieldRow(label, type, fieldName) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    row.innerHTML = `
+      <label for="generic-field-${fieldName}">${escapeHtml(label)} <span class="field-type">${escapeHtml(type)}</span></label>
+      <input id="generic-field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">
+    `;
+    return row;
+  }
+
+  // Builds the boxed "trackData" group for an array-of-struct field: a running list of item
+  // sub-forms (one per buildGenericFieldRow(itemField...) set, named "trackData[0].id" etc. so
+  // sendGenericPublish's flat field-collection loop picks them up with no changes) plus an Add
+  // button. Removing an item just deletes its box - indices are never renumbered, since the
+  // server pads any index that's missing from the submission with a default-constructed element
+  // (see ReflectiveFieldApplier.buildArray), so gaps left behind by a removal are harmless.
+  function buildGenericArrayGroup(field) {
+    const container = document.createElement('div');
+    container.className = 'generic-field-group generic-array-group';
+
+    const heading = document.createElement('div');
+    heading.className = 'generic-field-group-label';
+    heading.textContent = field.maxLength
+      ? `${field.name} ${field.type} (max ${field.maxLength})`
+      : `${field.name} ${field.type}`;
+    container.appendChild(heading);
+
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'generic-array-items';
+    itemsContainer.dataset.nextIndex = '0';
+    container.appendChild(itemsContainer);
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'secondary-btn generic-array-add';
+    addButton.textContent = `+ Add ${field.name}`;
+    addButton.onclick = () => addGenericArrayItem(itemsContainer, field, addButton);
+    container.appendChild(addButton);
+
+    return container;
+  }
+
+  function addGenericArrayItem(itemsContainer, field, addButton) {
+    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
+      return;
+    }
+
+    const index = Number(itemsContainer.dataset.nextIndex);
+    itemsContainer.dataset.nextIndex = String(index + 1);
+
+    const itemBox = document.createElement('div');
+    itemBox.className = 'generic-array-item';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'secondary-btn';
+    removeButton.textContent = `Remove ${field.name}[${index}]`;
+    removeButton.onclick = () => {
+      itemBox.remove();
+      if (field.maxLength != null) {
+        addButton.disabled = itemsContainer.children.length >= field.maxLength;
+      }
+    };
+    itemBox.appendChild(removeButton);
+
+    for (const itemField of field.itemFields) {
+      itemBox.appendChild(buildGenericFieldRow(itemField.name, itemField.type, `${field.name}[${index}].${itemField.name}`));
+    }
+
+    itemsContainer.appendChild(itemBox);
+
+    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
+      addButton.disabled = true;
     }
   }
 

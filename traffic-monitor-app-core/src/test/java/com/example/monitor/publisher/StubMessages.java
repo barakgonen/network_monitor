@@ -1,5 +1,7 @@
 package com.example.monitor.publisher;
 
+import com.example.schemacore.annotation.FixedArrayLength;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +111,37 @@ final class StubMessages {
             header.fromByteArray(buffer);
             radarSoftwareVersion = buffer.getInt();
             statusFlags = buffer.getShort();
+        }
+    }
+
+    /** Small embedded struct, mirrors {@code RadaTrackData}'s role inside {@code trackData[]}. */
+    public static class StubTrackData {
+        private int id;
+
+        public int getId() {
+            return id;
+        }
+
+        public void setId(int id) {
+            this.id = id;
+        }
+    }
+
+    /**
+     * Mirrors {@code RadaTracksExtended}: a fixed-length array of embedded structs, exercises
+     * the array-of-struct publisher metadata/apply path.
+     */
+    public static class StubArrayMessage {
+        @FixedArrayLength(3)
+        private StubTrackData[] trackData = new StubTrackData[]{
+                new StubTrackData(), new StubTrackData(), new StubTrackData()};
+
+        public StubTrackData[] getTrackData() {
+            return trackData;
+        }
+
+        public void setTrackData(StubTrackData[] trackData) {
+            this.trackData = trackData;
         }
     }
 }

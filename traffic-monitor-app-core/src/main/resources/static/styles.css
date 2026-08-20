@@ -858,9 +858,58 @@ tbody tr.selected-row {
 /* Generic publisher: field type hint shown next to reflected field labels */
 
 .field-type {
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: lowercase;
+}
+
+/* Generic publisher: reflected fields, and boxed groups for flattened nested/complex fields
+   (e.g. "header.msgType") so the fields belonging to the same nested object read as one unit. */
+
+#genericPublisherFields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.generic-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.generic-field-group-label {
     color: var(--muted);
     font-family: var(--mono);
     font-size: 10px;
-    font-weight: 400;
-    text-transform: lowercase;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Array-of-struct fields (e.g. "trackData"): an add/remove-able list of item sub-forms inside
+   the same boxed-group style used for nested objects. */
+
+.generic-array-items {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.generic-array-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.generic-array-add {
+    align-self: flex-start;
 }
