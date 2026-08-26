@@ -72,6 +72,7 @@ public class TesterMain {
         }
 
         int totalSent = 0;
+        int totalFailed = 0;
 
         for (int iteration = 1; iteration <= scenario.getRepeat(); iteration++) {
             System.out.println("Starting iteration " + iteration + "/" + scenario.getRepeat());
@@ -87,8 +88,45 @@ public class TesterMain {
                     continue;
                 }
 
-                if ("REST".equals(transport)) {
-                    RestSendResult result = restPublisher.send(host, port, messageConfig);
+                // One message's target being unreachable (e.g. a relay intentionally disabled in
+                // config) must not abort every other message in the scenario - log and move on.
+                try {
+                    if ("REST".equals(transport)) {
+                        RestSendResult result = restPublisher.send(host, port, messageConfig);
+                        totalSent++;
+
+                        System.out.println("Sent message "
+                                + (messageIndex + 1)
+                                + "/"
+                                + messages.size()
+                                + " type="
+                                + messageConfig.getMode()
+                                + ", transport=REST, method="
+                                + result.method()
+                                + ", target="
+                                + host
+                                + ":"
+                                + port
+                                + ", status="
+                                + result.statusCode()
+                                + ", responseBody="
+                                + result.body());
+                        continue;
+                    }
+
+                    byte[] payload = payloadFactory.create(messageConfig);
+
+                    if ("TCP".equals(transport)) {
+                        tcpPublisher.send(host, port, payload);
+                    } else if (listener != null) {
+                        // Send from the listener's own bound socket so a reply routed back to this
+                        // socket's local port (e.g. by traffic-proxy-app's UDP relay) actually reaches
+                        // the listener still bound there, instead of a throwaway ephemeral socket.
+                        udpPublisher.send(listener.socket(), host, port, payload);
+                    } else {
+                        udpPublisher.send(host, port, payload);
+                    }
+
                     totalSent++;
 
                     System.out.println("Sent message "
@@ -97,50 +135,36 @@ public class TesterMain {
                             + messages.size()
                             + " type="
                             + messageConfig.getMode()
-                            + ", transport=REST, method="
-                            + result.method()
+                            + ", transport="
+                            + transport
                             + ", target="
                             + host
                             + ":"
                             + port
-                            + ", status="
-                            + result.statusCode()
-                            + ", responseBody="
-                            + result.body());
-                    continue;
+                            + ", bytes="
+                            + payload.length
+                            + ", hex="
+                            + HexFormat.of().formatHex(payload));
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                    totalFailed++;
+                    System.err.println("Failed to send message "
+                            + (messageIndex + 1)
+                            + "/"
+                            + messages.size()
+                            + " type="
+                            + messageConfig.getMode()
+                            + ", transport="
+                            + transport
+                            + ", target="
+                            + host
+                            + ":"
+                            + port
+                            + ": "
+                            + e.getMessage());
                 }
-
-                byte[] payload = payloadFactory.create(messageConfig);
-
-                if ("TCP".equals(transport)) {
-                    tcpPublisher.send(host, port, payload);
-                } else if (listener != null) {
-                    // Send from the listener's own bound socket so a reply routed back to this
-                    // socket's local port (e.g. by traffic-proxy-app's UDP relay) actually reaches
-                    // the listener still bound there, instead of a throwaway ephemeral socket.
-                    udpPublisher.send(listener.socket(), host, port, payload);
-                } else {
-                    udpPublisher.send(host, port, payload);
-                }
-
-                totalSent++;
-
-                System.out.println("Sent message "
-                        + (messageIndex + 1)
-                        + "/"
-                        + messages.size()
-                        + " type="
-                        + messageConfig.getMode()
-                        + ", transport="
-                        + transport
-                        + ", target="
-                        + host
-                        + ":"
-                        + port
-                        + ", bytes="
-                        + payload.length
-                        + ", hex="
-                        + HexFormat.of().formatHex(payload));
             }
 
             if (iteration < scenario.getRepeat() && scenario.getIntervalMillis() > 0) {
@@ -148,7 +172,8 @@ public class TesterMain {
             }
         }
 
-        System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent);
+        System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent
+                + (totalFailed > 0 ? ", failed: " + totalFailed : ""));
 
         // Both the UDP listener and any TCP server listeners run their own background threads
         // already; block here for whichever duration is longest, then close them all together,
