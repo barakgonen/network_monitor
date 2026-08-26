@@ -1,0 +1,29 @@
+# traffic-destination-app config - a minimal sink/echo app standing in for "the real backend"
+# that traffic-proxy-app relays to. replyMode: ECHO bounces the same bytes/body back to the
+# sender; NONE receives traffic silently (REST always needs some HTTP response regardless -
+# NONE responds 204 No Content).
+interfaces:
+  - key: fruit
+    protocol: UDP
+    port: 8001
+    replyMode: NONE
+
+  - key: weather
+    protocol: UDP
+    port: 8002
+    replyMode: NONE
+
+  - key: ping
+    protocol: UDP
+    port: 8003
+    replyMode: NONE
+
+  - key: candy
+    protocol: TCP
+    port: 8004
+    replyMode: ECHO
+
+  - key: pets
+    protocol: REST
+    port: 8060
+    replyMode: ECHO

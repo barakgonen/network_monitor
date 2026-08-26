@@ -1,0 +1,67 @@
+# traffic-proxy-app relay config. Each relay entry accepts producer traffic on `listen`,
+# relays it bidirectionally to the real `destination` (traffic-destination-app), and
+# fire-and-forget mirrors a duplicate copy (both directions, except REST - see RestRelay's
+# Javadoc) into traffic-monitor-app's existing ingestion port for that interface.
+#
+# `mirror` targets point at config/traffic-tool.yml's existing ports unchanged - no monitor-side
+# config changes are needed for mirroring to work.
+relays:
+  - key: fruit
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6001
+    destination:
+      host: 127.0.0.1
+      port: 8001
+    mirror:
+      host: 127.0.0.1
+      port: 5001
+
+  - key: weather
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6002
+    destination:
+      host: 127.0.0.1
+      port: 8002
+    mirror:
+      host: 127.0.0.1
+      port: 5002
+
+  - key: ping
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6003
+    destination:
+      host: 127.0.0.1
+      port: 8003
+    mirror:
+      host: 127.0.0.1
+      port: 5003
+
+#  - key: candy
+#    protocol: TCP
+#    listen:
+#      host: 0.0.0.0
+#      port: 6004
+#    destination:
+#      host: 127.0.0.1
+#      port: 8004
+#    mirror:
+#      host: 127.0.0.1
+#      port: 5004
+#
+#  - key: pets
+#    protocol: REST
+#    listen:
+#      host: 0.0.0.0
+#      port: 6060
+#    destination:
+#      host: 127.0.0.1
+#      port: 8060
+#    mirror:
+#      host: 127.0.0.1
+#      port: 5060
