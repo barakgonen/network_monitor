@@ -12,6 +12,8 @@
     <module>traffic-monitor-app-core</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>
+    <module>traffic-proxy-app</module>
+    <module>traffic-destination-app</module>
   </modules>
 
   <properties>
