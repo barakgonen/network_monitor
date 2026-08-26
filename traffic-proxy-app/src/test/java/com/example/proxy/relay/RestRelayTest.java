@@ -89,6 +89,59 @@ class RestRelayTest {
     }
 
     @Test
+    void preservesCustomHeaderAndHttpMethod_whenForwardingToDestination() throws Exception {
+        CannedHttpServer destination = new CannedHttpServer(200, "{\"from\":\"destination\"}");
+        CannedHttpServer mirror = new CannedHttpServer(200, "{}");
+        int listenPort = freePort();
+        RestRelay relay = new RestRelay(relayEntry(listenPort, destination.port(), mirror.port()));
+        relay.start();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + listenPort + "/pets/1"))
+                    .header("X-Test-Header", "abc123")
+                    .method("DELETE", HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(destination.lastRequestMethod()).isEqualTo("DELETE");
+            assertThat(destination.lastRequestHeader("X-Test-Header")).isEqualTo("abc123");
+        } finally {
+            relay.stop();
+            destination.close();
+            mirror.close();
+        }
+    }
+
+    @Test
+    void getRequestWithNoBody_forwardsAndMirrorsWithEmptyBody() throws Exception {
+        CannedHttpServer destination = new CannedHttpServer(200, "[]");
+        CannedHttpServer mirror = new CannedHttpServer(200, "[]");
+        int listenPort = freePort();
+        RestRelay relay = new RestRelay(relayEntry(listenPort, destination.port(), mirror.port()));
+        relay.start();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + listenPort + "/pets"))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.body()).isEqualTo("[]");
+            assertThat(destination.lastRequestBody()).isEmpty();
+
+            awaitCondition(() -> mirror.lastRequestMethod() != null, Duration.ofSeconds(3));
+            assertThat(mirror.lastRequestMethod()).isEqualTo("GET");
+            assertThat(mirror.lastRequestBody()).isEmpty();
+        } finally {
+            relay.stop();
+            destination.close();
+            mirror.close();
+        }
+    }
+
+    @Test
     void destinationDown_returns502_regardlessOfMirrorHealth() throws Exception {
         int unusedDestinationPort = freePort();
         CannedHttpServer mirror = new CannedHttpServer(200, "{}");
@@ -135,6 +188,8 @@ class RestRelayTest {
         private final HttpServer server;
         private final AtomicReference<String> lastRequestBody = new AtomicReference<>();
         private final AtomicReference<String> lastRequestPath = new AtomicReference<>();
+        private final AtomicReference<String> lastRequestMethod = new AtomicReference<>();
+        private final AtomicReference<com.sun.net.httpserver.Headers> lastRequestHeaders = new AtomicReference<>();
 
         CannedHttpServer(int status, String responseBody) throws IOException {
             server = HttpServer.create(new InetSocketAddress(0), 0);
@@ -155,6 +210,15 @@ class RestRelayTest {
             return lastRequestPath.get();
         }
 
+        String lastRequestMethod() {
+            return lastRequestMethod.get();
+        }
+
+        String lastRequestHeader(String name) {
+            com.sun.net.httpserver.Headers headers = lastRequestHeaders.get();
+            return headers == null ? null : headers.getFirst(name);
+        }
+
         private void handle(HttpExchange exchange, int status, String responseBody) throws IOException {
             byte[] requestBody;
             try (InputStream in = exchange.getRequestBody()) {
@@ -162,6 +226,8 @@ class RestRelayTest {
             }
             lastRequestBody.set(new String(requestBody));
             lastRequestPath.set(exchange.getRequestURI().getPath());
+            lastRequestMethod.set(exchange.getRequestMethod());
+            lastRequestHeaders.set(exchange.getRequestHeaders());
 
             byte[] response = responseBody.getBytes();
             exchange.getResponseHeaders().set("Content-Type", "application/json");

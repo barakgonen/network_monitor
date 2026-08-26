@@ -99,4 +99,85 @@ class DestinationConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("port is invalid");
     }
+
+    @Test
+    void load_withPongReplyModeOnNonUdpProtocol_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: pets
+                    protocol: REST
+                    port: 8060
+                    replyMode: PONG
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PONG is only valid for protocol UDP");
+    }
+
+    @Test
+    void load_withPongReplyModeOnUdp_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: ping
+                    protocol: UDP
+                    port: 8003
+                    replyMode: PONG
+                """);
+
+        DestinationConfig config = loader.load(file);
+
+        assertThat(config.getInterfaces().get(0).getReplyMode()).isEqualTo(ReplyMode.PONG);
+    }
+
+    @Test
+    void load_withReplyPortOnUdp_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: ping
+                    protocol: UDP
+                    port: 8003
+                    replyMode: PONG
+                    replyPort: 6103
+                """);
+
+        DestinationConfig config = loader.load(file);
+
+        assertThat(config.getInterfaces().get(0).getReplyPort()).isEqualTo(6103);
+    }
+
+    @Test
+    void load_withReplyPortOnNonUdpProtocol_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: pets
+                    protocol: REST
+                    port: 8060
+                    replyPort: 6103
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("replyPort is only valid for protocol UDP");
+    }
+
+    @Test
+    void load_withInvalidReplyPort_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: ping
+                    protocol: UDP
+                    port: 8003
+                    replyPort: 0
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("replyPort is invalid");
+    }
 }

@@ -144,4 +144,76 @@ class RelayConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("port is invalid");
     }
+
+    @Test
+    void load_withReplyPortOnUdp_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: ping
+                    protocol: UDP
+                    listen: { host: 0.0.0.0, port: 6003 }
+                    destination: { host: 127.0.0.1, port: 8003 }
+                    mirror: { host: 127.0.0.1, port: 5003 }
+                    replyPort: 6103
+                """);
+
+        ProxyRelayConfig config = loader.load(file);
+
+        assertThat(config.getRelays().get(0).getReplyPort()).isEqualTo(6103);
+    }
+
+    @Test
+    void load_withReplyPortOnNonUdpProtocol_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy
+                    protocol: TCP
+                    listen: { host: 0.0.0.0, port: 6004 }
+                    destination: { host: 127.0.0.1, port: 8004 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                    replyPort: 6104
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("replyPort is only valid for protocol UDP");
+    }
+
+    @Test
+    void load_withReplyPortEqualToListenPort_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: ping
+                    protocol: UDP
+                    listen: { host: 0.0.0.0, port: 6003 }
+                    destination: { host: 127.0.0.1, port: 8003 }
+                    mirror: { host: 127.0.0.1, port: 5003 }
+                    replyPort: 6003
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("replyPort must not equal listen.port");
+    }
+
+    @Test
+    void load_withInvalidReplyPort_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: ping
+                    protocol: UDP
+                    listen: { host: 0.0.0.0, port: 6003 }
+                    destination: { host: 127.0.0.1, port: 8003 }
+                    mirror: { host: 127.0.0.1, port: 5003 }
+                    replyPort: 0
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("replyPort is invalid");
+    }
 }

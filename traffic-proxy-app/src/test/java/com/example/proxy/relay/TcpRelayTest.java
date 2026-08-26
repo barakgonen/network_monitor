@@ -100,6 +100,45 @@ class TcpRelayTest {
     }
 
     @Test
+    void relayPreservesMultipleSequentialFramedMessagesOverOneConnection() throws Exception {
+        EchoServer destination = new EchoServer();
+        CapturingServer mirror = new CapturingServer();
+        int listenPort = freePort();
+        TcpRelay relay = new TcpRelay(relayEntry(listenPort, destination.port(), mirror.port()));
+        relay.start();
+
+        try {
+            try (Socket client = new Socket("127.0.0.1", listenPort)) {
+                client.setSoTimeout(3000);
+                OutputStream out = client.getOutputStream();
+                InputStream in = client.getInputStream();
+
+                String[] messages = {"one", "two", "three"};
+                for (String message : messages) {
+                    byte[] payload = message.getBytes();
+                    out.write(payload);
+                    out.flush();
+
+                    byte[] buffer = new byte[1024];
+                    int read = readFully(in, buffer, payload.length);
+                    assertThat(new String(buffer, 0, read)).isEqualTo(message);
+                }
+            }
+
+            // Exactly the request+echoed-reply bytes of all three messages, in chronological
+            // order, on the single persistent mirror connection - proves multiple discrete
+            // messages over one client connection don't get scrambled or dropped.
+            String expectedMirrorStream = "oneonetwotwothreethree";
+            awaitCondition(() -> mirror.receivedBytes().length >= expectedMirrorStream.length(), Duration.ofSeconds(3));
+            assertThat(new String(mirror.receivedBytes())).isEqualTo(expectedMirrorStream);
+        } finally {
+            relay.stop();
+            destination.close();
+            mirror.close();
+        }
+    }
+
+    @Test
     void mirrorConnectionIsReusedAcrossMultipleClientConnections() throws Exception {
         EchoServer destination = new EchoServer();
         CapturingServer mirror = new CapturingServer();

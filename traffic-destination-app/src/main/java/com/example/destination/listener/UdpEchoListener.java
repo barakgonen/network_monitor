@@ -2,6 +2,7 @@ package com.example.destination.listener;
 
 import com.example.destination.config.InterfaceEntry;
 import com.example.destination.config.ReplyMode;
+import com.example.destination.reply.PongReplyEncoder;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -48,13 +49,24 @@ public class UdpEchoListener implements Listener {
                     + packet.getAddress() + ":" + packet.getPort());
 
             if (config.getReplyMode() == ReplyMode.ECHO) {
+                sendReply(packet, received);
+            } else if (config.getReplyMode() == ReplyMode.PONG) {
                 try {
-                    DatagramPacket reply = new DatagramPacket(received, received.length, packet.getAddress(), packet.getPort());
-                    socket.send(reply);
+                    sendReply(packet, PongReplyEncoder.buildPongReply(received));
                 } catch (Exception e) {
-                    System.err.println("[" + config.getKey() + "] UDP echo send failed: " + e.getMessage());
+                    System.err.println("[" + config.getKey() + "] failed to build Pong reply: " + e.getMessage());
                 }
             }
+        }
+    }
+
+    private void sendReply(DatagramPacket originalPacket, byte[] replyBytes) {
+        int targetPort = config.getReplyPort() != null ? config.getReplyPort() : originalPacket.getPort();
+        try {
+            socket.send(new DatagramPacket(replyBytes, replyBytes.length,
+                    originalPacket.getAddress(), targetPort));
+        } catch (Exception e) {
+            System.err.println("[" + config.getKey() + "] UDP reply send failed: " + e.getMessage());
         }
     }
 

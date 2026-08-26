@@ -5,6 +5,7 @@ public class InterfaceEntry {
     private String protocol;
     private Integer port;
     private ReplyMode replyMode = ReplyMode.NONE;
+    private Integer replyPort;
 
     public String getKey() {
         return key;
@@ -36,5 +37,20 @@ public class InterfaceEntry {
 
     public void setReplyMode(ReplyMode replyMode) {
         this.replyMode = replyMode;
+    }
+
+    /**
+     * UDP only: overrides the port replies are sent to. Unset (default) replies go back to
+     * whichever port the request's sender used (typically an ephemeral one); set, replies always
+     * go to this fixed port on the sender's host instead - needed so a fixed-listening peer (e.g.
+     * traffic-proxy-app's UdpRelay bound to a matching fixed replyPort) can reliably receive
+     * replies without depending on an ephemeral source port surviving.
+     */
+    public Integer getReplyPort() {
+        return replyPort;
+    }
+
+    public void setReplyPort(Integer replyPort) {
+        this.replyPort = replyPort;
     }
 }

@@ -88,6 +88,11 @@ public class TesterMain {
 
                 if ("TCP".equals(transport)) {
                     tcpPublisher.send(host, port, payload);
+                } else if (listener != null) {
+                    // Send from the listener's own bound socket so a reply routed back to this
+                    // socket's local port (e.g. by traffic-proxy-app's UDP relay) actually reaches
+                    // the listener still bound there, instead of a throwaway ephemeral socket.
+                    udpPublisher.send(listener.socket(), host, port, payload);
                 } else {
                     udpPublisher.send(host, port, payload);
                 }

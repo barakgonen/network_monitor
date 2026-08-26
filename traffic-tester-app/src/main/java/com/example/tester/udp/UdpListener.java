@@ -44,14 +44,25 @@ public class UdpListener implements AutoCloseable {
         this.bufferSizeBytes = bufferSizeBytes;
     }
 
-    public void start() {
+    public void start() throws java.net.SocketException {
         if (!running.compareAndSet(false, true)) {
             return;
         }
 
+        // Bind synchronously (not inside the background thread) so socket() is guaranteed ready
+        // the moment start() returns - a caller that wants to send from this same socket (so a
+        // reply routed back to this port actually arrives here) must not race the listener thread.
+        socket = new DatagramSocket(port);
+        System.out.println("Tester UDP listener started on port " + port);
+
         listenerThread = new Thread(this::listen, "tester-udp-listener-" + port);
         listenerThread.setDaemon(false);
         listenerThread.start();
+    }
+
+    /** The socket this listener is bound to, for reuse as a shared send socket. */
+    public DatagramSocket socket() {
+        return socket;
     }
 
     public void await(Duration duration) throws InterruptedException {
@@ -66,9 +77,6 @@ public class UdpListener implements AutoCloseable {
 
     private void listen() {
         try {
-            socket = new DatagramSocket(port);
-            System.out.println("Tester UDP listener started on port " + port);
-
             while (running.get()) {
                 byte[] buffer = new byte[bufferSizeBytes];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);

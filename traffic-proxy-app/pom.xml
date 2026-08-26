@@ -18,6 +18,17 @@
       <version>2.2</version>
     </dependency>
 
+    <!-- Test-scope only: the *IT.java integration tests wire a real UdpRelay/TcpRelay/RestRelay
+         against traffic-destination-app's real listener classes (instead of hand-rolled test
+         doubles), so this module needs it on the test classpath. Does not affect the packaged
+         app - maven-dependency-plugin's copy-dependencies below only copies runtime scope. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-destination-app</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -64,6 +75,16 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <!-- *IT.java integration tests (real Relay classes wired against real
+           traffic-destination-app listener classes). No spring-boot-maven-plugin in this module
+           to clash with (see traffic-monitor-app's repackage/failsafe ordering gotcha), so the
+           default integration-test/verify phase bindings from the root pom's pluginManagement
+           work unmodified - just referencing the plugin here is enough to activate them. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

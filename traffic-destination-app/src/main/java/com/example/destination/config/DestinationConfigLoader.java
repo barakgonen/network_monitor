@@ -59,6 +59,21 @@ public class DestinationConfigLoader {
             if (entry.getPort() == null || entry.getPort() <= 0 || entry.getPort() > 65535) {
                 throw new IllegalArgumentException("interfaces[" + i + "].port is invalid: " + entry.getPort());
             }
+
+            if (entry.getReplyMode() == ReplyMode.PONG && !"UDP".equalsIgnoreCase(entry.getProtocol())) {
+                throw new IllegalArgumentException(
+                        "interfaces[" + i + "].replyMode PONG is only valid for protocol UDP, was: " + entry.getProtocol());
+            }
+
+            if (entry.getReplyPort() != null) {
+                if (!"UDP".equalsIgnoreCase(entry.getProtocol())) {
+                    throw new IllegalArgumentException(
+                            "interfaces[" + i + "].replyPort is only valid for protocol UDP, was: " + entry.getProtocol());
+                }
+                if (entry.getReplyPort() <= 0 || entry.getReplyPort() > 65535) {
+                    throw new IllegalArgumentException("interfaces[" + i + "].replyPort is invalid: " + entry.getReplyPort());
+                }
+            }
         }
     }
 }

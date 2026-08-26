@@ -9,6 +9,7 @@ public class RelayEntry {
     private long natIdleTimeoutMillis = 120_000L;
     private long natIdleSweepIntervalMillis = 30_000L;
     private long destinationConnectTimeoutMillis = 5_000L;
+    private Integer replyPort;
 
     public String getKey() {
         return key;
@@ -72,5 +73,23 @@ public class RelayEntry {
 
     public void setDestinationConnectTimeoutMillis(long destinationConnectTimeoutMillis) {
         this.destinationConnectTimeoutMillis = destinationConnectTimeoutMillis;
+    }
+
+    /**
+     * UDP only. Unset (default): each producer gets its own ephemeral outbound socket, keyed by
+     * a NAT table so multiple concurrent producers are told apart. Set: the relay instead binds
+     * a single shared outbound socket to this fixed local port for its whole lifetime and always
+     * relays replies to whichever producer sent the most recent request ("last producer wins",
+     * no NAT table) - needed when the destination itself replies to a fixed configured port
+     * rather than to the request's actual source port (see traffic-destination-app's matching
+     * InterfaceEntry.replyPort). Trades concurrent-producer isolation for a predictable reply
+     * path; fine at this project's single-producer-per-interface demo scale.
+     */
+    public Integer getReplyPort() {
+        return replyPort;
+    }
+
+    public void setReplyPort(Integer replyPort) {
+        this.replyPort = replyPort;
     }
 }

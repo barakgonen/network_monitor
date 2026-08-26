@@ -75,6 +75,20 @@ public class RelayConfigLoader {
             if (!seenListenPorts.add(listenPort)) {
                 throw new IllegalArgumentException("Duplicate listen.port across relay entries: " + listenPort);
             }
+
+            if (entry.getReplyPort() != null) {
+                if (!"UDP".equalsIgnoreCase(entry.getProtocol())) {
+                    throw new IllegalArgumentException(
+                            prefix + ".replyPort is only valid for protocol UDP, was: " + entry.getProtocol());
+                }
+                int replyPort = entry.getReplyPort();
+                if (replyPort <= 0 || replyPort > 65535) {
+                    throw new IllegalArgumentException(prefix + ".replyPort is invalid: " + replyPort);
+                }
+                if (replyPort == listenPort) {
+                    throw new IllegalArgumentException(prefix + ".replyPort must not equal listen.port: " + replyPort);
+                }
+            }
         }
     }
 

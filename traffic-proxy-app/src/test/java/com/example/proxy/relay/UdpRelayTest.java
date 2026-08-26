@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UdpRelayTest {
 
@@ -89,6 +90,136 @@ class UdpRelayTest {
 
                 assertThat(new String(receiveWithTimeout(producer, 3000))).isEqualTo("world");
                 assertThat(new String(receiveWithTimeout(mirror, 3000))).isEqualTo("world");
+            } finally {
+                relay.stop();
+            }
+        }
+    }
+
+    @Test
+    void distinctProducersGetIndependentNatEntriesAndCorrectReplyRouting() throws Exception {
+        try (DatagramSocket producerA = new DatagramSocket();
+             DatagramSocket producerB = new DatagramSocket();
+             DatagramSocket destination = new DatagramSocket(0);
+             DatagramSocket mirror = new DatagramSocket(0)) {
+
+            int listenPort = freePort();
+            UdpRelay relay = new UdpRelay(relayEntry(listenPort, destination.getLocalPort(), mirror.getLocalPort()));
+            relay.start();
+
+            try {
+                destination.setSoTimeout(3000);
+
+                byte[] payloadA = "from-a".getBytes();
+                producerA.send(new DatagramPacket(payloadA, payloadA.length, InetAddress.getLoopbackAddress(), listenPort));
+                DatagramPacket receivedFromA = new DatagramPacket(new byte[1024], 1024);
+                destination.receive(receivedFromA);
+                assertThat(new String(receivedFromA.getData(), 0, receivedFromA.getLength())).isEqualTo("from-a");
+
+                byte[] payloadB = "from-b".getBytes();
+                producerB.send(new DatagramPacket(payloadB, payloadB.length, InetAddress.getLoopbackAddress(), listenPort));
+                DatagramPacket receivedFromB = new DatagramPacket(new byte[1024], 1024);
+                destination.receive(receivedFromB);
+                assertThat(new String(receivedFromB.getData(), 0, receivedFromB.getLength())).isEqualTo("from-b");
+
+                // Destination sees A and B arrive via different ephemeral relay-outbound ports -
+                // proof each producer got its own independent NAT entry, not a shared one.
+                assertThat(receivedFromA.getPort()).isNotEqualTo(receivedFromB.getPort());
+                awaitCondition(() -> relay.natTableSize() == 2, Duration.ofSeconds(2));
+
+                // Reply to B only; it must route back to producerB, never to producerA.
+                byte[] replyToB = "reply-b".getBytes();
+                destination.send(new DatagramPacket(replyToB, replyToB.length, receivedFromB.getAddress(), receivedFromB.getPort()));
+
+                assertThat(new String(receiveWithTimeout(producerB, 3000))).isEqualTo("reply-b");
+
+                producerA.setSoTimeout(300);
+                assertThatThrownBy(() -> producerA.receive(new DatagramPacket(new byte[1024], 1024)))
+                        .isInstanceOf(java.net.SocketTimeoutException.class);
+            } finally {
+                relay.stop();
+            }
+        }
+    }
+
+    @Test
+    void fixedReplyPortMode_relaysBidirectionally_andMirrorsBoth() throws Exception {
+        try (DatagramSocket producer = new DatagramSocket();
+             DatagramSocket destination = new DatagramSocket(0);
+             DatagramSocket mirror = new DatagramSocket(0)) {
+
+            int listenPort = freePort();
+            int replyPort = freePort();
+            RelayEntry entry = relayEntry(listenPort, destination.getLocalPort(), mirror.getLocalPort());
+            entry.setReplyPort(replyPort);
+            UdpRelay relay = new UdpRelay(entry);
+            relay.start();
+
+            try {
+                byte[] requestPayload = "hello".getBytes();
+                producer.send(new DatagramPacket(requestPayload, requestPayload.length,
+                        InetAddress.getLoopbackAddress(), listenPort));
+
+                destination.setSoTimeout(3000);
+                DatagramPacket receivedAtDestination = new DatagramPacket(new byte[1024], 1024);
+                destination.receive(receivedAtDestination);
+                assertThat(new String(receivedAtDestination.getData(), 0, receivedAtDestination.getLength()))
+                        .isEqualTo("hello");
+                // The relay's outbound socket is bound to the configured fixed port, not an
+                // OS-assigned ephemeral one.
+                assertThat(receivedAtDestination.getPort()).isEqualTo(replyPort);
+
+                assertThat(new String(receiveWithTimeout(mirror, 3000))).isEqualTo("hello");
+
+                byte[] replyPayload = "world".getBytes();
+                destination.send(new DatagramPacket(replyPayload, replyPayload.length,
+                        receivedAtDestination.getAddress(), receivedAtDestination.getPort()));
+
+                assertThat(new String(receiveWithTimeout(producer, 3000))).isEqualTo("world");
+                assertThat(new String(receiveWithTimeout(mirror, 3000))).isEqualTo("world");
+            } finally {
+                relay.stop();
+            }
+        }
+    }
+
+    @Test
+    void fixedReplyPortMode_routesReplyToMostRecentProducer_notAnEarlierOne() throws Exception {
+        try (DatagramSocket producerA = new DatagramSocket();
+             DatagramSocket producerB = new DatagramSocket();
+             DatagramSocket destination = new DatagramSocket(0);
+             DatagramSocket mirror = new DatagramSocket(0)) {
+
+            int listenPort = freePort();
+            int replyPort = freePort();
+            RelayEntry entry = relayEntry(listenPort, destination.getLocalPort(), mirror.getLocalPort());
+            entry.setReplyPort(replyPort);
+            UdpRelay relay = new UdpRelay(entry);
+            relay.start();
+
+            try {
+                destination.setSoTimeout(3000);
+
+                byte[] payloadA = "from-a".getBytes();
+                producerA.send(new DatagramPacket(payloadA, payloadA.length, InetAddress.getLoopbackAddress(), listenPort));
+                destination.receive(new DatagramPacket(new byte[1024], 1024));
+
+                byte[] payloadB = "from-b".getBytes();
+                producerB.send(new DatagramPacket(payloadB, payloadB.length, InetAddress.getLoopbackAddress(), listenPort));
+                DatagramPacket receivedFromB = new DatagramPacket(new byte[1024], 1024);
+                destination.receive(receivedFromB);
+
+                // Both requests arrived from the same fixed port - this mode can't tell producers
+                // apart, so the single reply must go to whoever sent most recently (B), per the
+                // agreed "last producer wins" trade-off.
+                byte[] reply = "reply".getBytes();
+                destination.send(new DatagramPacket(reply, reply.length, receivedFromB.getAddress(), receivedFromB.getPort()));
+
+                assertThat(new String(receiveWithTimeout(producerB, 3000))).isEqualTo("reply");
+
+                producerA.setSoTimeout(300);
+                assertThatThrownBy(() -> producerA.receive(new DatagramPacket(new byte[1024], 1024)))
+                        .isInstanceOf(java.net.SocketTimeoutException.class);
             } finally {
                 relay.stop();
             }

@@ -41,6 +41,13 @@ relays:
     mirror:
       host: 127.0.0.1
       port: 5003
+    # Fixed reply port: traffic-destination-app's ping interface (below) replies to this exact
+    # port instead of the request's ephemeral source port, so this relay binds its outbound
+    # socket here for its whole lifetime rather than opening one ephemeral socket per producer.
+    # This single relay entry already handles the full round trip (request out via the fixed-port
+    # socket, reply picked back up on that same socket and relayed to the producer) - no second
+    # relay hop needed. See UdpRelay's Javadoc for the "last producer wins" trade-off this implies.
+    replyPort: 6103
 
 #  - key: candy
 #    protocol: TCP

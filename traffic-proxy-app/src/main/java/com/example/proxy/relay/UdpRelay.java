@@ -16,12 +16,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * NAT-table style bidirectional UDP relay. Each distinct producer (client address+port) gets its
- * own ephemeral outbound socket connected to {@code destination}; a reply-pump thread relays
- * anything the destination sends back on that socket to the original producer. Every request and
- * every reply is additionally duplicated (fire-and-forget) to {@code mirror}.
+ * Bidirectional UDP relay, in one of two modes selected by {@link RelayEntry#getReplyPort()}:
+ *
+ * <ul>
+ *   <li><b>Ephemeral NAT-table mode</b> (default, {@code replyPort} unset): each distinct producer
+ *   (client address+port) gets its own ephemeral outbound socket connected to {@code destination};
+ *   a reply-pump thread relays anything the destination sends back on that socket to the original
+ *   producer. Supports multiple concurrent producers.</li>
+ *   <li><b>Fixed-reply-port mode</b> ({@code replyPort} set): a single shared outbound socket is
+ *   bound to that fixed local port for the relay's whole lifetime, and replies are always routed
+ *   to whichever producer sent the most recent request ("last producer wins", no NAT table). Used
+ *   when the destination itself replies to a fixed configured port rather than to the request's
+ *   actual source port (see traffic-destination-app's {@code InterfaceEntry.replyPort}) - trades
+ *   concurrent-producer isolation for a predictable reply path.</li>
+ * </ul>
+ *
+ * Every request and every reply is additionally duplicated (fire-and-forget) to {@code mirror},
+ * regardless of mode.
  */
 public class UdpRelay implements Relay {
 
@@ -30,37 +44,54 @@ public class UdpRelay implements Relay {
     private final RelayEntry config;
     private final UdpMirrorSender mirrorSender = new UdpMirrorSender();
     private final ConcurrentHashMap<ClientKey, NatEntry> natTable = new ConcurrentHashMap<>();
+    private final boolean fixedReplyPortMode;
 
     private DatagramSocket listenSocket;
     private Thread requestThread;
     private ScheduledExecutorService sweepExecutor;
     private volatile boolean running;
 
+    // Fixed-reply-port mode only.
+    private DatagramSocket fixedOutboundSocket;
+    private Thread fixedReplyPumpThread;
+    private final AtomicReference<ClientKey> lastProducer = new AtomicReference<>();
+
     public UdpRelay(RelayEntry config) {
         this.config = config;
+        this.fixedReplyPortMode = config.getReplyPort() != null;
     }
 
     @Override
-    public void start() throws SocketException {
+    public void start() throws IOException {
         EndpointConfig listen = config.getListen();
         listenSocket = new DatagramSocket(new InetSocketAddress(listen.getHost(), listen.getPort()));
         running = true;
+
+        if (fixedReplyPortMode) {
+            EndpointConfig destination = config.getDestination();
+            fixedOutboundSocket = new DatagramSocket(config.getReplyPort());
+            fixedOutboundSocket.connect(InetAddress.getByName(destination.getHost()), destination.getPort());
+            fixedReplyPumpThread = new Thread(this::fixedReplyPumpLoop, "proxy-udp-reply-" + config.getKey());
+            fixedReplyPumpThread.setDaemon(true);
+            fixedReplyPumpThread.start();
+        } else {
+            sweepExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "proxy-udp-nat-sweep-" + config.getKey());
+                t.setDaemon(true);
+                return t;
+            });
+            long sweepInterval = config.getNatIdleSweepIntervalMillis();
+            sweepExecutor.scheduleAtFixedRate(this::sweepIdleEntries, sweepInterval, sweepInterval, TimeUnit.MILLISECONDS);
+        }
 
         requestThread = new Thread(this::requestLoop, "proxy-udp-" + config.getKey());
         requestThread.setDaemon(true);
         requestThread.start();
 
-        sweepExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "proxy-udp-nat-sweep-" + config.getKey());
-            t.setDaemon(true);
-            return t;
-        });
-        long sweepInterval = config.getNatIdleSweepIntervalMillis();
-        sweepExecutor.scheduleAtFixedRate(this::sweepIdleEntries, sweepInterval, sweepInterval, TimeUnit.MILLISECONDS);
-
         System.out.println("[" + config.getKey() + "] UDP relay listening on " + listen.getHost() + ":" + listen.getPort()
                 + " -> destination " + config.getDestination().getHost() + ":" + config.getDestination().getPort()
-                + " (mirror " + config.getMirror().getHost() + ":" + config.getMirror().getPort() + ")");
+                + " (mirror " + config.getMirror().getHost() + ":" + config.getMirror().getPort() + ")"
+                + (fixedReplyPortMode ? " [fixed reply port " + config.getReplyPort() + "]" : ""));
     }
 
     private void requestLoop() {
@@ -78,21 +109,59 @@ public class UdpRelay implements Relay {
 
             byte[] payload = new byte[packet.getLength()];
             System.arraycopy(packet.getData(), packet.getOffset(), payload, 0, packet.getLength());
-
             ClientKey clientKey = new ClientKey(packet.getAddress(), packet.getPort());
-            NatEntry entry = natTable.computeIfAbsent(clientKey, this::createNatEntry);
-            if (entry == null) {
-                continue;
-            }
-            entry.touch();
 
-            try {
-                entry.outboundSocket().send(new DatagramPacket(payload, payload.length));
-            } catch (IOException e) {
-                System.err.println("[" + config.getKey() + "] UDP relay forward to destination failed: " + e.getMessage());
+            if (fixedReplyPortMode) {
+                lastProducer.set(clientKey);
+                try {
+                    fixedOutboundSocket.send(new DatagramPacket(payload, payload.length));
+                } catch (IOException e) {
+                    System.err.println("[" + config.getKey() + "] UDP relay forward to destination failed: " + e.getMessage());
+                }
+            } else {
+                NatEntry entry = natTable.computeIfAbsent(clientKey, this::createNatEntry);
+                if (entry == null) {
+                    continue;
+                }
+                entry.touch();
+
+                try {
+                    entry.outboundSocket().send(new DatagramPacket(payload, payload.length));
+                } catch (IOException e) {
+                    System.err.println("[" + config.getKey() + "] UDP relay forward to destination failed: " + e.getMessage());
+                }
             }
 
             mirrorSender.send(config.getMirror().getHost(), config.getMirror().getPort(), payload, config.getKey());
+        }
+    }
+
+    private void fixedReplyPumpLoop() {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        while (running && !fixedOutboundSocket.isClosed()) {
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+            try {
+                fixedOutboundSocket.receive(packet);
+            } catch (IOException e) {
+                if (!fixedOutboundSocket.isClosed()) {
+                    System.err.println("[" + config.getKey() + "] UDP relay reply receive error: " + e.getMessage());
+                }
+                return;
+            }
+
+            byte[] replyBytes = new byte[packet.getLength()];
+            System.arraycopy(packet.getData(), packet.getOffset(), replyBytes, 0, packet.getLength());
+
+            ClientKey producer = lastProducer.get();
+            if (producer != null) {
+                try {
+                    listenSocket.send(new DatagramPacket(replyBytes, replyBytes.length, producer.address(), producer.port()));
+                } catch (IOException e) {
+                    System.err.println("[" + config.getKey() + "] UDP relay reply forward to producer failed: " + e.getMessage());
+                }
+            }
+
+            mirrorSender.send(config.getMirror().getHost(), config.getMirror().getPort(), replyBytes, config.getKey());
         }
     }
 
@@ -170,6 +239,12 @@ public class UdpRelay implements Relay {
         }
         if (sweepExecutor != null) {
             sweepExecutor.shutdownNow();
+        }
+        if (fixedOutboundSocket != null) {
+            fixedOutboundSocket.close();
+        }
+        if (fixedReplyPumpThread != null) {
+            fixedReplyPumpThread.interrupt();
         }
         for (NatEntry entry : natTable.values()) {
             entry.outboundSocket().close();
