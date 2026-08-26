@@ -58,6 +58,19 @@ messages:
       name: "chocolate-bar"
       calories: 250.5
 
+  # Case 1 (role reversal): tester-app is the TCP server here, traffic-proxy-app's candy-reverse
+  # relay dials in as a client, then relays through to traffic-destination-app's candy-reverse
+  # interface (itself a TCP client of the relay). transport: TCP_SERVER tells TesterMain to bind
+  # port 7004 and push this payload immediately whenever a connection arrives, instead of dialing
+  # out - see TcpListener.
+  - mode: CANDY
+    target:
+      port: 7004
+      transport: TCP_SERVER
+    candy:
+      name: "gummy-bear"
+      calories: 180.0
+
   - mode: RADA_STATUS
     target:
       host: 127.0.0.1

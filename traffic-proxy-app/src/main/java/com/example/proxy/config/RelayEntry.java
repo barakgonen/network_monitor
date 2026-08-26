@@ -10,6 +10,10 @@ public class RelayEntry {
     private long natIdleSweepIntervalMillis = 30_000L;
     private long destinationConnectTimeoutMillis = 5_000L;
     private Integer replyPort;
+    private String listenMode = "SERVER";
+    private String destinationMode = "CLIENT";
+    private long listenConnectTimeoutMillis = 3_000L;
+    private long listenReconnectDelayMillis = 2_000L;
 
     public String getKey() {
         return key;
@@ -91,5 +95,53 @@ public class RelayEntry {
 
     public void setReplyPort(Integer replyPort) {
         this.replyPort = replyPort;
+    }
+
+    /**
+     * TCP only. "SERVER" (default): the relay binds {@code listen} and accepts producer
+     * connections in. "CLIENT": the relay instead actively connects out to {@code listen}
+     * (which in this mode names the producer's own listening server address) via a background
+     * reconnect loop - needed when the producer (e.g. traffic-tester-app) is itself a TCP server
+     * rather than a client.
+     */
+    public String getListenMode() {
+        return listenMode;
+    }
+
+    public void setListenMode(String listenMode) {
+        this.listenMode = listenMode;
+    }
+
+    /**
+     * TCP only. "CLIENT" (default): the relay connects out to {@code destination}. "SERVER":
+     * the relay instead binds {@code destination} and accepts a connection from the destination
+     * side in - needed when the destination (e.g. traffic-destination-app) is itself a TCP
+     * client rather than a server. Exactly one of {@code listenMode}/{@code destinationMode}
+     * must be CLIENT and the other SERVER; both-SERVER and both-CLIENT are not supported.
+     */
+    public String getDestinationMode() {
+        return destinationMode;
+    }
+
+    public void setDestinationMode(String destinationMode) {
+        this.destinationMode = destinationMode;
+    }
+
+    /** TCP only, listenMode=CLIENT only: per-attempt connect timeout when dialing the producer. */
+    public long getListenConnectTimeoutMillis() {
+        return listenConnectTimeoutMillis;
+    }
+
+    public void setListenConnectTimeoutMillis(long listenConnectTimeoutMillis) {
+        this.listenConnectTimeoutMillis = listenConnectTimeoutMillis;
+    }
+
+    /** TCP only, listenMode=CLIENT only: delay between reconnect attempts to the producer. */
+    public long getListenReconnectDelayMillis() {
+        return listenReconnectDelayMillis;
+    }
+
+    public void setListenReconnectDelayMillis(long listenReconnectDelayMillis) {
+        this.listenReconnectDelayMillis = listenReconnectDelayMillis;
     }
 }

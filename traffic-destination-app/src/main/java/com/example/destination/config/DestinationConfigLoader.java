@@ -13,6 +13,7 @@ import java.util.Set;
 public class DestinationConfigLoader {
 
     private static final Set<String> VALID_PROTOCOLS = Set.of("UDP", "TCP", "REST");
+    private static final Set<String> VALID_TCP_MODES = Set.of("SERVER", "CLIENT");
 
     public DestinationConfig load(Path path) {
         if (!Files.exists(path)) {
@@ -74,6 +75,28 @@ public class DestinationConfigLoader {
                     throw new IllegalArgumentException("interfaces[" + i + "].replyPort is invalid: " + entry.getReplyPort());
                 }
             }
+
+            validateTcpMode(entry, i);
+        }
+    }
+
+    private void validateTcpMode(InterfaceEntry entry, int index) {
+        String prefix = "interfaces[" + index + "]";
+        boolean modeIsDefault = "SERVER".equalsIgnoreCase(entry.getMode());
+
+        if (!"TCP".equalsIgnoreCase(entry.getProtocol())) {
+            if (!modeIsDefault || entry.getHost() != null) {
+                throw new IllegalArgumentException(prefix + ".mode/host are only valid for protocol TCP, was: " + entry.getProtocol());
+            }
+            return;
+        }
+
+        if (entry.getMode() == null || !VALID_TCP_MODES.contains(entry.getMode().toUpperCase())) {
+            throw new IllegalArgumentException(prefix + ".mode must be one of " + VALID_TCP_MODES + ", was: " + entry.getMode());
+        }
+
+        if ("CLIENT".equalsIgnoreCase(entry.getMode()) && (entry.getHost() == null || entry.getHost().isBlank())) {
+            throw new IllegalArgumentException(prefix + ".host is required when mode is CLIENT");
         }
     }
 }

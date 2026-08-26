@@ -14,6 +14,7 @@ import java.util.Set;
 public class RelayConfigLoader {
 
     private static final Set<String> VALID_PROTOCOLS = Set.of("UDP", "TCP", "REST");
+    private static final Set<String> VALID_TCP_MODES = Set.of("SERVER", "CLIENT");
 
     public ProxyRelayConfig load(Path path) {
         if (!Files.exists(path)) {
@@ -89,6 +90,39 @@ public class RelayConfigLoader {
                     throw new IllegalArgumentException(prefix + ".replyPort must not equal listen.port: " + replyPort);
                 }
             }
+
+            validateTcpModes(entry, prefix);
+        }
+    }
+
+    private void validateTcpModes(RelayEntry entry, String prefix) {
+        boolean isTcp = "TCP".equalsIgnoreCase(entry.getProtocol());
+        boolean listenModeDefault = "SERVER".equalsIgnoreCase(entry.getListenMode());
+        boolean destinationModeDefault = "CLIENT".equalsIgnoreCase(entry.getDestinationMode());
+
+        if (!isTcp) {
+            if (!listenModeDefault || !destinationModeDefault) {
+                throw new IllegalArgumentException(
+                        prefix + ".listenMode/destinationMode are only valid for protocol TCP, was: " + entry.getProtocol());
+            }
+            return;
+        }
+
+        if (entry.getListenMode() == null || !VALID_TCP_MODES.contains(entry.getListenMode().toUpperCase())) {
+            throw new IllegalArgumentException(
+                    prefix + ".listenMode must be one of " + VALID_TCP_MODES + ", was: " + entry.getListenMode());
+        }
+        if (entry.getDestinationMode() == null || !VALID_TCP_MODES.contains(entry.getDestinationMode().toUpperCase())) {
+            throw new IllegalArgumentException(
+                    prefix + ".destinationMode must be one of " + VALID_TCP_MODES + ", was: " + entry.getDestinationMode());
+        }
+
+        boolean listenIsServer = "SERVER".equalsIgnoreCase(entry.getListenMode());
+        boolean destinationIsServer = "SERVER".equalsIgnoreCase(entry.getDestinationMode());
+        if (listenIsServer == destinationIsServer) {
+            throw new IllegalArgumentException(prefix + ": exactly one of listenMode/destinationMode must be SERVER "
+                    + "and the other CLIENT (both-SERVER and both-CLIENT are not supported), was listenMode="
+                    + entry.getListenMode() + ", destinationMode=" + entry.getDestinationMode());
         }
     }
 

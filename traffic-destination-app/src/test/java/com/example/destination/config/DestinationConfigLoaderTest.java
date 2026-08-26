@@ -180,4 +180,72 @@ class DestinationConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("replyPort is invalid");
     }
+
+    @Test
+    void load_withClientModeAndHost_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: candy-reverse
+                    protocol: TCP
+                    port: 8104
+                    replyMode: ECHO
+                    mode: CLIENT
+                    host: 127.0.0.1
+                """);
+
+        DestinationConfig config = loader.load(file);
+
+        InterfaceEntry entry = config.getInterfaces().get(0);
+        assertThat(entry.getMode()).isEqualTo("CLIENT");
+        assertThat(entry.getHost()).isEqualTo("127.0.0.1");
+    }
+
+    @Test
+    void load_withClientModeAndNoHost_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: candy-reverse
+                    protocol: TCP
+                    port: 8104
+                    mode: CLIENT
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("host is required when mode is CLIENT");
+    }
+
+    @Test
+    void load_withModeOnNonTcpProtocol_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: ping
+                    protocol: UDP
+                    port: 8003
+                    mode: CLIENT
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("mode/host are only valid for protocol TCP");
+    }
+
+    @Test
+    void load_withInvalidMode_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: candy
+                    protocol: TCP
+                    port: 8004
+                    mode: BOGUS
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("mode must be one of");
+    }
 }

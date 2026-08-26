@@ -29,6 +29,16 @@ interfaces:
     port: 8004
     replyMode: ECHO
 
+  - key: candy-reverse
+    protocol: TCP
+    port: 8104
+    replyMode: ECHO
+    # CLIENT mode: connects out to traffic-proxy-app's candy-reverse relay (which itself binds
+    # 8104 in SERVER mode, since it's the one accepting destination-app's connection in this
+    # role-reversed case), instead of binding here.
+    mode: CLIENT
+    host: 127.0.0.1
+
   - key: pets
     protocol: REST
     port: 8060

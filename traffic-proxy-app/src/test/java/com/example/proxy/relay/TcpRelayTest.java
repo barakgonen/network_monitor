@@ -194,6 +194,108 @@ class TcpRelayTest {
         }
     }
 
+    @Test
+    void reverseMode_relaysBidirectionally_andMirrorsBoth() throws Exception {
+        try (ServerSocket producerServer = new ServerSocket(0)) {
+            int producerServerPort = producerServer.getLocalPort();
+            int destinationServerPort = freePort();
+            CapturingServer mirror = new CapturingServer();
+
+            RelayEntry entry = new RelayEntry();
+            entry.setKey("candy-reverse");
+            entry.setProtocol("TCP");
+            entry.setListen(endpoint("127.0.0.1", producerServerPort));
+            entry.setDestination(endpoint("0.0.0.0", destinationServerPort));
+            entry.setMirror(endpoint("127.0.0.1", mirror.port()));
+            entry.setListenMode("CLIENT");
+            entry.setDestinationMode("SERVER");
+
+            TcpRelay relay = new TcpRelay(entry);
+            relay.start();
+
+            try {
+                producerServer.setSoTimeout(3000);
+                Socket producerSide = producerServer.accept();
+                producerSide.setSoTimeout(3000);
+
+                Socket destinationSide = new Socket("127.0.0.1", destinationServerPort);
+                destinationSide.setSoTimeout(3000);
+
+                byte[] payload = "hello".getBytes();
+                producerSide.getOutputStream().write(payload);
+                producerSide.getOutputStream().flush();
+
+                byte[] buffer = new byte[1024];
+                int read = readFully(destinationSide.getInputStream(), buffer, payload.length);
+                assertThat(new String(buffer, 0, read)).isEqualTo("hello");
+
+                byte[] reply = "world".getBytes();
+                destinationSide.getOutputStream().write(reply);
+                destinationSide.getOutputStream().flush();
+
+                byte[] replyBuffer = new byte[1024];
+                int replyRead = readFully(producerSide.getInputStream(), replyBuffer, reply.length);
+                assertThat(new String(replyBuffer, 0, replyRead)).isEqualTo("world");
+
+                awaitCondition(() -> mirror.receivedBytes().length >= "helloworld".length(), Duration.ofSeconds(3));
+                assertThat(new String(mirror.receivedBytes())).isEqualTo("helloworld");
+
+                producerSide.close();
+                destinationSide.close();
+            } finally {
+                relay.stop();
+                mirror.close();
+            }
+        }
+    }
+
+    @Test
+    void reverseMode_reconnectsToProducerAfterDisconnect() throws Exception {
+        try (ServerSocket producerServer = new ServerSocket(0)) {
+            int producerServerPort = producerServer.getLocalPort();
+            int destinationServerPort = freePort();
+            CapturingServer mirror = new CapturingServer();
+
+            RelayEntry entry = new RelayEntry();
+            entry.setKey("candy-reverse");
+            entry.setProtocol("TCP");
+            entry.setListen(endpoint("127.0.0.1", producerServerPort));
+            entry.setDestination(endpoint("0.0.0.0", destinationServerPort));
+            entry.setMirror(endpoint("127.0.0.1", mirror.port()));
+            entry.setListenMode("CLIENT");
+            entry.setDestinationMode("SERVER");
+            entry.setListenReconnectDelayMillis(100);
+
+            TcpRelay relay = new TcpRelay(entry);
+            relay.start();
+
+            try {
+                producerServer.setSoTimeout(3000);
+                Socket firstProducerSide = producerServer.accept();
+                firstProducerSide.setSoTimeout(3000);
+                Socket firstDestinationSide = new Socket("127.0.0.1", destinationServerPort);
+                firstDestinationSide.setSoTimeout(3000);
+
+                // Push one byte through to confirm splicing has actually started (a disconnect
+                // is only observable once something is reading from the socket) before closing.
+                firstProducerSide.getOutputStream().write('x');
+                firstProducerSide.getOutputStream().flush();
+                readFully(firstDestinationSide.getInputStream(), new byte[1], 1);
+
+                firstProducerSide.close();
+
+                // The relay should notice the disconnect and reconnect.
+                Socket secondProducerSide = producerServer.accept();
+                assertThat(secondProducerSide).isNotNull();
+                secondProducerSide.close();
+                firstDestinationSide.close();
+            } finally {
+                relay.stop();
+                mirror.close();
+            }
+        }
+    }
+
     private static class EchoServer implements AutoCloseable {
         private final ServerSocket serverSocket;
         private volatile boolean running = true;

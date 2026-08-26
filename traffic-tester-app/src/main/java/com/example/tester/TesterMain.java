@@ -7,12 +7,14 @@ import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
 import com.example.tester.rest.RestPublisher;
 import com.example.tester.rest.RestSendResult;
+import com.example.tester.tcp.TcpListener;
 import com.example.tester.tcp.TcpPublisher;
 import com.example.tester.udp.UdpListener;
 import com.example.tester.udp.UdpPublisher;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -50,6 +52,25 @@ public class TesterMain {
                     + " seconds");
         }
 
+        // TCP_SERVER-transport messages don't get "sent" from the per-iteration loop below - the
+        // tester is itself the TCP server here, so each one gets its own TcpListener started up
+        // front, pushing its configured payload immediately whenever a peer (e.g.
+        // traffic-proxy-app's TcpRelay in reverse mode) connects in.
+        long tcpServerDurationSeconds = listenerConfig != null ? listenerConfig.getDurationSeconds() : 120;
+        List<TcpListener> tcpListeners = new ArrayList<>();
+        for (PayloadConfig messageConfig : messages) {
+            if ("TCP_SERVER".equals(resolveTransport(messageConfig))) {
+                int tcpServerPort = resolvePort(scenario, messageConfig);
+                byte[] payload = payloadFactory.create(messageConfig);
+                TcpListener tcpListener = new TcpListener(tcpServerPort, payload);
+                tcpListener.start();
+                tcpListeners.add(tcpListener);
+
+                System.out.println("Tester will serve TCP connections for " + messageConfig.getMode()
+                        + " on port " + tcpServerPort + " for " + tcpServerDurationSeconds + " seconds");
+            }
+        }
+
         int totalSent = 0;
 
         for (int iteration = 1; iteration <= scenario.getRepeat(); iteration++) {
@@ -60,6 +81,11 @@ public class TesterMain {
                 String host = resolveHost(scenario, messageConfig);
                 int port = resolvePort(scenario, messageConfig);
                 String transport = resolveTransport(messageConfig);
+
+                if ("TCP_SERVER".equals(transport)) {
+                    // Already being served by a dedicated TcpListener started above.
+                    continue;
+                }
 
                 if ("REST".equals(transport)) {
                     RestSendResult result = restPublisher.send(host, port, messageConfig);
@@ -124,8 +150,25 @@ public class TesterMain {
 
         System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent);
 
+        // Both the UDP listener and any TCP server listeners run their own background threads
+        // already; block here for whichever duration is longest, then close them all together,
+        // rather than awaiting each one sequentially (which would needlessly serialize their
+        // otherwise-concurrent listen windows).
+        long overallListenDurationSeconds = 0;
         if (listener != null) {
-            listener.await(Duration.ofSeconds(listenerConfig.getDurationSeconds()));
+            overallListenDurationSeconds = Math.max(overallListenDurationSeconds, listenerConfig.getDurationSeconds());
+        }
+        if (!tcpListeners.isEmpty()) {
+            overallListenDurationSeconds = Math.max(overallListenDurationSeconds, tcpServerDurationSeconds);
+        }
+        if (overallListenDurationSeconds > 0) {
+            Thread.sleep(Duration.ofSeconds(overallListenDurationSeconds).toMillis());
+        }
+        if (listener != null) {
+            listener.close();
+        }
+        for (TcpListener tcpListener : tcpListeners) {
+            tcpListener.close();
         }
 
         System.out.println("Traffic Tester App finished");

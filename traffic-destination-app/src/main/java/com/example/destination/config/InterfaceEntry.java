@@ -6,6 +6,8 @@ public class InterfaceEntry {
     private Integer port;
     private ReplyMode replyMode = ReplyMode.NONE;
     private Integer replyPort;
+    private String mode = "SERVER";
+    private String host;
 
     public String getKey() {
         return key;
@@ -52,5 +54,28 @@ public class InterfaceEntry {
 
     public void setReplyPort(Integer replyPort) {
         this.replyPort = replyPort;
+    }
+
+    /**
+     * TCP only. "SERVER" (default): bind {@code port} and accept connections in. "CLIENT":
+     * connect out to {@code host}:{@code port} instead, via a background reconnect loop -
+     * needed when the peer this interface talks to (e.g. traffic-proxy-app's TcpRelay in
+     * reverse mode) is itself listening rather than connecting in.
+     */
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    /** TCP only, mode=CLIENT only: the host to connect out to. */
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
     }
 }

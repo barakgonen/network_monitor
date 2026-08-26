@@ -142,11 +142,8 @@ public class PayloadFactory {
         return encodeMessage(TEMPERATURE_READING_OPCODE, message);
     }
 
-    private static int pingCount = 0;
-
     private byte[] createPing(PayloadConfig config) {
-        PingMessage pingMessage = new PingMessage(pingCount);
-        pingCount++;
+        PingMessage pingMessage = new PingMessage(config.getPing().getSequence());
         return encodeMessage(PING_OPCODE, pingMessage);
     }
 

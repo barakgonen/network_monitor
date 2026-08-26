@@ -80,6 +80,58 @@ class TcpEchoListenerTest {
         }
     }
 
+    @Test
+    void clientMode_connectsOut_andEchoesBytes() throws Exception {
+        try (ServerSocket peerServer = new ServerSocket(0)) {
+            InterfaceEntry config = new InterfaceEntry();
+            config.setKey("candy-reverse");
+            config.setProtocol("TCP");
+            config.setMode("CLIENT");
+            config.setHost("127.0.0.1");
+            config.setPort(peerServer.getLocalPort());
+            config.setReplyMode(ReplyMode.ECHO);
+            listener = new TcpEchoListener(config);
+            listener.start();
+
+            peerServer.setSoTimeout(3000);
+            Socket accepted = peerServer.accept();
+            accepted.setSoTimeout(3000);
+
+            byte[] payload = "hello".getBytes();
+            accepted.getOutputStream().write(payload);
+            accepted.getOutputStream().flush();
+
+            byte[] buffer = new byte[1024];
+            int read = accepted.getInputStream().read(buffer);
+            assertThat(new String(buffer, 0, read)).isEqualTo("hello");
+
+            accepted.close();
+        }
+    }
+
+    @Test
+    void clientMode_reconnectsAfterDisconnect() throws Exception {
+        try (ServerSocket peerServer = new ServerSocket(0)) {
+            InterfaceEntry config = new InterfaceEntry();
+            config.setKey("candy-reverse");
+            config.setProtocol("TCP");
+            config.setMode("CLIENT");
+            config.setHost("127.0.0.1");
+            config.setPort(peerServer.getLocalPort());
+            config.setReplyMode(ReplyMode.ECHO);
+            listener = new TcpEchoListener(config);
+            listener.start();
+
+            peerServer.setSoTimeout(3000);
+            Socket first = peerServer.accept();
+            first.close();
+
+            Socket second = peerServer.accept();
+            assertThat(second).isNotNull();
+            second.close();
+        }
+    }
+
     private interface ThrowingRunnable {
         void run() throws Exception;
     }

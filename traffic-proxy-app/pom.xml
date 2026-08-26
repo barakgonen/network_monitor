@@ -19,12 +19,19 @@
     </dependency>
 
     <!-- Test-scope only: the *IT.java integration tests wire a real UdpRelay/TcpRelay/RestRelay
-         against traffic-destination-app's real listener classes (instead of hand-rolled test
-         doubles), so this module needs it on the test classpath. Does not affect the packaged
-         app - maven-dependency-plugin's copy-dependencies below only copies runtime scope. -->
+         against traffic-destination-app's (and, for TCP reverse mode, traffic-tester-app's)
+         real listener classes instead of hand-rolled test doubles, so this module needs them on
+         the test classpath. Does not affect the packaged app - maven-dependency-plugin's
+         copy-dependencies below only copies runtime scope. -->
     <dependency>
       <groupId>com.example</groupId>
       <artifactId>traffic-destination-app</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-tester-app</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

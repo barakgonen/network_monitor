@@ -216,4 +216,118 @@ class RelayConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("replyPort is invalid");
     }
+
+    @Test
+    void load_withReverseTcpModes_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy-reverse
+                    protocol: TCP
+                    listen: { host: 127.0.0.1, port: 7004 }
+                    destination: { host: 0.0.0.0, port: 8104 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                    listenMode: CLIENT
+                    destinationMode: SERVER
+                """);
+
+        ProxyRelayConfig config = loader.load(file);
+
+        RelayEntry entry = config.getRelays().get(0);
+        assertThat(entry.getListenMode()).isEqualTo("CLIENT");
+        assertThat(entry.getDestinationMode()).isEqualTo("SERVER");
+    }
+
+    @Test
+    void load_withDefaultTcpModes_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy
+                    protocol: TCP
+                    listen: { host: 0.0.0.0, port: 6004 }
+                    destination: { host: 127.0.0.1, port: 8004 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                """);
+
+        ProxyRelayConfig config = loader.load(file);
+
+        RelayEntry entry = config.getRelays().get(0);
+        assertThat(entry.getListenMode()).isEqualTo("SERVER");
+        assertThat(entry.getDestinationMode()).isEqualTo("CLIENT");
+    }
+
+    @Test
+    void load_withBothServerTcpModes_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy
+                    protocol: TCP
+                    listen: { host: 0.0.0.0, port: 6004 }
+                    destination: { host: 127.0.0.1, port: 8004 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                    listenMode: SERVER
+                    destinationMode: SERVER
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exactly one of listenMode/destinationMode must be SERVER");
+    }
+
+    @Test
+    void load_withBothClientTcpModes_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy
+                    protocol: TCP
+                    listen: { host: 0.0.0.0, port: 6004 }
+                    destination: { host: 127.0.0.1, port: 8004 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                    listenMode: CLIENT
+                    destinationMode: CLIENT
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exactly one of listenMode/destinationMode must be SERVER");
+    }
+
+    @Test
+    void load_withTcpModeOnNonTcpProtocol_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: ping
+                    protocol: UDP
+                    listen: { host: 0.0.0.0, port: 6003 }
+                    destination: { host: 127.0.0.1, port: 8003 }
+                    mirror: { host: 127.0.0.1, port: 5003 }
+                    listenMode: CLIENT
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("listenMode/destinationMode are only valid for protocol TCP");
+    }
+
+    @Test
+    void load_withInvalidTcpMode_throws() throws Exception {
+        Path file = tempDir.resolve("proxy-relays.yml");
+        Files.writeString(file, """
+                relays:
+                  - key: candy
+                    protocol: TCP
+                    listen: { host: 0.0.0.0, port: 6004 }
+                    destination: { host: 127.0.0.1, port: 8004 }
+                    mirror: { host: 127.0.0.1, port: 5004 }
+                    listenMode: BOGUS
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("listenMode must be one of");
+    }
 }
