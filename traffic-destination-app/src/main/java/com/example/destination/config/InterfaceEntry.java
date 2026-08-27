@@ -8,6 +8,9 @@ public class InterfaceEntry {
     private Integer replyPort;
     private String mode = "SERVER";
     private String host;
+    private String path = "/";
+    private String requestBody;
+    private long intervalMillis = 3_000L;
 
     public String getKey() {
         return key;
@@ -57,10 +60,13 @@ public class InterfaceEntry {
     }
 
     /**
-     * TCP only. "SERVER" (default): bind {@code port} and accept connections in. "CLIENT":
-     * connect out to {@code host}:{@code port} instead, via a background reconnect loop -
-     * needed when the peer this interface talks to (e.g. traffic-proxy-app's TcpRelay in
-     * reverse mode) is itself listening rather than connecting in.
+     * TCP/REST only. "SERVER" (default): bind {@code port} and accept connections/requests in.
+     * "CLIENT": for TCP, connect out to {@code host}:{@code port} instead, via a background
+     * reconnect loop; for REST, periodically POST {@code requestBody} to
+     * {@code host}:{@code port}{@code path} instead of binding - needed when the peer this
+     * interface talks to (e.g. traffic-proxy-app's relay in reverse mode) is itself listening
+     * rather than connecting in. HTTP has no persistent-connection equivalent of TCP's reconnect
+     * loop, so REST CLIENT mode is a periodic one-shot request instead.
      */
     public String getMode() {
         return mode;
@@ -70,12 +76,39 @@ public class InterfaceEntry {
         this.mode = mode;
     }
 
-    /** TCP only, mode=CLIENT only: the host to connect out to. */
+    /** TCP/REST only, mode=CLIENT only: the host to connect/send out to. */
     public String getHost() {
         return host;
     }
 
     public void setHost(String host) {
         this.host = host;
+    }
+
+    /** REST only, mode=CLIENT only: the request path, e.g. "/pets". */
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    /** REST only, mode=CLIENT only: the JSON request body POSTed on each interval. */
+    public String getRequestBody() {
+        return requestBody;
+    }
+
+    public void setRequestBody(String requestBody) {
+        this.requestBody = requestBody;
+    }
+
+    /** REST only, mode=CLIENT only: delay between periodic requests. */
+    public long getIntervalMillis() {
+        return intervalMillis;
+    }
+
+    public void setIntervalMillis(long intervalMillis) {
+        this.intervalMillis = intervalMillis;
     }
 }

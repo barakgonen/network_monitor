@@ -118,5 +118,16 @@ messages:
       petId: "1"
       includeVaccinations: true
 
+  # Case 1 (role reversal): traffic-destination-app periodically POSTs to traffic-proxy-app's
+  # pets-reverse relay, which forwards to tester-app's own REST server (RestListener, echoes the
+  # body back). transport: REST_SERVER tells TesterMain to bind port 7060 and just respond to
+  # whatever arrives - REST has no server-push, unlike TCP_SERVER, so no payload is configured
+  # here (mode/text below are unused placeholders just to satisfy the scenario schema).
+  - mode: TEXT
+    text: ""
+    target:
+      port: 7060
+      transport: REST_SERVER
+
 repeat: 3
 intervalMillis: 1000

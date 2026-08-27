@@ -43,3 +43,14 @@ interfaces:
     protocol: REST
     port: 8060
     replyMode: ECHO
+
+  - key: pets-reverse
+    protocol: REST
+    port: 6160
+    mode: CLIENT
+    host: 127.0.0.1
+    path: /pets
+    # Shaped like tester-app's own PETS_CREATE request (see RestPublisher.createPet), so the
+    # mirrored copy decodes cleanly as a createPet operation on the monitor.
+    requestBody: '{"name":"Whiskers","species":"cat","age":2,"owner":{"name":"Bob","email":"bob@example.com"},"tags":["cat"]}'
+    intervalMillis: 3000

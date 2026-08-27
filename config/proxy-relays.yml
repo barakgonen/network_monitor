@@ -85,14 +85,36 @@ relays:
     listenMode: CLIENT
     destinationMode: SERVER
 
-#  - key: pets
-#    protocol: REST
-#    listen:
-#      host: 0.0.0.0
-#      port: 6060
-#    destination:
-#      host: 127.0.0.1
-#      port: 8060
-#    mirror:
-#      host: 127.0.0.1
-#      port: 5060
+  - key: pets
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6060
+    destination:
+      host: 127.0.0.1
+      port: 8060
+    mirror:
+      host: 127.0.0.1
+      port: 5060
+    # Case 2: tester-app is the REST client (RestPublisher), traffic-destination-app is the REST
+    # server (RestEchoListener). The relay's own role (accept + forward) never differs between
+    # REST cases - unlike TCP, HTTP has no persistent connection whose direction can flip; every
+    # request is independent, so the relay always binds `listen` and dials out to `destination`
+    # regardless of which app is sending vs. receiving.
+
+  - key: pets-reverse
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6160
+    destination:
+      host: 127.0.0.1
+      port: 7060
+    mirror:
+      host: 127.0.0.1
+      port: 5060
+    # Case 1: traffic-destination-app is the REST client (RestPeriodicSender - sends on a fixed
+    # interval, since HTTP has no persistent connection to dial into the way TCP's reverse mode
+    # does), tester-app is the REST server (RestListener, echoes the body back). Mirrors to the
+    # same monitor pets port as the forward-mode relay above, since it's still a
+    # createPet-shaped POST /pets either way - no separate monitor interface needed.

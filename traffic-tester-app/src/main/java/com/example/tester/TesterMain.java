@@ -5,6 +5,7 @@ import com.example.tester.config.ScenarioLoader;
 import com.example.tester.config.TesterScenario;
 import com.example.tester.config.UdpListenerConfig;
 import com.example.tester.payload.PayloadFactory;
+import com.example.tester.rest.RestListener;
 import com.example.tester.rest.RestPublisher;
 import com.example.tester.rest.RestSendResult;
 import com.example.tester.tcp.TcpListener;
@@ -52,14 +53,17 @@ public class TesterMain {
                     + " seconds");
         }
 
-        // TCP_SERVER-transport messages don't get "sent" from the per-iteration loop below - the
-        // tester is itself the TCP server here, so each one gets its own TcpListener started up
-        // front, pushing its configured payload immediately whenever a peer (e.g.
-        // traffic-proxy-app's TcpRelay in reverse mode) connects in.
+        // TCP_SERVER/REST_SERVER-transport messages don't get "sent" from the per-iteration loop
+        // below - the tester is itself the server here, so each one gets its own listener started
+        // up front. TCP_SERVER pushes its configured payload immediately whenever a peer (e.g.
+        // traffic-proxy-app's TcpRelay in reverse mode) connects in; REST_SERVER can only respond
+        // (HTTP has no server-push), so it just echoes whatever request arrives.
         long tcpServerDurationSeconds = listenerConfig != null ? listenerConfig.getDurationSeconds() : 120;
         List<TcpListener> tcpListeners = new ArrayList<>();
+        List<RestListener> restListeners = new ArrayList<>();
         for (PayloadConfig messageConfig : messages) {
-            if ("TCP_SERVER".equals(resolveTransport(messageConfig))) {
+            String messageTransport = resolveTransport(messageConfig);
+            if ("TCP_SERVER".equals(messageTransport)) {
                 int tcpServerPort = resolvePort(scenario, messageConfig);
                 byte[] payload = payloadFactory.create(messageConfig);
                 TcpListener tcpListener = new TcpListener(tcpServerPort, payload);
@@ -68,6 +72,14 @@ public class TesterMain {
 
                 System.out.println("Tester will serve TCP connections for " + messageConfig.getMode()
                         + " on port " + tcpServerPort + " for " + tcpServerDurationSeconds + " seconds");
+            } else if ("REST_SERVER".equals(messageTransport)) {
+                int restServerPort = resolvePort(scenario, messageConfig);
+                RestListener restListener = new RestListener(restServerPort);
+                restListener.start();
+                restListeners.add(restListener);
+
+                System.out.println("Tester will serve REST requests on port " + restServerPort
+                        + " for " + tcpServerDurationSeconds + " seconds");
             }
         }
 
@@ -83,8 +95,8 @@ public class TesterMain {
                 int port = resolvePort(scenario, messageConfig);
                 String transport = resolveTransport(messageConfig);
 
-                if ("TCP_SERVER".equals(transport)) {
-                    // Already being served by a dedicated TcpListener started above.
+                if ("TCP_SERVER".equals(transport) || "REST_SERVER".equals(transport)) {
+                    // Already being served by a dedicated TcpListener/RestListener started above.
                     continue;
                 }
 
@@ -175,15 +187,15 @@ public class TesterMain {
         System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent
                 + (totalFailed > 0 ? ", failed: " + totalFailed : ""));
 
-        // Both the UDP listener and any TCP server listeners run their own background threads
-        // already; block here for whichever duration is longest, then close them all together,
-        // rather than awaiting each one sequentially (which would needlessly serialize their
-        // otherwise-concurrent listen windows).
+        // The UDP listener and any TCP/REST server listeners all run their own background
+        // threads already; block here for whichever duration is longest, then close them all
+        // together, rather than awaiting each one sequentially (which would needlessly serialize
+        // their otherwise-concurrent listen windows).
         long overallListenDurationSeconds = 0;
         if (listener != null) {
             overallListenDurationSeconds = Math.max(overallListenDurationSeconds, listenerConfig.getDurationSeconds());
         }
-        if (!tcpListeners.isEmpty()) {
+        if (!tcpListeners.isEmpty() || !restListeners.isEmpty()) {
             overallListenDurationSeconds = Math.max(overallListenDurationSeconds, tcpServerDurationSeconds);
         }
         if (overallListenDurationSeconds > 0) {
@@ -194,6 +206,9 @@ public class TesterMain {
         }
         for (TcpListener tcpListener : tcpListeners) {
             tcpListener.close();
+        }
+        for (RestListener restListener : restListeners) {
+            restListener.close();
         }
 
         System.out.println("Traffic Tester App finished");

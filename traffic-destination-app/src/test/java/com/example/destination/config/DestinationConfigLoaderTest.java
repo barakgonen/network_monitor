@@ -248,4 +248,45 @@ class DestinationConfigLoaderTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("mode must be one of");
     }
+
+    @Test
+    void load_withRestClientMode_parsesSuccessfully() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: pets-reverse
+                    protocol: REST
+                    port: 6160
+                    mode: CLIENT
+                    host: 127.0.0.1
+                    path: /pets
+                    requestBody: '{"name":"Whiskers"}'
+                    intervalMillis: 3000
+                """);
+
+        DestinationConfig config = loader.load(file);
+
+        InterfaceEntry entry = config.getInterfaces().get(0);
+        assertThat(entry.getMode()).isEqualTo("CLIENT");
+        assertThat(entry.getHost()).isEqualTo("127.0.0.1");
+        assertThat(entry.getPath()).isEqualTo("/pets");
+        assertThat(entry.getRequestBody()).isEqualTo("{\"name\":\"Whiskers\"}");
+        assertThat(entry.getIntervalMillis()).isEqualTo(3000);
+    }
+
+    @Test
+    void load_withRestClientModeAndNoHost_throws() throws Exception {
+        Path file = tempDir.resolve("destination-interfaces.yml");
+        Files.writeString(file, """
+                interfaces:
+                  - key: pets-reverse
+                    protocol: REST
+                    port: 6160
+                    mode: CLIENT
+                """);
+
+        assertThatThrownBy(() -> loader.load(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("host is required when mode is CLIENT");
+    }
 }

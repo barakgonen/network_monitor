@@ -76,17 +76,19 @@ public class DestinationConfigLoader {
                 }
             }
 
-            validateTcpMode(entry, i);
+            validateMode(entry, i);
         }
     }
 
-    private void validateTcpMode(InterfaceEntry entry, int index) {
+    private void validateMode(InterfaceEntry entry, int index) {
         String prefix = "interfaces[" + index + "]";
         boolean modeIsDefault = "SERVER".equalsIgnoreCase(entry.getMode());
+        boolean isTcpOrRest = "TCP".equalsIgnoreCase(entry.getProtocol()) || "REST".equalsIgnoreCase(entry.getProtocol());
 
-        if (!"TCP".equalsIgnoreCase(entry.getProtocol())) {
+        if (!isTcpOrRest) {
             if (!modeIsDefault || entry.getHost() != null) {
-                throw new IllegalArgumentException(prefix + ".mode/host are only valid for protocol TCP, was: " + entry.getProtocol());
+                throw new IllegalArgumentException(
+                        prefix + ".mode/host are only valid for protocol TCP or REST, was: " + entry.getProtocol());
             }
             return;
         }
