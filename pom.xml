@@ -35,19 +35,6 @@
     </dependencies>
   </dependencyManagement>
 
-  <distributionManagement>
-    <repository>
-      <id>central</id>
-      <name>artifactory rafael-releases</name>
-      <url>https://artifactory.rafael.co.il/artifactory/Lara-Maven-local-virt-ww</url>
-    </repository>
-    <snapshotRepository>
-      <id>snapshots</id>
-      <name>artifactory rafael-snapshots</name>
-      <url>https://artifactory.rafael.co.il/artifactory/Lara-Maven-local-virt-ww</url>
-    </snapshotRepository>
-  </distributionManagement>
-
   <build>
     <plugins>
       <plugin>

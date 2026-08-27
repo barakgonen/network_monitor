@@ -72,6 +72,7 @@
             <tr>
               <th>Observed At</th>
               <th>Protocol</th>
+              <th>Port</th>
               <th>Interface</th>
               <th>Message Name</th>
               <th>Message Body</th>
@@ -507,6 +508,7 @@
       row.innerHTML = `
         <td>${escapeHtml(formatTime(msg.observedAt))}</td>
         <td><span class="protocol-pill">${escapeHtml(msg.protocol || '')}</span></td>
+        <td>${escapeHtml(msg.localPort)}</td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
         <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.payload || {}))}</div></td>
@@ -524,6 +526,7 @@
       id: msg.id,
       observedAt: msg.observedAt,
       protocol: msg.protocol,
+      localPort: msg.localPort,
       interfaceName: msg.interfaceName,
       messageName: msg.messageType,
       payload: msg.payload,
