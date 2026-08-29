@@ -57,8 +57,9 @@ public class TesterMain {
         // below - the tester is itself the server here, so each one gets its own listener started
         // up front. TCP_SERVER pushes its configured payload immediately whenever a peer (e.g.
         // traffic-proxy-app's TcpRelay in reverse mode) connects in; REST_SERVER can only respond
-        // (HTTP has no server-push), so it just echoes whatever request arrives.
-        long tcpServerDurationSeconds = listenerConfig != null ? listenerConfig.getDurationSeconds() : 120;
+        // (HTTP has no server-push), so it just echoes whatever request arrives. Both run until
+        // the process is killed (see the end of main) - the peer sending to them (e.g.
+        // traffic-destination-app's periodic REST client) has no fixed lifetime either.
         List<TcpListener> tcpListeners = new ArrayList<>();
         List<RestListener> restListeners = new ArrayList<>();
         for (PayloadConfig messageConfig : messages) {
@@ -71,15 +72,14 @@ public class TesterMain {
                 tcpListeners.add(tcpListener);
 
                 System.out.println("Tester will serve TCP connections for " + messageConfig.getMode()
-                        + " on port " + tcpServerPort + " for " + tcpServerDurationSeconds + " seconds");
+                        + " on port " + tcpServerPort + " until stopped");
             } else if ("REST_SERVER".equals(messageTransport)) {
                 int restServerPort = resolvePort(scenario, messageConfig);
                 RestListener restListener = new RestListener(restServerPort);
                 restListener.start();
                 restListeners.add(restListener);
 
-                System.out.println("Tester will serve REST requests on port " + restServerPort
-                        + " for " + tcpServerDurationSeconds + " seconds");
+                System.out.println("Tester will serve REST requests on port " + restServerPort + " until stopped");
             }
         }
 
@@ -187,28 +187,37 @@ public class TesterMain {
         System.out.println("Traffic Tester App finished sending. Total messages sent: " + totalSent
                 + (totalFailed > 0 ? ", failed: " + totalFailed : ""));
 
-        // The UDP listener and any TCP/REST server listeners all run their own background
-        // threads already; block here for whichever duration is longest, then close them all
-        // together, rather than awaiting each one sequentially (which would needlessly serialize
-        // their otherwise-concurrent listen windows).
-        long overallListenDurationSeconds = 0;
-        if (listener != null) {
-            overallListenDurationSeconds = Math.max(overallListenDurationSeconds, listenerConfig.getDurationSeconds());
-        }
         if (!tcpListeners.isEmpty() || !restListeners.isEmpty()) {
-            overallListenDurationSeconds = Math.max(overallListenDurationSeconds, tcpServerDurationSeconds);
+            // A TCP_SERVER/REST_SERVER listener stands in for a peer that pushes/sends traffic to
+            // the tester on its own schedule (e.g. traffic-destination-app's periodic REST client
+            // in a reversed-role relay, which runs forever) - there's no fixed point at which that
+            // peer stops sending, so - like traffic-destination-app itself - these listeners must
+            // stay up until the process is killed, not for a fixed duration tied to the (unrelated)
+            // UDP reply-listening window below. Closing them early is exactly what produced the
+            // "arrives at the monitor's mirror but never at the tester" symptom: once this window
+            // closed, every subsequent periodic request 502'd at the proxy (destination
+            // unreachable) while still being mirrored to the monitor regardless.
+            if (listener != null) {
+                UdpListener finalListener = listener;
+                Runtime.getRuntime().addShutdownHook(new Thread(finalListener::close));
+            }
+            for (TcpListener tcpListener : tcpListeners) {
+                Runtime.getRuntime().addShutdownHook(new Thread(tcpListener::close));
+            }
+            for (RestListener restListener : restListeners) {
+                Runtime.getRuntime().addShutdownHook(new Thread(restListener::close));
+            }
+
+            System.out.println("Tester will keep serving TCP_SERVER/REST_SERVER connections until stopped (Ctrl+C)");
+            Thread.currentThread().join();
+            return;
         }
-        if (overallListenDurationSeconds > 0) {
-            Thread.sleep(Duration.ofSeconds(overallListenDurationSeconds).toMillis());
-        }
+
+        // No server-mode listener is in play - just the UDP reply-listener (if configured),
+        // which only needs to stay open for its own configured window before closing.
         if (listener != null) {
+            Thread.sleep(Duration.ofSeconds(listenerConfig.getDurationSeconds()).toMillis());
             listener.close();
-        }
-        for (TcpListener tcpListener : tcpListeners) {
-            tcpListener.close();
-        }
-        for (RestListener restListener : restListeners) {
-            restListener.close();
         }
 
         System.out.println("Traffic Tester App finished");
