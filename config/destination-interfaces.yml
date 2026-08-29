@@ -1,0 +1,56 @@
+# traffic-destination-app config - a minimal sink/echo app standing in for "the real backend"
+# that traffic-proxy-app relays to. replyMode: ECHO bounces the same bytes/body back to the
+# sender; NONE receives traffic silently (REST always needs some HTTP response regardless -
+# NONE responds 204 No Content); PONG (UDP only, ping interface) decodes the incoming legacy-
+# envelope Ping message and replies with a real Pong (opcode 3002), not a raw byte echo.
+interfaces:
+  - key: fruit
+    protocol: UDP
+    port: 8001
+    replyMode: NONE
+
+  - key: weather
+    protocol: UDP
+    port: 8002
+    replyMode: NONE
+
+  - key: ping
+    protocol: UDP
+    port: 8003
+    replyMode: PONG
+    # Reply to a fixed port on the sender's host (always traffic-proxy-app's host in this
+    # topology) instead of the request's ephemeral source port - matches proxy-relays.yml's
+    # ping relay's own replyPort, which binds its outbound socket there specifically to receive
+    # this.
+    replyPort: 6103
+
+  - key: candy
+    protocol: TCP
+    port: 8004
+    replyMode: ECHO
+
+  - key: candy-reverse
+    protocol: TCP
+    port: 8104
+    replyMode: ECHO
+    # CLIENT mode: connects out to traffic-proxy-app's candy-reverse relay (which itself binds
+    # 8104 in SERVER mode, since it's the one accepting destination-app's connection in this
+    # role-reversed case), instead of binding here.
+    mode: CLIENT
+    host: 127.0.0.1
+
+  - key: pets
+    protocol: REST
+    port: 8060
+    replyMode: ECHO
+
+  - key: pets-reverse
+    protocol: REST
+    port: 6160
+    mode: CLIENT
+    host: 127.0.0.1
+    path: /pets
+    # Shaped like tester-app's own PETS_CREATE request (see RestPublisher.createPet), so the
+    # mirrored copy decodes cleanly as a createPet operation on the monitor.
+    requestBody: '{"name":"Whiskers","species":"cat","age":2,"owner":{"name":"Bob","email":"bob@example.com"},"tags":["cat"]}'
+    intervalMillis: 3000

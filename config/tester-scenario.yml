@@ -12,7 +12,7 @@ messages:
   - mode: FRUIT_ORANGE
     target:
       host: 127.0.0.1
-      port: 5001
+      port: 6001
     fruit:
       sourceFarm: "north-farm-17"
       freshness: "very_fresh"
@@ -20,7 +20,7 @@ messages:
   - mode: FRUIT_BANANA
     target:
       host: 127.0.0.1
-      port: 5001
+      port: 6001
     fruit:
       color: "yellow"
       weight: 142.75
@@ -28,7 +28,7 @@ messages:
   - mode: WEATHER_TEMPERATURE_READING
     target:
       host: 127.0.0.1
-      port: 5003
+      port: 6002
     weather:
       stationId: "station-tlv-01"
       temperatureCelsius: 28.4
@@ -37,78 +37,78 @@ messages:
   - mode: PING
     target:
       host: 127.0.0.1
-      port: 5002
+      port: 6003
     ping:
       sequence: 1
-
-  - mode: CANDY
-    target:
-      host: 127.0.0.1
-      port: 5004
-      transport: TCP
-    candy:
-      name: "chocolate-bar"
-      calories: 250.5
-
-  - mode: RADA_STATUS
-    target:
-      host: 127.0.0.1
-      port: 5050
-
-  - mode: RADA_EXTENDED_STATUS
-    target:
-      host: 127.0.0.1
-      port: 5050
-
-  - mode: RADA_EXTENDED_STATUS_MRS
-    target:
-      host: 127.0.0.1
-      port: 5050
-
-  - mode: RADA_TRACKS_EXTENDED
-    target:
-      host: 127.0.0.1
-      port: 5050
-
-  # rada-le (config/traffic-tool.yml) declares byteOrder: LITTLE_ENDIAN at the interface level
-  # and only wires up RadaExtendedStatus - this sends the same message type as RADA_EXTENDED_STATUS
-  # above, but little-endian-encoded and to rada-le's own port, proving the monitor decodes each
-  # interface's traffic using its own configured byte order.
-  - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
-    target:
-      host: 127.0.0.1
-      port: 5051
-
-  # pets (config/traffic-tool.yml) is a protocol: REST, mode: SERVER interface hosting the
-  # operations described by swagger/pets-demo.yml - unlike every entry above, this is a JSON-
-  # over-HTTP request/response call (RestPublisher), not a raw UDP/TCP payload, so transport:
-  # REST is required (not just a value like TCP that changes which socket type is used).
-  #
-  # pets.method: (optional, on either PETS_CREATE or PETS_GET below) overrides the HTTP verb
-  # actually sent - e.g. "DELETE" or "PUT" - independently of which mode built the path/body.
-  # Omit it (as both entries below do) to get the mode's natural default: POST for PETS_CREATE,
-  # GET for PETS_GET.
-  - mode: PETS_CREATE
-    target:
-      host: 127.0.0.1
-      port: 5060
-      transport: REST
-    pets:
-      name: "Fluffy"
-      species: "dog"
-      age: 3
-      ownerName: "Alice"
-      ownerEmail: "alice@example.com"
-      tags: ["good boy", "loyal"]
-
-  - mode: PETS_GET
-    target:
-      host: 127.0.0.1
-      port: 5060
-      transport: REST
-    pets:
-      petId: "1"
-      includeVaccinations: true
+#
+#  - mode: CANDY
+#    target:
+#      host: 127.0.0.1
+#      port: 5004
+#      transport: TCP
+#    candy:
+#      name: "chocolate-bar"
+#      calories: 250.5
+#
+#  - mode: RADA_STATUS
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#
+#  - mode: RADA_EXTENDED_STATUS
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#
+#  - mode: RADA_EXTENDED_STATUS_MRS
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#
+#  - mode: RADA_TRACKS_EXTENDED
+#    target:
+#      host: 127.0.0.1
+#      port: 5050
+#
+#  # rada-le (config/traffic-tool.yml) declares byteOrder: LITTLE_ENDIAN at the interface level
+#  # and only wires up RadaExtendedStatus - this sends the same message type as RADA_EXTENDED_STATUS
+#  # above, but little-endian-encoded and to rada-le's own port, proving the monitor decodes each
+#  # interface's traffic using its own configured byte order.
+#  - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
+#    target:
+#      host: 127.0.0.1
+#      port: 5051
+#
+#  # pets (config/traffic-tool.yml) is a protocol: REST, mode: SERVER interface hosting the
+#  # operations described by swagger/pets-demo.yml - unlike every entry above, this is a JSON-
+#  # over-HTTP request/response call (RestPublisher), not a raw UDP/TCP payload, so transport:
+#  # REST is required (not just a value like TCP that changes which socket type is used).
+#  #
+#  # pets.method: (optional, on either PETS_CREATE or PETS_GET below) overrides the HTTP verb
+#  # actually sent - e.g. "DELETE" or "PUT" - independently of which mode built the path/body.
+#  # Omit it (as both entries below do) to get the mode's natural default: POST for PETS_CREATE,
+#  # GET for PETS_GET.
+#  - mode: PETS_CREATE
+#    target:
+#      host: 127.0.0.1
+#      port: 5060
+#      transport: REST
+#    pets:
+#      name: "Fluffy"
+#      species: "dog"
+#      age: 3
+#      ownerName: "Alice"
+#      ownerEmail: "alice@example.com"
+#      tags: ["good boy", "loyal"]
+#
+#  - mode: PETS_GET
+#    target:
+#      host: 127.0.0.1
+#      port: 5060
+#      transport: REST
+#    pets:
+#      petId: "1"
+#      includeVaccinations: true
 
 repeat: 1231
 intervalMillis: 1000

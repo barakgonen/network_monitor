@@ -1,0 +1,133 @@
+# Same scenario as tester-scenario.yml, but every fruit/ping/weather/candy/pets target is
+# repointed at traffic-proxy-app's listen ports instead of hitting traffic-monitor-app directly.
+# rada/rada-le have no relay entry in config/proxy-relays.yml (no natural "real backend" role for
+# synthetic radar traffic) and stay pointed straight at the monitor, proving non-proxied traffic
+# is unaffected by the proxy's existence.
+#
+# Usage: start traffic-destination-app, traffic-monitor-app, and traffic-proxy-app first, then
+# run traffic-tester-app with TRAFFIC_TESTER_CONFIG=config/tester-scenario-via-proxy.yml.
+udp:
+  host: 127.0.0.1
+  port: 6001
+
+listener:
+  enabled: true
+  port: 7001
+  durationSeconds: 120
+  bufferSizeBytes: 65507
+
+messages:
+  - mode: FRUIT_ORANGE
+    target:
+      host: 127.0.0.1
+      port: 6001
+    fruit:
+      sourceFarm: "north-farm-17"
+      freshness: "very_fresh"
+
+  - mode: FRUIT_BANANA
+    target:
+      host: 127.0.0.1
+      port: 6001
+    fruit:
+      color: "yellow"
+      weight: 142.75
+
+  - mode: WEATHER_TEMPERATURE_READING
+    target:
+      host: 127.0.0.1
+      port: 6002
+    weather:
+      stationId: "station-tlv-01"
+      temperatureCelsius: 28.4
+      condition: "sunny"
+
+  - mode: PING
+    target:
+      host: 127.0.0.1
+      port: 6003
+    ping:
+      sequence: 1
+
+  - mode: CANDY
+    target:
+      host: 127.0.0.1
+      port: 6004
+      transport: TCP
+    candy:
+      name: "chocolate-bar"
+      calories: 250.5
+
+  # Case 1 (role reversal): tester-app is the TCP server here, traffic-proxy-app's candy-reverse
+  # relay dials in as a client, then relays through to traffic-destination-app's candy-reverse
+  # interface (itself a TCP client of the relay). transport: TCP_SERVER tells TesterMain to bind
+  # port 7004 and push this payload immediately whenever a connection arrives, instead of dialing
+  # out - see TcpListener.
+  - mode: CANDY
+    target:
+      port: 7004
+      transport: TCP_SERVER
+    candy:
+      name: "gummy-bear"
+      calories: 180.0
+
+  - mode: RADA_STATUS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_EXTENDED_STATUS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_EXTENDED_STATUS_MRS
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_TRACKS_EXTENDED
+    target:
+      host: 127.0.0.1
+      port: 5050
+
+  - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
+    target:
+      host: 127.0.0.1
+      port: 5051
+
+  - mode: PETS_CREATE
+    target:
+      host: 127.0.0.1
+      port: 6060
+      transport: REST
+    pets:
+      name: "Fluffy"
+      species: "dog"
+      age: 3
+      ownerName: "Alice"
+      ownerEmail: "alice@example.com"
+      tags: ["good boy", "loyal"]
+
+  - mode: PETS_GET
+    target:
+      host: 127.0.0.1
+      port: 6060
+      transport: REST
+    pets:
+      petId: "1"
+      includeVaccinations: true
+
+  # Case 1 (role reversal): traffic-destination-app periodically POSTs to traffic-proxy-app's
+  # pets-reverse relay, which forwards to tester-app's own REST server (RestListener, echoes the
+  # body back). transport: REST_SERVER tells TesterMain to bind port 7060 and just respond to
+  # whatever arrives - REST has no server-push, unlike TCP_SERVER, so no payload is configured
+  # here (mode/text below are unused placeholders just to satisfy the scenario schema).
+  - mode: TEXT
+    text: ""
+    target:
+      port: 7060
+      transport: REST_SERVER
+
+repeat: 3
+intervalMillis: 1000

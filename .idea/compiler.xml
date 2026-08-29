@@ -9,6 +9,8 @@
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
         <module name="traffic-monitor-app-core" />
+        <module name="traffic-proxy-app" />
+        <module name="traffic-destination-app" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

@@ -144,7 +144,6 @@ public class PayloadFactory {
 
     private byte[] createPing(PayloadConfig config) {
         PingMessage pingMessage = new PingMessage(config.getPing().getSequence());
-
         return encodeMessage(PING_OPCODE, pingMessage);
     }
 

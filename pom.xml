@@ -12,6 +12,8 @@
     <module>traffic-monitor-app-core</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>
+    <module>traffic-proxy-app</module>
+    <module>traffic-destination-app</module>
   </modules>
 
   <properties>
@@ -32,19 +34,6 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-
-  <distributionManagement>
-    <repository>
-      <id>central</id>
-      <name>artifactory rafael-releases</name>
-      <url>https://artifactory.rafael.co.il/artifactory/Lara-Maven-local-virt-ww</url>
-    </repository>
-    <snapshotRepository>
-      <id>snapshots</id>
-      <name>artifactory rafael-snapshots</name>
-      <url>https://artifactory.rafael.co.il/artifactory/Lara-Maven-local-virt-ww</url>
-    </snapshotRepository>
-  </distributionManagement>
 
   <build>
     <plugins>

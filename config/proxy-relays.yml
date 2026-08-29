@@ -1,0 +1,120 @@
+# traffic-proxy-app relay config. Each relay entry accepts producer traffic on `listen`,
+# relays it bidirectionally to the real `destination` (traffic-destination-app), and
+# fire-and-forget mirrors a duplicate copy (both directions, except REST - see RestRelay's
+# Javadoc) into traffic-monitor-app's existing ingestion port for that interface.
+#
+# `mirror` targets point at config/traffic-tool.yml's existing ports unchanged - no monitor-side
+# config changes are needed for mirroring to work.
+relays:
+  - key: fruit
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6001
+    destination:
+      host: 127.0.0.1
+      port: 8001
+    mirror:
+      host: 127.0.0.1
+      port: 5001
+
+  - key: weather
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6002
+    destination:
+      host: 127.0.0.1
+      port: 8002
+    mirror:
+      host: 127.0.0.1
+      port: 5002
+
+  - key: ping
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6003
+    destination:
+      host: 127.0.0.1
+      port: 8003
+    mirror:
+      host: 127.0.0.1
+      port: 5003
+    # Fixed reply port: traffic-destination-app's ping interface (below) replies to this exact
+    # port instead of the request's ephemeral source port, so this relay binds its outbound
+    # socket here for its whole lifetime rather than opening one ephemeral socket per producer.
+    # This single relay entry already handles the full round trip (request out via the fixed-port
+    # socket, reply picked back up on that same socket and relayed to the producer) - no second
+    # relay hop needed. See UdpRelay's Javadoc for the "last producer wins" trade-off this implies.
+    replyPort: 6103
+
+  - key: candy
+    protocol: TCP
+    listen:
+      host: 0.0.0.0
+      port: 6004
+    destination:
+      host: 127.0.0.1
+      port: 8004
+    mirror:
+      host: 127.0.0.1
+      port: 5004
+    # Case 2: tester-app is a TCP client, traffic-destination-app is a TCP server. This is the
+    # default (listenMode: SERVER, destinationMode: CLIENT) - the relay accepts the producer in
+    # and dials out to the destination, same as every UDP relay above.
+
+  - key: candy-reverse
+    protocol: TCP
+    listen:
+      host: 127.0.0.1
+      port: 7004
+    destination:
+      host: 0.0.0.0
+      port: 8104
+    mirror:
+      host: 127.0.0.1
+      port: 5004
+    # Case 1: tester-app is a TCP server, traffic-destination-app is a TCP client - full role
+    # reversal from `candy` above. listenMode: CLIENT means `listen` is no longer a local bind
+    # address - it's tester-app's own listening server address, which this relay dials out to
+    # (background reconnect loop). destinationMode: SERVER means `destination` IS a local bind
+    # address here - this relay accepts destination-app's incoming connection instead of dialing
+    # out to it. Mirrors to the same monitor candy port as the forward-mode relay above, since
+    # it's still the same Candy message type either way - no separate monitor interface needed.
+    listenMode: CLIENT
+    destinationMode: SERVER
+
+  - key: pets
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6060
+    destination:
+      host: 127.0.0.1
+      port: 8060
+    mirror:
+      host: 127.0.0.1
+      port: 5060
+    # Case 2: tester-app is the REST client (RestPublisher), traffic-destination-app is the REST
+    # server (RestEchoListener). The relay's own role (accept + forward) never differs between
+    # REST cases - unlike TCP, HTTP has no persistent connection whose direction can flip; every
+    # request is independent, so the relay always binds `listen` and dials out to `destination`
+    # regardless of which app is sending vs. receiving.
+
+  - key: pets-reverse
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6160
+    destination:
+      host: 127.0.0.1
+      port: 7060
+    mirror:
+      host: 127.0.0.1
+      port: 5060
+    # Case 1: traffic-destination-app is the REST client (RestPeriodicSender - sends on a fixed
+    # interval, since HTTP has no persistent connection to dial into the way TCP's reverse mode
+    # does), tester-app is the REST server (RestListener, echoes the body back). Mirrors to the
+    # same monitor pets port as the forward-mode relay above, since it's still a
+    # createPet-shaped POST /pets either way - no separate monitor interface needed.

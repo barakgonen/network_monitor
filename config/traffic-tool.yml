@@ -21,7 +21,7 @@ interfaces:
   - key: weather
     name: Weather Interface
     protocol: UDP
-    port: 5003
+    port: 5002
     messages:
       - type: TemperatureReading
         messageClass: com.example.schemas.weather.TemperatureReadingMessage
@@ -34,7 +34,7 @@ interfaces:
   - key: ping
     name: Ping Interface
     protocol: UDP
-    port: 5002
+    port: 5003
     messages:
       - type: Ping
         messageClass: com.example.schemas.ping.PingMessage
