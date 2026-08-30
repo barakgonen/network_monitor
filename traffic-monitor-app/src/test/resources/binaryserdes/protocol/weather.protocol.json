@@ -1,0 +1,13 @@
+{
+  "messages": [
+    {
+      "name": "TemperatureReading",
+      "opcode": 2001,
+      "fields": [
+        { "name": "stationId", "type": "string" },
+        { "name": "temperatureCelsius", "type": "double64" },
+        { "name": "condition", "type": "string" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "messages": [
+    {
+      "name": "Ping",
+      "opcode": 3001,
+      "fields": [
+        { "name": "sequence", "type": "int32" }
+      ]
+    },
+    {
+      "name": "Pong",
+      "opcode": 3002,
+      "fields": [
+        { "name": "sequence", "type": "int32" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "name": "Orange",
+      "opcode": 1001,
+      "fields": [
+        { "name": "sourceFarm", "type": "string" },
+        { "name": "freshness", "type": "string" }
+      ]
+    },
+    {
+      "name": "Banana",
+      "opcode": 1002,
+      "fields": [
+        { "name": "color", "type": "string" },
+        { "name": "weight", "type": "double64" }
+      ]
+    }
+  ]
+}
