@@ -229,6 +229,58 @@ class TrafficToolConfigLoaderTest {
     }
 
     @Test
+    void load_withValidSerdesFile_parsesInterfaceWithoutRequiringMessages() throws Exception {
+        Path serdesFile = tempDir.resolve("candy.protocol.json");
+        Files.writeString(serdesFile, """
+                {
+                  "messages": [
+                    { "name": "Candy", "opcode": 4001, "fields": [
+                      { "name": "name", "type": "string" },
+                      { "name": "calories", "type": "double64" }
+                    ] }
+                  ]
+                }
+                """);
+
+        Path configFile = tempDir.resolve("serdes-interface.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: candy
+                    name: Candy Interface
+                    protocol: TCP
+                    port: 5004
+                    serdesFile: %s
+                """.formatted(serdesFile.toString().replace("\\", "\\\\")));
+
+        TrafficToolConfig config = loader.load(configFile);
+
+        InterfaceConfig candy = config.getInterfaces().get(0);
+        assertThat(candy.getSerdesFile()).isEqualTo(serdesFile.toString());
+        assertThat(candy.getMessages()).isNull();
+    }
+
+    @Test
+    void load_withSerdesFileThatDoesNotExist_throwsIllegalArgumentException() throws Exception {
+        Path configFile = tempDir.resolve("missing-serdes-file.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: candy
+                    name: Candy Interface
+                    protocol: TCP
+                    port: 5004
+                    serdesFile: does-not-exist.protocol.json
+                """);
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("serdesFile does not exist");
+    }
+
+    @Test
     void load_withInvalidModeString_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("invalid-mode.yml");
         Files.writeString(configFile, """

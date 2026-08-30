@@ -9,8 +9,15 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Length-prefixed string:
- * - uint16 length
+ * - int32 length
  * - 'length' bytes of data in given charset
+ *
+ * <p>The prefix is 4 bytes (not 2) to match the wire format every legacy-envelope message class
+ * this engine replaces already used (e.g. {@code OrangeMessage}/{@code CandyMessage}'s
+ * hand-written {@code buffer.putInt(bytes.length)}) - traffic-tester-app's message classes and
+ * {@code TestProtocolPayloads} both still encode with a 4-byte prefix, so this has to match or
+ * every {@code string}-field message decodes with a garbled/empty value once real UDP/TCP traffic
+ * lands.
  */
 public class DynamicStringTranslator implements Translator<String> {
 
@@ -26,8 +33,8 @@ public class DynamicStringTranslator implements Translator<String> {
 
     @Override
     public String fromBytes(ByteBuffer buffer) {
-        int length = Short.toUnsignedInt(buffer.getShort());
-        if (length > buffer.remaining()) {
+        int length = buffer.getInt();
+        if (length < 0 || length > buffer.remaining()) {
             throw new IllegalStateException(
                     "Invalid length prefix " + length + ", remaining: " + buffer.remaining());
         }
@@ -43,11 +50,7 @@ public class DynamicStringTranslator implements Translator<String> {
         }
 
         byte[] bytes = value.getBytes(charset);
-        if (bytes.length > 0xFFFF) {
-            throw new IllegalArgumentException(
-                    "String too long for uint16 length prefix: " + bytes.length);
-        }
-        buffer.putShort((short) bytes.length);
+        buffer.putInt(bytes.length);
         buffer.put(bytes);
     }
 }

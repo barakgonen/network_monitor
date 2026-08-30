@@ -29,7 +29,14 @@ public final class MessageDefinitionRegistry {
 
             putUnique(opcodeMap, definition.opcode(), definition, "opcode " + definition.opcode());
             putUnique(typeMap, typeKey, definition, typeKey);
-            putUnique(classMap, definition.messageClass(), definition, "message class " + definition.messageClass());
+
+            // Serdes-backed definitions (see SerdesMessageDefinition) have no backing Class<?> and
+            // report messageClass() as null - that's not a real collision between two definitions,
+            // just "no class" reported twice, so it's excluded from the uniqueness check below
+            // (and from the lookup map, since findByMessageClass(null) would be meaningless anyway).
+            if (definition.messageClass() != null) {
+                putUnique(classMap, definition.messageClass(), definition, "message class " + definition.messageClass());
+            }
         }
 
         this.byOpcode = Map.copyOf(opcodeMap);

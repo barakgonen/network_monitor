@@ -2,13 +2,22 @@ package com.example.monitor.schema;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
+import com.example.schemacore.binaryserdes.MessageType;
+import com.example.schemacore.binaryserdes.Protocol;
+import com.example.schemacore.binaryserdes.ProtocolIn;
+import com.example.schemacore.binaryserdes.ProtocolOut;
+import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
+import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -107,6 +116,10 @@ public class MessageSchemaWiringConfig {
     }
 
     private List<MessageDefinition> buildDefinitions(InterfaceConfig interfaceConfig) throws ReflectiveOperationException {
+        if (interfaceConfig.hasSerdesFile()) {
+            return buildSerdesDefinitions(interfaceConfig);
+        }
+
         List<MessageDefinition> definitions = new ArrayList<>();
 
         for (MessageConfig message : interfaceConfig.getMessages()) {
@@ -114,6 +127,40 @@ public class MessageSchemaWiringConfig {
         }
 
         return definitions;
+    }
+
+    /**
+     * Every message (name, opcode, fields) is auto-discovered from {@code serdesFile} rather than
+     * hand-listed under {@code messages:} - the JSON-schema analogue of how REST operations are
+     * auto-discovered from {@code swaggerFile}. All messages from one file share the same {@link
+     * ProtocolIn}/{@link ProtocolOut} pair (built once from that file's {@link ProtocolConfig}).
+     */
+    private List<MessageDefinition> buildSerdesDefinitions(InterfaceConfig interfaceConfig) {
+        ProtocolConfig protocolConfig = loadSerdesConfig(interfaceConfig);
+        ProtocolIn protocolIn = ProtocolIn.fromProtocolConfig(protocolConfig);
+        ProtocolOut protocolOut = ProtocolOut.fromProtocolConfig(protocolConfig);
+
+        List<MessageDefinition> definitions = new ArrayList<>();
+        for (MessageType messageType : protocolIn.getByName().values()) {
+            definitions.add(new SerdesMessageDefinition(
+                    interfaceConfig.getName(),
+                    messageType.getName(),
+                    messageType.getOpcode(),
+                    protocolIn,
+                    protocolOut));
+        }
+
+        return definitions;
+    }
+
+    private ProtocolConfig loadSerdesConfig(InterfaceConfig interfaceConfig) {
+        try (InputStream in = Files.newInputStream(Paths.get(interfaceConfig.getSerdesFile()))) {
+            return Protocol.loadConfig(in);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to read serdesFile for interface " + interfaceConfig.getKey()
+                            + ": " + interfaceConfig.getSerdesFile(), e);
+        }
     }
 
     private MessageDefinition resolveDefinition(InterfaceConfig interfaceConfig, MessageConfig message)

@@ -1,38 +1,74 @@
 package com.example.destination.reply;
 
+import com.example.schemacore.binaryserdes.Protocol;
+import com.example.schemacore.binaryserdes.ProtocolIn;
+import com.example.schemacore.binaryserdes.ProtocolOut;
+import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.ping.PingMessage;
-import com.example.schemas.ping.PongMessage;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 /**
  * Decodes an incoming legacy-envelope Ping message and builds a matching Pong reply, wire-format
  * compatible with traffic-monitor-app's ping interface (opcode 3001/3002, always-BIG_ENDIAN
- * legacy envelope). This is the one place traffic-destination-app needs to be protocol-aware
- * rather than just echoing raw bytes - producing a real Pong requires understanding the Ping
- * message shape, which is why this app now depends on traffic-monitor-app the same way
- * traffic-tester-app already does.
+ * legacy envelope). Uses the same {@code com.example.schemacore.binaryserdes} JSON-schema-driven
+ * codec traffic-monitor-app's {@code ping} interface decodes against, rather than a hand-written
+ * {@code PingMessage}/{@code PongMessage} pair. The schema is bundled as a classpath resource (a
+ * copy of the repo-root {@code serdes/ping.protocol.json}) rather than loaded from a CWD-relative
+ * filesystem path - see {@link GreetingReplyEncoder}'s javadoc for why.
  */
 public final class PongReplyEncoder {
 
+    private static final String SERDES_RESOURCE = "/serdes/ping.protocol.json";
     private static final int PONG_OPCODE = 3002;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProtocolIn PROTOCOL_IN;
+    private static final ProtocolOut PROTOCOL_OUT;
+
+    static {
+        ProtocolConfig config = loadConfig();
+        PROTOCOL_IN = ProtocolIn.fromProtocolConfig(config);
+        PROTOCOL_OUT = ProtocolOut.fromProtocolConfig(config);
+    }
 
     private PongReplyEncoder() {
     }
 
     public static byte[] buildPongReply(byte[] receivedBytes) {
-        ByteBuffer buffer = ByteBuffer.wrap(receivedBytes);
-        ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
-        byte[] body = new byte[header.bodyLength()];
-        buffer.get(body);
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(receivedBytes);
+            ProtocolHeader header = ProtocolHeaderCodec.decodeHeader(buffer);
+            byte[] body = new byte[header.bodyLength()];
+            buffer.get(body);
 
-        PingMessage ping = ReflectiveStructCodec.decode(PingMessage.class, body);
-        PongMessage pong = new PongMessage(ping.sequence());
-        byte[] pongBody = ReflectiveStructCodec.encode(pong);
+            JsonNode ping = MAPPER.readTree(PROTOCOL_IN.parse("Ping", body));
+            int sequence = ping.get("sequence").asInt();
 
-        return ProtocolHeaderCodec.encodeMessage(PONG_OPCODE, System.currentTimeMillis(), pongBody);
+            String pongJson = MAPPER.writeValueAsString(Map.of("sequence", sequence));
+            byte[] pongBody = PROTOCOL_OUT.encode("Pong", pongJson);
+
+            return ProtocolHeaderCodec.encodeMessage(PONG_OPCODE, System.currentTimeMillis(), pongBody);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static ProtocolConfig loadConfig() {
+        try (InputStream in = PongReplyEncoder.class.getResourceAsStream(SERDES_RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("Classpath resource not found: " + SERDES_RESOURCE);
+            }
+            return Protocol.loadConfig(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load " + SERDES_RESOURCE, e);
+        }
     }
 }

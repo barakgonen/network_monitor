@@ -8,7 +8,7 @@ import com.example.proxy.config.RelayEntry;
 import com.example.proxy.relay.TcpRelay;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.candy.CandyMessage;
+import com.example.tester.schemas.candy.CandyMessage;
 import com.example.tester.tcp.TcpListener;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

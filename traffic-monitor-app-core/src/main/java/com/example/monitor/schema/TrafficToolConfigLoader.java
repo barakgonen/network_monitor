@@ -55,6 +55,11 @@ public class TrafficToolConfigLoader {
                 continue;
             }
 
+            if (interfaceConfig.hasSerdesFile()) {
+                validateSerdesInterface(interfaceConfig);
+                continue;
+            }
+
             if (interfaceConfig.getMessages() == null || interfaceConfig.getMessages().isEmpty()) {
                 throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define at least one message");
             }
@@ -90,6 +95,20 @@ public class TrafficToolConfigLoader {
         if (!Files.exists(swaggerPath)) {
             throw new IllegalArgumentException(
                     interfaceContext(interfaceConfig) + " swaggerFile does not exist: " + swaggerPath);
+        }
+    }
+
+    /**
+     * Serdes-backed interfaces have no {@code messages:} list at all - messages are
+     * auto-discovered from {@code serdesFile} instead (mirrors {@link
+     * #validateRestInterface(InterfaceConfig)}), so the only thing to validate here is that a
+     * serdes file was actually configured and exists.
+     */
+    private void validateSerdesInterface(InterfaceConfig interfaceConfig) {
+        Path serdesPath = Paths.get(interfaceConfig.getSerdesFile());
+        if (!Files.exists(serdesPath)) {
+            throw new IllegalArgumentException(
+                    interfaceContext(interfaceConfig) + " serdesFile does not exist: " + serdesPath);
         }
     }
 

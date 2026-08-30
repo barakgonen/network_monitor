@@ -5,6 +5,7 @@ import com.example.schemacore.envelope.ProtocolHeaderCodec;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 final class TestProtocolPayloads {
 
@@ -15,15 +16,27 @@ final class TestProtocolPayloads {
     static final int PONG_OPCODE = 3002;
     static final int CANDY_OPCODE = 4001;
 
+    /**
+     * serdes/fruit.protocol.json declares {@code freshness} as a wire {@code string}, not a raw
+     * byte code - mirrors {@code com.example.tester.schemas.fruit.FruitFreshness}'s wire names
+     * (this module has zero schema dependency, so it can't import that enum directly).
+     */
+    private static final Map<Byte, String> FRESHNESS_WIRE_NAMES = Map.of(
+            (byte) 1, "very_fresh",
+            (byte) 2, "not_fresh",
+            (byte) 3, "unknown");
+
     private TestProtocolPayloads() {
     }
 
     static byte[] orange(String sourceFarm, byte freshnessCode) {
         byte[] farmBytes = sourceFarm.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES + farmBytes.length + Byte.BYTES);
+        byte[] freshnessBytes = FRESHNESS_WIRE_NAMES.get(freshnessCode).getBytes(StandardCharsets.UTF_8);
+        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES + farmBytes.length + Integer.BYTES + freshnessBytes.length);
         body.putInt(farmBytes.length);
         body.put(farmBytes);
-        body.put(freshnessCode);
+        body.putInt(freshnessBytes.length);
+        body.put(freshnessBytes);
         return ProtocolHeaderCodec.encodeMessage(ORANGE_OPCODE, System.currentTimeMillis(), body.array());
     }
 
@@ -36,13 +49,26 @@ final class TestProtocolPayloads {
         return ProtocolHeaderCodec.encodeMessage(BANANA_OPCODE, System.currentTimeMillis(), body.array());
     }
 
+    /**
+     * serdes/weather.protocol.json declares {@code condition} as a wire {@code string}, not a raw
+     * byte code - mirrors {@code com.example.tester.schemas.weather.WeatherCondition}'s wire names.
+     */
+    private static final Map<Byte, String> CONDITION_WIRE_NAMES = Map.of(
+            (byte) 1, "sunny",
+            (byte) 2, "cloudy",
+            (byte) 3, "rainy",
+            (byte) 4, "unknown");
+
     static byte[] temperatureReading(String stationId, double temperatureCelsius, byte conditionCode) {
         byte[] stationBytes = stationId.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES + stationBytes.length + Double.BYTES + Byte.BYTES);
+        byte[] conditionBytes = CONDITION_WIRE_NAMES.get(conditionCode).getBytes(StandardCharsets.UTF_8);
+        ByteBuffer body = ByteBuffer.allocate(
+                Integer.BYTES + stationBytes.length + Double.BYTES + Integer.BYTES + conditionBytes.length);
         body.putInt(stationBytes.length);
         body.put(stationBytes);
         body.putDouble(temperatureCelsius);
-        body.put(conditionCode);
+        body.putInt(conditionBytes.length);
+        body.put(conditionBytes);
         return ProtocolHeaderCodec.encodeMessage(TEMPERATURE_READING_OPCODE, System.currentTimeMillis(), body.array());
     }
 

@@ -2,8 +2,6 @@ package com.example.destination.reply;
 
 import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.greeting.BeaconMessage;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -13,11 +11,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GreetingReplyEncoderTest {
 
+    /** Beacon's body is two double64 fields (serdes/greeting.protocol.json) - no message class needed to build it. */
+    private static byte[] beaconWireBytes(double lat, double lon) {
+        ByteBuffer body = ByteBuffer.allocate(Double.BYTES + Double.BYTES);
+        body.putDouble(lat);
+        body.putDouble(lon);
+        return ProtocolHeaderCodec.encodeMessage(5001, System.currentTimeMillis(), body.array());
+    }
+
     @Test
     void buildGreetingReply_decodesBeacon_andEncodesMatchingGreeting() {
-        BeaconMessage beacon = new BeaconMessage(32.0853, 34.7818);
-        byte[] beaconBody = ReflectiveStructCodec.encode(beacon);
-        byte[] beaconWireBytes = ProtocolHeaderCodec.encodeMessage(5001, System.currentTimeMillis(), beaconBody);
+        byte[] beaconWireBytes = beaconWireBytes(32.0853, 34.7818);
 
         byte[] greetingWireBytes = GreetingReplyEncoder.buildGreetingReply(beaconWireBytes);
 

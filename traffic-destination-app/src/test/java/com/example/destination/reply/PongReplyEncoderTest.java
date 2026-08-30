@@ -2,8 +2,6 @@ package com.example.destination.reply;
 
 import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.ping.PingMessage;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -13,11 +11,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PongReplyEncoderTest {
 
+    /** Ping's body is just a single int32 sequence field (serdes/ping.protocol.json) - no message class needed to build it. */
+    private static byte[] pingWireBytes(int sequence) {
+        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES);
+        body.putInt(sequence);
+        return ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), body.array());
+    }
+
     @Test
     void buildPongReply_decodesPing_andEncodesMatchingPong() {
-        PingMessage ping = new PingMessage(42);
-        byte[] pingBody = ReflectiveStructCodec.encode(ping);
-        byte[] pingWireBytes = ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), pingBody);
+        byte[] pingWireBytes = pingWireBytes(42);
 
         byte[] pongWireBytes = PongReplyEncoder.buildPongReply(pingWireBytes);
 
@@ -33,9 +36,7 @@ class PongReplyEncoderTest {
 
     @Test
     void buildPongReply_withNegativeSequence_stillRoundTrips() {
-        PingMessage ping = new PingMessage(-7);
-        byte[] pingBody = ReflectiveStructCodec.encode(ping);
-        byte[] pingWireBytes = ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), pingBody);
+        byte[] pingWireBytes = pingWireBytes(-7);
 
         byte[] pongWireBytes = PongReplyEncoder.buildPongReply(pingWireBytes);
 
