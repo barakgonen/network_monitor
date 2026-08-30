@@ -15,11 +15,13 @@ import java.util.Optional;
  * no reflective message classes) kept for direct programmatic/test use.
  */
 public final class MessageDefinitionRegistry {
+    private final List<MessageDefinition> all;
     private final Map<Integer, MessageDefinition> byOpcode;
     private final Map<String, MessageDefinition> byInterfaceAndType;
     private final Map<Class<?>, MessageDefinition> byMessageClass;
 
     public MessageDefinitionRegistry(List<MessageDefinition> definitions) {
+        this.all = List.copyOf(definitions);
         Map<Integer, MessageDefinition> opcodeMap = new HashMap<>();
         Map<String, MessageDefinition> typeMap = new HashMap<>();
         Map<Class<?>, MessageDefinition> classMap = new HashMap<>();
@@ -54,6 +56,11 @@ public final class MessageDefinitionRegistry {
         }
 
         return new MessageDefinitionRegistry(definitions);
+    }
+
+    /** Every definition in this registry, in the order they were registered. */
+    public List<MessageDefinition> all() {
+        return all;
     }
 
     public Optional<MessageDefinition> findByOpcode(int opcode) {
