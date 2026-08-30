@@ -1,4 +1,4 @@
-# Same scenario as tester-scenario.yml, but every fruit/ping/weather/candy/pets target is
+# Same scenario as tester-scenario.yml, but every fruit/ping/weather/candy/greeting/pets target is
 # repointed at traffic-proxy-app's listen ports instead of hitting traffic-monitor-app directly.
 # rada/rada-le have no relay entry in config/proxy-relays.yml (no natural "real backend" role for
 # synthetic radar traffic) and stay pointed straight at the monitor, proving non-proxied traffic
@@ -48,6 +48,14 @@ messages:
       port: 6003
     ping:
       sequence: 1
+
+  - mode: BEACON
+    target:
+      host: 127.0.0.1
+      port: 6005
+    beacon:
+      lat: 32.0853
+      lon: 34.7818
 
   - mode: CANDY
     target:

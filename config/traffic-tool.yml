@@ -60,6 +60,22 @@ interfaces:
       host: localhost
       port: 7001
 
+  - key: greeting
+    name: Greeting Interface
+    protocol: UDP
+    port: 5005
+    messages:
+      - type: Beacon
+        messageClass: com.example.schemas.greeting.BeaconMessage
+        opcode: 5001
+      - type: Greeting
+        messageClass: com.example.schemas.greeting.GreetingMessage
+        opcode: 5002
+    autoReply:
+      enabled: false
+      host: localhost
+      port: 7001
+
   - key: rada
     name: Rada Interface
     protocol: UDP

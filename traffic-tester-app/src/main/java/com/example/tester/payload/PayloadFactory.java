@@ -6,6 +6,7 @@ import com.example.schemas.candy.CandyMessage;
 import com.example.schemas.fruit.BananaMessage;
 import com.example.schemas.fruit.FruitFreshness;
 import com.example.schemas.fruit.OrangeMessage;
+import com.example.schemas.greeting.BeaconMessage;
 import com.example.schemas.ping.PingMessage;
 import com.example.schemas.rada.messages.RadaExtendedStatus;
 import com.example.schemas.rada.messages.RadaExtendedStatusMrs;
@@ -28,6 +29,7 @@ public class PayloadFactory {
     private static final int BANANA_OPCODE = 1002;
     private static final int TEMPERATURE_READING_OPCODE = 2001;
     private static final int PING_OPCODE = 3001;
+    private static final int BEACON_OPCODE = 5001;
     private static final int CANDY_OPCODE = 4001;
     private static final int RADA_EXTENDED_STATUS_OPCODE = 1;
     private static final int RADA_EXTENDED_STATUS_MRS_OPCODE = 2;
@@ -43,6 +45,7 @@ public class PayloadFactory {
             case FRUIT_BANANA -> createFruitBanana(config);
             case WEATHER_TEMPERATURE_READING -> createWeatherTemperatureReading(config);
             case PING -> createPing(config);
+            case BEACON -> createBeacon(config);
             case CANDY -> createCandy(config);
             case RADA_STATUS -> createRadaStatus();
             case RADA_EXTENDED_STATUS -> createRadaExtendedStatus();
@@ -145,6 +148,15 @@ public class PayloadFactory {
     private byte[] createPing(PayloadConfig config) {
         PingMessage pingMessage = new PingMessage(config.getPing().getSequence());
         return encodeMessage(PING_OPCODE, pingMessage);
+    }
+
+    private byte[] createBeacon(PayloadConfig config) {
+        BeaconMessage beaconMessage = new BeaconMessage(
+                config.getBeacon().getLat(),
+                config.getBeacon().getLon()
+        );
+
+        return encodeMessage(BEACON_OPCODE, beaconMessage);
     }
 
     private byte[] createCandy(PayloadConfig config) {

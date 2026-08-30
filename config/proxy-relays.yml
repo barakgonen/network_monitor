@@ -49,6 +49,21 @@ relays:
     # relay hop needed. See UdpRelay's Javadoc for the "last producer wins" trade-off this implies.
     replyPort: 6103
 
+  - key: greeting
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6005
+    destination:
+      host: 127.0.0.1
+      port: 8005
+    mirror:
+      host: 127.0.0.1
+      port: 5005
+    # Same fixed-reply-port coordination as the ping relay above: traffic-destination-app's
+    # greeting interface replies to this exact port instead of the request's ephemeral source port.
+    replyPort: 6105
+
   - key: candy
     protocol: TCP
     listen:
