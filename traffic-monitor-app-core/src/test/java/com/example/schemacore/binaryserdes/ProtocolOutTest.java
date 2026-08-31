@@ -81,6 +81,26 @@ class ProtocolOutTest {
     }
 
     @Test
+    void encodeByOpcodeWithLittleEndianByteOrder_producesLittleEndianBytes() throws Exception {
+        Type<Integer> i32 = new Type<>("i32", 4, Integer.class, new com.example.schemacore.binaryserdes.translators.Int32Translator());
+
+        MessageType mt = MessageType.builder()
+                .name("LeMessage")
+                .opcode(1)
+                .field(new MessageField<>("value", i32))
+                .build();
+
+        ProtocolOut protocolOut = ProtocolOut.create().registerMessage(mt);
+
+        byte[] bigEndianBytes = protocolOut.encode(1, "{\"value\": 258}");
+        byte[] littleEndianBytes = protocolOut.encode(1, "{\"value\": 258}", java.nio.ByteOrder.LITTLE_ENDIAN);
+
+        assertThat(littleEndianBytes).isNotEqualTo(bigEndianBytes);
+        assertThat(java.nio.ByteBuffer.wrap(littleEndianBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt())
+                .isEqualTo(258);
+    }
+
+    @Test
     void encodeUnknownNameShouldThrow() {
         ProtocolOut protocolOut = ProtocolOut.create();
 

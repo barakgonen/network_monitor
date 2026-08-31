@@ -15,11 +15,14 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,6 +58,9 @@ class MessageIngestionPipelineTest {
     private MessageArchiveRepository messageArchiveRepository;
 
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    @TempDir
+    Path tempDir;
 
     private MessageIngestionPipeline pipeline;
     private InterfaceConfig interfaceConfig;
@@ -209,6 +215,51 @@ class MessageIngestionPipelineTest {
         assertThat(message.parseError()).isNull();
         // messageOwnsHeader is true, so the full payload (header + body) reaches decodeBody.
         assertThat(message.body()).containsEntry("raw", payload.length);
+    }
+
+    /**
+     * Regression test for rada-style interfaces: {@code messageOwnsHeader: true} plus a {@code
+     * serdesFile:}/{@code serdesHeaderType:} pair means the pipeline must peek the header via
+     * {@code SerdesHeaderDecoder} (a JSON-schema {@code record} type) instead of {@code
+     * Class.forName(headerType)} - there is no Java header class at all for these interfaces.
+     */
+    @Test
+    void ingestForInterface_withSerdesHeaderType_decodesHeaderWithoutAJavaClass() throws Exception {
+        Path serdesFile = tempDir.resolve("test-header.protocol.json");
+        Files.writeString(serdesFile, """
+                {
+                  "types": [
+                    { "name": "TestHeader", "kind": "record", "fields": [
+                      { "name": "msgCounter", "type": "int32" },
+                      { "name": "msgType", "type": "int32" }
+                    ] }
+                  ],
+                  "messages": []
+                }
+                """);
+
+        interfaceConfig.setMessageOwnsHeader(true);
+        interfaceConfig.setSerdesFile(serdesFile.toString());
+        interfaceConfig.setSerdesHeaderType("TestHeader");
+        interfaceConfig.setOpcodeFieldName("msgType");
+
+        StubDefinition definition = new StubDefinition();
+        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
+        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
+
+        ByteBuffer buffer = ByteBuffer.allocate(8 + 3);
+        buffer.putInt(1); // msgCounter
+        buffer.putInt(STUB_OPCODE); // msgType
+        buffer.put(new byte[]{1, 2, 3});
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                buffer.array(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).isNull();
+        assertThat(message.header()).containsEntry("msgCounter", 1).containsEntry("msgType", STUB_OPCODE);
+        // messageOwnsHeader is true, so the full 11-byte payload reaches decodeBody, not just the
+        // 3 body bytes after the 8-byte header.
+        assertThat(message.body()).containsEntry("raw", 11);
     }
 
     @Test

@@ -5,6 +5,7 @@ import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Inbound protocol:
@@ -42,32 +43,48 @@ public final class ProtocolIn extends Protocol<ProtocolIn> {
     /* --------- name-based API --------- */
 
     public String parse(String messageName, byte[] bytes) {
+        return parse(messageName, bytes, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String parse(String messageName, byte[] bytes, ByteOrder byteOrder) {
         MessageType messageType = byName.get(messageName);
         if (messageType == null) {
             throw new IllegalArgumentException("Unknown inbound message type: " + messageName);
         }
-        return messageType.parseToJson(bytes);
+        return messageType.parseToJson(bytes, byteOrder);
     }
 
     public String parse(String messageName, ByteBuffer buffer) {
+        return parse(messageName, buffer, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String parse(String messageName, ByteBuffer buffer, ByteOrder byteOrder) {
         byte[] arr = new byte[buffer.remaining()];
         buffer.get(arr);
-        return parse(messageName, arr);
+        return parse(messageName, arr, byteOrder);
     }
 
     /* --------- opcode-based API --------- */
 
     public String parse(int opcode, byte[] bytes) {
+        return parse(opcode, bytes, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String parse(int opcode, byte[] bytes, ByteOrder byteOrder) {
         MessageType messageType = byOpcode.get(opcode);
         if (messageType == null) {
             throw new IllegalArgumentException("Unknown inbound opcode: " + opcode);
         }
-        return messageType.parseToJson(bytes);
+        return messageType.parseToJson(bytes, byteOrder);
     }
 
     public String parse(int opcode, ByteBuffer buffer) {
+        return parse(opcode, buffer, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String parse(int opcode, ByteBuffer buffer, ByteOrder byteOrder) {
         byte[] arr = new byte[buffer.remaining()];
         buffer.get(arr);
-        return parse(opcode, arr);
+        return parse(opcode, arr, byteOrder);
     }
 }

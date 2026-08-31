@@ -92,6 +92,29 @@ class ProtocolInTest {
     }
 
     @Test
+    void parseByOpcodeWithLittleEndianByteOrder_decodesCorrectly() throws Exception {
+        Type<Integer> i32 = new Type<>("i32", 4, Integer.class, new com.example.schemacore.binaryserdes.translators.Int32Translator());
+
+        MessageType mt = MessageType.builder()
+                .name("LeMessage")
+                .opcode(1)
+                .field(new MessageField<>("value", i32))
+                .build();
+
+        ProtocolIn protocolIn = ProtocolIn.create().registerMessage(mt);
+
+        ByteBuffer buf = ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(258);
+
+        String json = protocolIn.parse(1, buf.array(), java.nio.ByteOrder.LITTLE_ENDIAN);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = MAPPER.readValue(json, Map.class);
+
+        assertThat(map.get("value")).isEqualTo(258);
+    }
+
+    @Test
     void parseUnknownNameShouldThrow() {
         ProtocolIn protocolIn = ProtocolIn.create();
         byte[] bytes = new byte[]{0x01, 0x02};

@@ -262,6 +262,31 @@ class TrafficToolConfigLoaderTest {
     }
 
     @Test
+    void load_withMessageOwnsHeaderAndSerdesFileButNoSerdesHeaderType_throwsIllegalArgumentException() throws Exception {
+        Path serdesFile = tempDir.resolve("rada.protocol.json");
+        Files.writeString(serdesFile, """
+                { "messages": [] }
+                """);
+
+        Path configFile = tempDir.resolve("missing-serdes-header-type.yml");
+        Files.writeString(configFile, """
+                autoReply:
+                  enabled: false
+                interfaces:
+                  - key: rada
+                    name: Rada Interface
+                    protocol: UDP
+                    port: 5050
+                    messageOwnsHeader: true
+                    serdesFile: %s
+                """.formatted(serdesFile.toString().replace("\\", "\\\\")));
+
+        assertThatThrownBy(() -> loader.load(configFile))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("serdesHeaderType");
+    }
+
+    @Test
     void load_withSerdesFileThatDoesNotExist_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("missing-serdes-file.yml");
         Files.writeString(configFile, """

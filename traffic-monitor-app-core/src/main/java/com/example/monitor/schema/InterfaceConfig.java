@@ -84,6 +84,18 @@ public class InterfaceConfig {
      */
     private String serdesFile;
 
+    /**
+     * Only meaningful when both {@link #getSerdesFile()} is set and {@link #isMessageOwnsHeader()}
+     * is {@code true} (e.g. rada) - the name of a {@code record}-kind type declared in that same
+     * file's {@code types:} list, used to decode this interface's header instead of a Java
+     * {@link #getHeaderType()} class. Lets a {@code messageOwnsHeader} interface's header be
+     * schema-driven too, for headers with no backing Java class (see {@code SerdesHeaderDecoder}).
+     * When unset, header decoding falls back to the usual {@link #getHeaderType()} Class-based path
+     * unchanged - every interface using the default {@code DefaultEnvelopeHeader} (fruit/weather/
+     * ping/candy/greeting) is unaffected by this field's existence.
+     */
+    private String serdesHeaderType;
+
     public String getKey() {
         return key;
     }
@@ -262,5 +274,17 @@ public class InterfaceConfig {
 
     public boolean hasSerdesFile() {
         return serdesFile != null && !serdesFile.isBlank();
+    }
+
+    public String getSerdesHeaderType() {
+        return serdesHeaderType;
+    }
+
+    public void setSerdesHeaderType(String serdesHeaderType) {
+        this.serdesHeaderType = serdesHeaderType;
+    }
+
+    public boolean hasSerdesHeaderType() {
+        return serdesHeaderType != null && !serdesHeaderType.isBlank();
     }
 }

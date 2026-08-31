@@ -48,6 +48,16 @@ interfaces:
     mode: CLIENT
     host: 127.0.0.1
 
+  - key: rada
+    protocol: UDP
+    port: 8050
+    replyMode: NONE
+
+  - key: rada-le
+    protocol: UDP
+    port: 8051
+    replyMode: NONE
+
   - key: pets
     protocol: REST
     port: 8060

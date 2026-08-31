@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
@@ -33,6 +34,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     private final int opcode;
     private final ProtocolIn protocolIn;
     private final ProtocolOut protocolOut;
+    private final ByteOrder byteOrder;
 
     public SerdesMessageDefinition(
             String interfaceName,
@@ -41,11 +43,24 @@ public final class SerdesMessageDefinition implements MessageDefinition {
             ProtocolIn protocolIn,
             ProtocolOut protocolOut
     ) {
+        this(interfaceName, messageType, opcode, protocolIn, protocolOut, ByteOrder.BIG_ENDIAN);
+    }
+
+    /** {@code byteOrder} matters for interfaces like rada-le that decode the same message shape as a different-endian interface. */
+    public SerdesMessageDefinition(
+            String interfaceName,
+            String messageType,
+            int opcode,
+            ProtocolIn protocolIn,
+            ProtocolOut protocolOut,
+            ByteOrder byteOrder
+    ) {
         this.interfaceName = interfaceName;
         this.messageType = messageType;
         this.opcode = opcode;
         this.protocolIn = protocolIn;
         this.protocolOut = protocolOut;
+        this.byteOrder = byteOrder;
     }
 
     @Override
@@ -72,7 +87,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     public Map<String, Object> decodeBody(ByteBuffer body) throws Exception {
         byte[] bytes = new byte[body.remaining()];
         body.get(bytes);
-        String json = protocolIn.parse(opcode, bytes);
+        String json = protocolIn.parse(opcode, bytes, byteOrder);
         return MAPPER.readValue(json, FIELD_MAP_TYPE);
     }
 
@@ -110,7 +125,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
      */
     private byte[] encodeJson(String json) throws Exception {
         int bufferSize = json.getBytes(StandardCharsets.UTF_8).length + 1024;
-        ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+        ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(byteOrder);
         protocolOut.encodeInto(opcode, json, buffer);
         return Arrays.copyOf(buffer.array(), buffer.position());
     }

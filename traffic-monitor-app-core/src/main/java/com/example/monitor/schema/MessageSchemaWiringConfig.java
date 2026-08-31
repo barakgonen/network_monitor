@@ -139,6 +139,7 @@ public class MessageSchemaWiringConfig {
         ProtocolConfig protocolConfig = loadSerdesConfig(interfaceConfig);
         ProtocolIn protocolIn = ProtocolIn.fromProtocolConfig(protocolConfig);
         ProtocolOut protocolOut = ProtocolOut.fromProtocolConfig(protocolConfig);
+        ByteOrder byteOrder = interfaceConfig.resolveByteOrder();
 
         List<MessageDefinition> definitions = new ArrayList<>();
         for (MessageType messageType : protocolIn.getByName().values()) {
@@ -147,7 +148,8 @@ public class MessageSchemaWiringConfig {
                     messageType.getName(),
                     messageType.getOpcode(),
                     protocolIn,
-                    protocolOut));
+                    protocolOut,
+                    byteOrder));
         }
 
         return definitions;

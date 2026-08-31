@@ -7,9 +7,12 @@ import com.example.schemacore.binaryserdes.config.TypeConfig;
 import com.example.schemacore.binaryserdes.translators.Double64Translator;
 import com.example.schemacore.binaryserdes.translators.DynamicStringTranslator;
 import com.example.schemacore.binaryserdes.translators.FixedStringTranslator;
+import com.example.schemacore.binaryserdes.translators.Float32Translator;
 import com.example.schemacore.binaryserdes.translators.Int32Translator;
+import com.example.schemacore.binaryserdes.translators.Int64Translator;
 import com.example.schemacore.binaryserdes.translators.UInt16Translator;
 import com.example.schemacore.binaryserdes.translators.UInt32Translator;
+import com.example.schemacore.binaryserdes.translators.UInt8Translator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -60,18 +63,9 @@ public abstract class Protocol<P extends Protocol<P>> {
      *  - Build MessageType instances from cfg.messages and register them
      */
     protected void initFromConfig(ProtocolConfig cfg) {
-        // 1) start with built-in types (int, double, string, etc.)
-        Map<String, Type<?>> typesByName = createBuiltInTypes();
+        Map<String, Type<?>> typesByName = buildTypesByName(cfg);
 
-        // 2) user-defined types (may override built-ins if you allow that)
-        if (cfg.types != null) {
-            for (TypeConfig tc : cfg.types) {
-                Type<?> type = buildType(tc, typesByName);
-                typesByName.put(tc.name, type);
-            }
-        }
-
-        // 3) build messages and register them
+        // build messages and register them
         if (cfg.messages != null) {
             for (MessageConfig mc : cfg.messages) {
                 MessageType.MessageTypeBuilder builder = MessageType.builder()
@@ -128,6 +122,37 @@ public abstract class Protocol<P extends Protocol<P>> {
     /** Parse a JSON config file into ProtocolConfig. */
     public static ProtocolConfig loadConfig(InputStream in) throws IOException {
         return MAPPER.readValue(in, ProtocolConfig.class);
+    }
+
+    /**
+     * Resolve a single named type (built-in or declared in {@code cfg.types}) without needing a
+     * message to reference it - used for e.g. a {@code messageOwnsHeader} interface's header,
+     * which is a {@code record} type declared in the same file as the messages but isn't itself
+     * one of the {@code messages:} entries (see {@code SerdesHeaderDecoder}).
+     */
+    public static Type<?> resolveNamedType(ProtocolConfig cfg, String typeName) {
+        Type<?> type = buildTypesByName(cfg).get(typeName);
+        if (type == null) {
+            throw new IllegalStateException("Unknown type '" + typeName + "' in protocol config");
+        }
+        return type;
+    }
+
+    /**
+     * Built-in types, overlaid with {@code cfg.types} in declaration order (each may reference
+     * any type declared earlier, including built-ins).
+     */
+    private static Map<String, Type<?>> buildTypesByName(ProtocolConfig cfg) {
+        Map<String, Type<?>> typesByName = createBuiltInTypes();
+
+        if (cfg.types != null) {
+            for (TypeConfig tc : cfg.types) {
+                Type<?> type = buildType(tc, typesByName);
+                typesByName.put(tc.name, type);
+            }
+        }
+
+        return typesByName;
     }
 
     /**
@@ -193,6 +218,38 @@ public abstract class Protocol<P extends Protocol<P>> {
         map.put("string", lpString);
         map.put("lpString", lpString);
 
+        // uint8
+        Type<Integer> u8 = new Type<>(
+                "uint8",
+                1,
+                Integer.class,
+                new UInt8Translator()
+        );
+        map.put("uint8", u8);
+        map.put("u8", u8);
+        map.put("byte", u8);
+
+        // float32
+        Type<Float> f32 = new Type<>(
+                "float32",
+                4,
+                Float.class,
+                new Float32Translator()
+        );
+        map.put("float32", f32);
+        map.put("float", f32);
+
+        // int64 / uint64 (Java long covers the full unsigned 64-bit range already)
+        Type<Long> i64 = new Type<>(
+                "int64",
+                8,
+                Long.class,
+                new Int64Translator()
+        );
+        map.put("int64", i64);
+        map.put("uint64", i64);
+        map.put("long", i64);
+
         return map;
     }
 
@@ -243,7 +300,26 @@ public abstract class Protocol<P extends Protocol<P>> {
                     Integer.class,
                     new Int32Translator()
             );
+            case "uint8" -> new Type<>(
+                    tc.name,
+                    1,
+                    Integer.class,
+                    new UInt8Translator()
+            );
+            case "float32" -> new Type<>(
+                    tc.name,
+                    4,
+                    Float.class,
+                    new Float32Translator()
+            );
+            case "int64" -> new Type<>(
+                    tc.name,
+                    8,
+                    Long.class,
+                    new Int64Translator()
+            );
             case "record" -> buildRecordType(tc, typesByName);
+            case "array" -> buildArrayType(tc, typesByName);
             default -> throw new IllegalArgumentException("Unknown type kind: " + tc.kind);
         };
     }
@@ -272,5 +348,30 @@ public abstract class Protocol<P extends Protocol<P>> {
         }
 
         return new RecordType(tc.name, recordFields);
+    }
+
+    /**
+     * Build an ArrayType from TypeConfig: {@code elementType} references an already-known type
+     * name (built-in or a custom type declared earlier in the same {@code types:} list -
+     * declaration order matters, same as {@code record}'s field types), {@code length} is the
+     * fixed element count.
+     */
+    private static ArrayType buildArrayType(TypeConfig tc, Map<String, Type<?>> typesByName) {
+        if (tc.length == null || tc.length <= 0) {
+            throw new IllegalArgumentException(
+                    "array type '" + tc.name + "' must have positive 'length'");
+        }
+        if (tc.elementType == null || tc.elementType.isBlank()) {
+            throw new IllegalArgumentException(
+                    "array type '" + tc.name + "' must define 'elementType'");
+        }
+
+        Type<?> elementType = typesByName.get(tc.elementType);
+        if (elementType == null) {
+            throw new IllegalStateException(
+                    "Unknown element type '" + tc.elementType + "' for array type '" + tc.name + "'");
+        }
+
+        return new ArrayType(tc.name, elementType, tc.length);
     }
 }

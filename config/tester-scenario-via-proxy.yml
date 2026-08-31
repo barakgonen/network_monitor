@@ -1,8 +1,6 @@
-# Same scenario as tester-scenario.yml, but every fruit/ping/weather/candy/greeting/pets target is
-# repointed at traffic-proxy-app's listen ports instead of hitting traffic-monitor-app directly.
-# rada/rada-le have no relay entry in config/proxy-relays.yml (no natural "real backend" role for
-# synthetic radar traffic) and stay pointed straight at the monitor, proving non-proxied traffic
-# is unaffected by the proxy's existence.
+# Same scenario as tester-scenario.yml, but every fruit/ping/weather/candy/greeting/rada/pets
+# target is repointed at traffic-proxy-app's listen ports instead of hitting traffic-monitor-app
+# directly.
 #
 # Usage: start traffic-destination-app, traffic-monitor-app, and traffic-proxy-app first, then
 # run traffic-tester-app with TRAFFIC_TESTER_CONFIG=config/tester-scenario-via-proxy.yml.
@@ -82,27 +80,27 @@ messages:
   - mode: RADA_STATUS
     target:
       host: 127.0.0.1
-      port: 5050
+      port: 6050
 
   - mode: RADA_EXTENDED_STATUS
     target:
       host: 127.0.0.1
-      port: 5050
+      port: 6050
 
   - mode: RADA_EXTENDED_STATUS_MRS
     target:
       host: 127.0.0.1
-      port: 5050
+      port: 6050
 
   - mode: RADA_TRACKS_EXTENDED
     target:
       host: 127.0.0.1
-      port: 5050
+      port: 6050
 
   - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
     target:
       host: 127.0.0.1
-      port: 5051
+      port: 6051
 
   - mode: PETS_CREATE
     target:

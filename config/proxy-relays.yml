@@ -100,6 +100,39 @@ relays:
     listenMode: CLIENT
     destinationMode: SERVER
 
+  - key: rada
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6050
+    destination:
+      host: 127.0.0.1
+      port: 8050
+    mirror:
+      host: 127.0.0.1
+      port: 5050
+    # Rada is telemetry-style (RadaStatus/RadaExtendedStatus/RadaExtendedStatusMrs/
+    # RadaTracksExtended are one-way status broadcasts, not a request/response pair like ping/pong
+    # or beacon/greeting), so - like fruit/weather - traffic-destination-app's matching interface
+    # just receives (replyMode: NONE) rather than needing a replyPort/fixed-reply-port relay setup.
+    # The relay itself is still fully protocol-agnostic raw-byte forwarding either way (see
+    # UdpRelay) - messageOwnsHeader/array-of-struct fields only matter on the monitor's decode
+    # side, never here.
+
+  - key: rada-le
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6051
+    destination:
+      host: 127.0.0.1
+      port: 8051
+    mirror:
+      host: 127.0.0.1
+      port: 5051
+    # Same protocol as `rada` above, mirrored to the monitor's separate LITTLE_ENDIAN port instead
+    # - proves byte order is a monitor-side decode concern only, irrelevant to relaying.
+
   - key: pets
     protocol: REST
     listen:

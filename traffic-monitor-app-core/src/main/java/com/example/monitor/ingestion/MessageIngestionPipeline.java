@@ -7,11 +7,15 @@ import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
 import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
+import com.example.schemacore.HeaderDecoder;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.reflect.ReflectiveFieldExtractor;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemacore.reflect.StructSizeCalculator;
+import com.example.schemacore.binaryserdes.Protocol;
+import com.example.schemacore.binaryserdes.RecordType;
+import com.example.schemacore.binaryserdes.SerdesHeaderDecoder;
+import com.example.schemacore.binaryserdes.Type;
+import com.example.schemacore.binaryserdes.config.ProtocolConfig;
+import com.example.schemacore.reflect.ReflectiveHeaderDecoder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -21,13 +25,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -41,6 +49,11 @@ public class MessageIngestionPipeline {
     private final MessageArchiveRepository messageArchiveRepository;
     private final MeterRegistry meterRegistry;
     private final ExecutorService executor;
+    // Keyed by InterfaceConfig identity, not InterfaceConfig#getKey() - unit tests construct an
+    // InterfaceConfig without ever setting a key, and ConcurrentHashMap rejects null keys.
+    // UdpIngestionRunner/TcpIngestionRunner reuse the same InterfaceConfig instance across every
+    // packet for a given interface, so identity is a stable, always-non-null cache key here.
+    private final Map<InterfaceConfig, HeaderDecoder> headerDecoderCache = new ConcurrentHashMap<>();
 
     @Autowired
     public MessageIngestionPipeline(
@@ -164,8 +177,8 @@ public class MessageIngestionPipeline {
     private DecodedPacket decodeForInterface(
             byte[] payload, InterfaceConfig interfaceConfig, MessageDefinitionRegistry scopedRegistry) {
         try {
-            Class<?> headerType = Class.forName(interfaceConfig.getHeaderType());
-            int headerSize = StructSizeCalculator.calculateStructSize(headerType);
+            HeaderDecoder headerDecoder = resolveHeaderDecoder(interfaceConfig);
+            int headerSize = headerDecoder.headerSize();
 
             if (payload.length < headerSize) {
                 throw new IllegalArgumentException(
@@ -174,8 +187,7 @@ public class MessageIngestionPipeline {
             }
 
             byte[] headerBytes = java.util.Arrays.copyOfRange(payload, 0, headerSize);
-            Object header = ReflectiveStructCodec.decode(headerType, headerBytes, interfaceConfig.resolveByteOrder());
-            Map<String, Object> headerFields = ReflectiveFieldExtractor.extractFields(header);
+            Map<String, Object> headerFields = headerDecoder.decode(headerBytes, interfaceConfig.resolveByteOrder());
 
             if (!interfaceConfig.isMessageOwnsHeader()) {
                 validateBodyLength(headerFields, interfaceConfig, payload.length - headerSize);
@@ -195,6 +207,52 @@ public class MessageIngestionPipeline {
         } catch (Exception e) {
             return new DecodedPacket(null, null, null, null, e.getMessage());
         }
+    }
+
+    /**
+     * Built lazily per interface and cached thereafter (rather than injected as a Spring-wired
+     * map like {@code interfaceMessageDefinitionRegistries}) so this class's constructor - and
+     * every existing test constructing it directly - stays unchanged. Class.forName is cheap
+     * after the JVM's own classloader caching kicks in, but re-parsing a serdes JSON file on
+     * every single incoming packet would not be, hence the cache.
+     */
+    private HeaderDecoder resolveHeaderDecoder(InterfaceConfig interfaceConfig) throws Exception {
+        HeaderDecoder cached = headerDecoderCache.get(interfaceConfig);
+        if (cached != null) {
+            return cached;
+        }
+
+        HeaderDecoder decoder = buildHeaderDecoder(interfaceConfig);
+        headerDecoderCache.put(interfaceConfig, decoder);
+        return decoder;
+    }
+
+    /**
+     * {@code messageOwnsHeader} interfaces with both a {@code serdesFile:} and a {@code
+     * serdesHeaderType:} (e.g. rada) decode their header via that file's own {@code record} type
+     * instead of a Java class - see {@code SerdesHeaderDecoder}. Every other interface (including
+     * every {@code messageOwnsHeader: false} legacy-envelope one) keeps the original
+     * {@code headerType:} Class-based behavior unchanged.
+     */
+    private HeaderDecoder buildHeaderDecoder(InterfaceConfig interfaceConfig) throws Exception {
+        if (interfaceConfig.hasSerdesFile() && interfaceConfig.hasSerdesHeaderType()) {
+            ProtocolConfig protocolConfig;
+            try (InputStream in = Files.newInputStream(Paths.get(interfaceConfig.getSerdesFile()))) {
+                protocolConfig = Protocol.loadConfig(in);
+            }
+
+            Type<?> headerType = Protocol.resolveNamedType(protocolConfig, interfaceConfig.getSerdesHeaderType());
+            if (!(headerType instanceof RecordType recordType)) {
+                throw new IllegalStateException(
+                        "serdesHeaderType '" + interfaceConfig.getSerdesHeaderType() + "' for interface "
+                                + interfaceConfig.getKey() + " must be a record type");
+            }
+
+            return new SerdesHeaderDecoder(recordType);
+        }
+
+        Class<?> headerType = Class.forName(interfaceConfig.getHeaderType());
+        return new ReflectiveHeaderDecoder(headerType);
     }
 
     /**

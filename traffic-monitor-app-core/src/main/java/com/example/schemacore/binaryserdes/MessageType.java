@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,7 +56,11 @@ public final class MessageType {
     /* ---------- Extraction: bytes -> JSON ---------- */
 
     public String parseToJson(byte[] bytes) {
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        return parseToJson(bytes, ByteOrder.BIG_ENDIAN);
+    }
+
+    public String parseToJson(byte[] bytes, ByteOrder byteOrder) {
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(byteOrder);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
 
         for (MessageField<?> field : fields) {
@@ -102,6 +107,10 @@ public final class MessageType {
     }
 
     public byte[] toBytes(String json) throws IOException {
+        return toBytes(json, ByteOrder.BIG_ENDIAN);
+    }
+
+    public byte[] toBytes(String json, ByteOrder byteOrder) throws IOException {
         int totalSize = 0;
         for (MessageField<?> field : fields) {
             int size = field.getType().getSizeInBytes();
@@ -113,7 +122,7 @@ public final class MessageType {
             totalSize += size;
         }
 
-        ByteBuffer buffer = ByteBuffer.allocate(totalSize);
+        ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(byteOrder);
         writeToBuffer(json, buffer);
         return buffer.array();
     }
