@@ -8,6 +8,8 @@ public enum PayloadMode {
     FRUIT_BANANA,
     WEATHER_TEMPERATURE_READING,
     PING,
+    /** Sent to traffic-destination-app's greeting interface, which replies with a Greeting (see GreetingReplyEncoder). */
+    BEACON,
     CANDY,
     RADA_STATUS,
     RADA_EXTENDED_STATUS,

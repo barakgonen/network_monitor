@@ -27,6 +27,16 @@ class MessageDefinitionRegistryTest {
     }
 
     @Test
+    void all_returnsEveryDefinitionInRegistrationOrder() {
+        StubDefinition orange = new StubDefinition("Fruit Interface", "Orange", 1, StubMessage.class);
+        StubDefinition banana = new StubDefinition("Fruit Interface", "Banana", 2, OtherStubMessage.class);
+
+        MessageDefinitionRegistry registry = new MessageDefinitionRegistry(List.of(orange, banana));
+
+        assertThat(registry.all()).containsExactly(orange, banana);
+    }
+
+    @Test
     void constructor_withDuplicateOpcode_throwsIllegalStateException() {
         StubDefinition first = new StubDefinition("Fruit Interface", "Orange", 1, StubMessage.class);
         StubDefinition second = new StubDefinition("Weather Interface", "TemperatureReading", 1, OtherStubMessage.class);

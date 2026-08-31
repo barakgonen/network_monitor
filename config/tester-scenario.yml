@@ -40,6 +40,14 @@ messages:
       port: 6003
     ping:
       sequence: 1
+
+  - mode: BEACON
+    target:
+      host: 127.0.0.1
+      port: 6005
+    beacon:
+      lat: 32.0853
+      lon: 34.7818
 #
 #  - mode: CANDY
 #    target:

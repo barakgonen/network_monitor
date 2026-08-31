@@ -55,6 +55,11 @@ public class TrafficToolConfigLoader {
                 continue;
             }
 
+            if (interfaceConfig.hasSerdesFile()) {
+                validateSerdesInterface(interfaceConfig);
+                continue;
+            }
+
             if (interfaceConfig.getMessages() == null || interfaceConfig.getMessages().isEmpty()) {
                 throw new IllegalArgumentException(interfaceContext(interfaceConfig) + " must define at least one message");
             }
@@ -90,6 +95,30 @@ public class TrafficToolConfigLoader {
         if (!Files.exists(swaggerPath)) {
             throw new IllegalArgumentException(
                     interfaceContext(interfaceConfig) + " swaggerFile does not exist: " + swaggerPath);
+        }
+    }
+
+    /**
+     * Serdes-backed interfaces have no {@code messages:} list at all - messages are
+     * auto-discovered from {@code serdesFile} instead (mirrors {@link
+     * #validateRestInterface(InterfaceConfig)}), so the only thing to validate here is that a
+     * serdes file was actually configured and exists. {@code messageOwnsHeader: true} interfaces
+     * (e.g. rada) additionally require {@code serdesHeaderType:} - without it, header decoding
+     * would silently fall back to the default {@code DefaultEnvelopeHeader} Class-based path
+     * (wrong shape for these interfaces), failing confusingly on the first real message instead
+     * of at startup.
+     */
+    private void validateSerdesInterface(InterfaceConfig interfaceConfig) {
+        Path serdesPath = Paths.get(interfaceConfig.getSerdesFile());
+        if (!Files.exists(serdesPath)) {
+            throw new IllegalArgumentException(
+                    interfaceContext(interfaceConfig) + " serdesFile does not exist: " + serdesPath);
+        }
+
+        if (interfaceConfig.isMessageOwnsHeader() && !interfaceConfig.hasSerdesHeaderType()) {
+            throw new IllegalArgumentException(
+                    interfaceContext(interfaceConfig)
+                            + " has messageOwnsHeader=true and a serdesFile but no serdesHeaderType");
         }
     }
 

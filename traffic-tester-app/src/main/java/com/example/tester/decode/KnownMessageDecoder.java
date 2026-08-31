@@ -4,12 +4,14 @@ import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveFieldExtractor;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.candy.CandyMessage;
-import com.example.schemas.fruit.BananaMessage;
-import com.example.schemas.fruit.OrangeMessage;
-import com.example.schemas.ping.PingMessage;
-import com.example.schemas.ping.PongMessage;
-import com.example.schemas.weather.TemperatureReadingMessage;
+import com.example.tester.schemas.candy.CandyMessage;
+import com.example.tester.schemas.fruit.BananaMessage;
+import com.example.tester.schemas.fruit.OrangeMessage;
+import com.example.tester.schemas.greeting.BeaconMessage;
+import com.example.tester.schemas.greeting.GreetingMessage;
+import com.example.tester.schemas.ping.PingMessage;
+import com.example.tester.schemas.ping.PongMessage;
+import com.example.tester.schemas.weather.TemperatureReadingMessage;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -27,7 +29,9 @@ public final class KnownMessageDecoder {
             2001, TemperatureReadingMessage.class,
             3001, PingMessage.class,
             3002, PongMessage.class,
-            4001, CandyMessage.class);
+            4001, CandyMessage.class,
+            5001, BeaconMessage.class,
+            5002, GreetingMessage.class);
 
     private KnownMessageDecoder() {
     }

@@ -1,0 +1,186 @@
+{
+  "types": [
+    {
+      "name": "RadaHeader",
+      "kind": "record",
+      "fields": [
+        { "name": "msgCounter", "type": "int32" },
+        { "name": "msgType", "type": "int32" },
+        { "name": "icdVersion", "type": "uint8" },
+        { "name": "reserved1", "type": "uint8" },
+        { "name": "reserved2", "type": "uint8" },
+        { "name": "reserved3", "type": "uint8" },
+        { "name": "msgSize", "type": "int32" }
+      ]
+    },
+    {
+      "name": "reservedBytes40",
+      "kind": "array",
+      "elementType": "uint8",
+      "length": 40
+    },
+    {
+      "name": "reservedBytes44",
+      "kind": "array",
+      "elementType": "uint8",
+      "length": 44
+    },
+    {
+      "name": "reservedBytes10",
+      "kind": "array",
+      "elementType": "uint8",
+      "length": 10
+    },
+    {
+      "name": "RadaTrackData",
+      "kind": "record",
+      "fields": [
+        { "name": "id", "type": "int32" },
+        { "name": "type", "type": "int32" },
+        { "name": "reserved", "type": "reservedBytes40" },
+        { "name": "latitudeRad", "type": "double64" },
+        { "name": "longtitudeRad", "type": "double64" },
+        { "name": "altitudeM", "type": "float32" },
+        { "name": "dopplerVelocity", "type": "float32" },
+        { "name": "radarCrossSection", "type": "float32" },
+        { "name": "reserved2", "type": "reservedBytes44" },
+        { "name": "statusFlags", "type": "uint16" },
+        { "name": "reserved3", "type": "reservedBytes10" },
+        { "name": "associatedPlots", "type": "int32" },
+        { "name": "timeSinceLastAssociation", "type": "float32" },
+        { "name": "age", "type": "float32" },
+        { "name": "posX", "type": "float32" },
+        { "name": "posY", "type": "float32" },
+        { "name": "posZ", "type": "float32" },
+        { "name": "velocityX", "type": "float32" },
+        { "name": "velocityY", "type": "float32" },
+        { "name": "velocityZ", "type": "float32" },
+        { "name": "posErrorX", "type": "float32" },
+        { "name": "posErrorY", "type": "float32" },
+        { "name": "posErrorZ", "type": "float32" },
+        { "name": "velocityErrorX", "type": "float32" },
+        { "name": "velocityErrorY", "type": "float32" },
+        { "name": "velocityErrorZ", "type": "float32" },
+        { "name": "testParam0", "type": "float32" },
+        { "name": "testParam1", "type": "float32" },
+        { "name": "testParam2", "type": "float32" },
+        { "name": "testParam3", "type": "float32" },
+        { "name": "testParam4", "type": "float32" },
+        { "name": "testParam5", "type": "float32" },
+        { "name": "testParam6", "type": "float32" },
+        { "name": "testParam7", "type": "float32" },
+        { "name": "testParam8", "type": "float32" },
+        { "name": "testParam9", "type": "float32" }
+      ]
+    },
+    {
+      "name": "RadaPlotData",
+      "kind": "record",
+      "fields": [
+        { "name": "range", "type": "float32" },
+        { "name": "rangSTD", "type": "float32" },
+        { "name": "dopplerVelocity", "type": "float32" },
+        { "name": "dopplerVelocitySTD", "type": "float32" },
+        { "name": "azimuth", "type": "float32" },
+        { "name": "azimuthSTD", "type": "float32" },
+        { "name": "elevation", "type": "float32" },
+        { "name": "elevationSTD", "type": "float32" },
+        { "name": "snr", "type": "float32" },
+        { "name": "rcs", "type": "float32" },
+        { "name": "reserved", "type": "int32" }
+      ]
+    },
+    {
+      "name": "trackDataArray",
+      "kind": "array",
+      "elementType": "RadaTrackData",
+      "length": 10
+    },
+    {
+      "name": "plotDataArray",
+      "kind": "array",
+      "elementType": "RadaPlotData",
+      "length": 10
+    }
+  ],
+  "messages": [
+    {
+      "name": "RadaExtendedStatus",
+      "opcode": 1,
+      "fields": [
+        { "name": "header", "type": "RadaHeader" },
+        { "name": "latitude", "type": "double64" },
+        { "name": "longitude", "type": "double64" },
+        { "name": "altitude", "type": "float32" },
+        { "name": "pitch", "type": "float32" },
+        { "name": "roll", "type": "float32" },
+        { "name": "heading", "type": "float32" },
+        { "name": "coverage1Sector1", "type": "float32" },
+        { "name": "coverage1Sector2", "type": "float32" },
+        { "name": "coverage1Radius", "type": "float32" }
+      ]
+    },
+    {
+      "name": "RadaExtendedStatusMrs",
+      "opcode": 2,
+      "fields": [
+        { "name": "header", "type": "RadaHeader" },
+        { "name": "latitude", "type": "double64" },
+        { "name": "longitude", "type": "double64" },
+        { "name": "altitude", "type": "float32" },
+        { "name": "pitch", "type": "float32" },
+        { "name": "roll", "type": "float32" },
+        { "name": "heading", "type": "float32" },
+        { "name": "coverage1Sector1", "type": "float32" },
+        { "name": "coverage1Sector2", "type": "float32" },
+        { "name": "coverage1Radius", "type": "float32" },
+        { "name": "coverage2Sector1", "type": "float32" },
+        { "name": "coverage2Sector2", "type": "float32" },
+        { "name": "coverage2Radius", "type": "float32" },
+        { "name": "coverage3Sector1", "type": "float32" },
+        { "name": "favoriteColor", "type": "int32" },
+        { "name": "coverage3Sector2", "type": "float32" },
+        { "name": "coverage3Radius", "type": "float32" },
+        { "name": "coverage4Sector1", "type": "float32" },
+        { "name": "coverage4Sector2", "type": "float32" },
+        { "name": "coverage4Radius", "type": "float32" }
+      ]
+    },
+    {
+      "name": "RadaStatus",
+      "opcode": 3,
+      "fields": [
+        { "name": "header", "type": "RadaHeader" },
+        { "name": "radarSoftwareVersion", "type": "uint32" },
+        { "name": "recordingState", "type": "uint32" },
+        { "name": "workingMode", "type": "uint32" },
+        { "name": "statusFlags", "type": "uint16" },
+        { "name": "remainingRecordingSpace", "type": "uint16" },
+        { "name": "bitStatus", "type": "uint32" },
+        { "name": "manufacturerData", "type": "uint16" }
+      ]
+    },
+    {
+      "name": "RadaTracksExtended",
+      "opcode": 4,
+      "fields": [
+        { "name": "header", "type": "RadaHeader" },
+        { "name": "updateTimeTag", "type": "int64" },
+        { "name": "chunkNumber", "type": "uint16" },
+        { "name": "totalNumberIOfReportedTracks", "type": "uint16" },
+        { "name": "reserved", "type": "uint16" },
+        { "name": "numberOfTracksInThisMessage", "type": "uint16" },
+        { "name": "tracksTagYear", "type": "uint16" },
+        { "name": "tracksTagMonth", "type": "uint16" },
+        { "name": "tracksTagDayOfMonth", "type": "uint16" },
+        { "name": "tracksTagHour", "type": "uint16" },
+        { "name": "tracksTagMinute", "type": "uint16" },
+        { "name": "tracksTagSecond", "type": "uint16" },
+        { "name": "tracksTagMillisecond", "type": "uint16" },
+        { "name": "reserved1", "type": "uint16" },
+        { "name": "trackData", "type": "trackDataArray" },
+        { "name": "plotData", "type": "plotDataArray" }
+      ]
+    }
+  ]
+}

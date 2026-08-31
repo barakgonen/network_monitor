@@ -2,10 +2,14 @@ package com.example.monitor.schema;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
+import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -58,6 +62,9 @@ class MessageSchemaWiringConfigTest {
     /** No fromByteBuffer/toByteArray/(byte[]) shape at all - should fail wiring, not just decode. */
     public static final class NotReflectivelyCodable {
     }
+
+    @TempDir
+    Path tempDir;
 
     private final MessageSchemaWiringConfig wiring = new MessageSchemaWiringConfig();
 
@@ -199,5 +206,57 @@ class MessageSchemaWiringConfigTest {
                 .hasMessageContaining("NotReflectivelyCodable")
                 .hasMessageContaining("stub")
                 .hasMessageContaining("does not expose a supported decoder");
+    }
+
+    private InterfaceConfig serdesInterfaceConfig(String serdesFile) throws Exception {
+        Path candyProtocol = Path.of(serdesFile);
+        if (!Files.exists(candyProtocol)) {
+            Files.writeString(candyProtocol, """
+                    {
+                      "messages": [
+                        { "name": "Candy", "opcode": 4001, "fields": [
+                          { "name": "name", "type": "string" },
+                          { "name": "calories", "type": "double64" }
+                        ] }
+                      ]
+                    }
+                    """);
+        }
+
+        InterfaceConfig interfaceConfig = new InterfaceConfig();
+        interfaceConfig.setKey("candy");
+        interfaceConfig.setName("Candy Interface");
+        interfaceConfig.setPort(1);
+        interfaceConfig.setSerdesFile(serdesFile);
+        return interfaceConfig;
+    }
+
+    @Test
+    void serdesFile_autoDiscoversMessagesWithoutMessagesList() throws Exception {
+        Path serdesFile = tempDir.resolve("candy.protocol.json");
+        InterfaceConfig config = serdesInterfaceConfig(serdesFile.toString());
+
+        MessageDefinitionRegistry registry = wiring.messageDefinitionRegistry(trafficToolConfig(config));
+        MessageDefinition definition = registry.findByOpcode(4001).orElseThrow();
+
+        assertThat(definition).isInstanceOf(SerdesMessageDefinition.class);
+        assertThat(definition.interfaceName()).isEqualTo("Candy Interface");
+        assertThat(definition.messageType()).isEqualTo("Candy");
+        assertThat(definition.messageClass()).isNull();
+
+        byte[] encoded = definition.encodeBody(Map.of("name", "gum", "calories", 5.0));
+        Map<String, Object> decoded = definition.decodeBody(ByteBuffer.wrap(encoded));
+        assertThat(decoded.get("name")).isEqualTo("gum");
+    }
+
+    @Test
+    void serdesFile_scopedRegistryAlsoResolvesTheSameDefinitions() throws Exception {
+        Path serdesFile = tempDir.resolve("candy-scoped.protocol.json");
+        InterfaceConfig config = serdesInterfaceConfig(serdesFile.toString());
+
+        Map<String, MessageDefinitionRegistry> scoped =
+                wiring.interfaceMessageDefinitionRegistries(trafficToolConfig(config));
+
+        assertThat(scoped.get("candy").findByOpcode(4001)).isPresent();
     }
 }

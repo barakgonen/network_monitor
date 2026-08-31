@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "name": "Candy",
+      "opcode": 4001,
+      "fields": [
+        { "name": "name", "type": "string" },
+        { "name": "calories", "type": "double64" }
+      ]
+    }
+  ]
+}

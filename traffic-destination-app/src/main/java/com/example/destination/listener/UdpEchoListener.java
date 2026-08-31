@@ -2,6 +2,7 @@ package com.example.destination.listener;
 
 import com.example.destination.config.InterfaceEntry;
 import com.example.destination.config.ReplyMode;
+import com.example.destination.reply.GreetingReplyEncoder;
 import com.example.destination.reply.PongReplyEncoder;
 
 import java.net.DatagramPacket;
@@ -55,6 +56,12 @@ public class UdpEchoListener implements Listener {
                     sendReply(packet, PongReplyEncoder.buildPongReply(received));
                 } catch (Exception e) {
                     System.err.println("[" + config.getKey() + "] failed to build Pong reply: " + e.getMessage());
+                }
+            } else if (config.getReplyMode() == ReplyMode.GREETING) {
+                try {
+                    sendReply(packet, GreetingReplyEncoder.buildGreetingReply(received));
+                } catch (Exception e) {
+                    System.err.println("[" + config.getKey() + "] failed to build Greeting reply: " + e.getMessage());
                 }
             }
         }

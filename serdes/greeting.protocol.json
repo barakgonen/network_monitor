@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "name": "Beacon",
+      "opcode": 5001,
+      "fields": [
+        { "name": "lat", "type": "double64" },
+        { "name": "lon", "type": "double64" }
+      ]
+    },
+    {
+      "name": "Greeting",
+      "opcode": 5002,
+      "fields": [
+        { "name": "id", "type": "int32" },
+        { "name": "text", "type": "string" }
+      ]
+    }
+  ]
+}

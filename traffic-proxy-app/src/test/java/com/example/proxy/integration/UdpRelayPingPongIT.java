@@ -9,7 +9,7 @@ import com.example.proxy.relay.UdpRelay;
 import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.ping.PingMessage;
+import com.example.tester.schemas.ping.PingMessage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

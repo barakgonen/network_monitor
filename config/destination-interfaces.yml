@@ -2,7 +2,8 @@
 # that traffic-proxy-app relays to. replyMode: ECHO bounces the same bytes/body back to the
 # sender; NONE receives traffic silently (REST always needs some HTTP response regardless -
 # NONE responds 204 No Content); PONG (UDP only, ping interface) decodes the incoming legacy-
-# envelope Ping message and replies with a real Pong (opcode 3002), not a raw byte echo.
+# envelope Ping message and replies with a real Pong (opcode 3002), not a raw byte echo; GREETING
+# (UDP only, greeting interface) is the same idea for Beacon -> Greeting (opcode 5002).
 interfaces:
   - key: fruit
     protocol: UDP
@@ -24,6 +25,14 @@ interfaces:
     # this.
     replyPort: 6103
 
+  - key: greeting
+    protocol: UDP
+    port: 8005
+    replyMode: GREETING
+    # Reply to a fixed port on the sender's host, matching proxy-relays.yml's greeting relay's
+    # own replyPort - same fixed-reply-port coordination as the ping interface above.
+    replyPort: 6105
+
   - key: candy
     protocol: TCP
     port: 8004
@@ -38,6 +47,16 @@ interfaces:
     # role-reversed case), instead of binding here.
     mode: CLIENT
     host: 127.0.0.1
+
+  - key: rada
+    protocol: UDP
+    port: 8050
+    replyMode: NONE
+
+  - key: rada-le
+    protocol: UDP
+    port: 8051
+    replyMode: NONE
 
   - key: pets
     protocol: REST

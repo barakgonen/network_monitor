@@ -8,6 +8,7 @@ public class PayloadConfig {
     private FruitPayloadConfig fruit = new FruitPayloadConfig();
     private WeatherPayloadConfig weather = new WeatherPayloadConfig();
     private PingPayloadConfig ping = new PingPayloadConfig();
+    private BeaconPayloadConfig beacon = new BeaconPayloadConfig();
     private CandyPayloadConfig candy = new CandyPayloadConfig();
     private PetsPayloadConfig pets = new PetsPayloadConfig();
 
@@ -71,6 +72,14 @@ public class PayloadConfig {
 
     public void setPing(PingPayloadConfig ping) {
         this.ping = ping;
+    }
+
+    public BeaconPayloadConfig getBeacon() {
+        return beacon;
+    }
+
+    public void setBeacon(BeaconPayloadConfig beacon) {
+        this.beacon = beacon;
     }
 
     public CandyPayloadConfig getCandy() {

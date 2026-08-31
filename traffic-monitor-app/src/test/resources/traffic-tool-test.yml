@@ -6,13 +6,7 @@ interfaces:
     name: Fruit Interface
     protocol: UDP
     port: 25001
-    messages:
-      - type: Orange
-        messageClass: com.example.schemas.fruit.OrangeMessage
-        opcode: 1001
-      - type: Banana
-        messageClass: com.example.schemas.fruit.BananaMessage
-        opcode: 1002
+    serdesFile: ../serdes/fruit.protocol.json
     autoReply:
       enabled: false
       host: localhost
@@ -22,10 +16,7 @@ interfaces:
     name: Weather Interface
     protocol: UDP
     port: 25003
-    messages:
-      - type: TemperatureReading
-        messageClass: com.example.schemas.weather.TemperatureReadingMessage
-        opcode: 2001
+    serdesFile: ../serdes/weather.protocol.json
     autoReply:
       enabled: false
       host: localhost
@@ -35,13 +26,7 @@ interfaces:
     name: Ping Interface
     protocol: UDP
     port: 25002
-    messages:
-      - type: Ping
-        messageClass: com.example.schemas.ping.PingMessage
-        opcode: 3001
-      - type: Pong
-        messageClass: com.example.schemas.ping.PongMessage
-        opcode: 3002
+    serdesFile: ../serdes/ping.protocol.json
     autoReply:
       enabled: false
       host: localhost
@@ -51,10 +36,7 @@ interfaces:
     name: Candy Interface
     protocol: TCP
     port: 25004
-    messages:
-      - type: Candy
-        messageClass: com.example.schemas.candy.CandyMessage
-        opcode: 4001
+    serdesFile: ../serdes/candy.protocol.json
     autoReply:
       enabled: false
       host: localhost
@@ -65,19 +47,11 @@ interfaces:
     enabled: false
     protocol: UDP
     port: 25050
-    headerType: com.example.schemas.rada.struct.RadaHeader
+    byteOrder: BIG_ENDIAN
+    serdesFile: ../serdes/rada.protocol.json
+    serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true
-    messages:
-      - type: RadaStatus
-        messageClass: com.example.schemas.rada.messages.RadaStatus
-        opcode: 3
-      - type: RadaExtendedStatus
-        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
-        opcode: 1
-      - type: RadaTracksExtended
-        messageClass: com.example.schemas.rada.messages.RadaTracksExtended
-        opcode: 4
     autoReply:
       enabled: false
 
@@ -87,13 +61,10 @@ interfaces:
     protocol: UDP
     port: 25051
     byteOrder: LITTLE_ENDIAN
-    headerType: com.example.schemas.rada.struct.RadaHeader
+    serdesFile: ../serdes/rada.protocol.json
+    serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true
-    messages:
-      - type: RadaExtendedStatus
-        messageClass: com.example.schemas.rada.messages.RadaExtendedStatus
-        opcode: 1
     autoReply:
       enabled: false
 

@@ -1,0 +1,107 @@
+{
+  "types": [
+    {
+      "name": "myPos",
+      "kind": "record",
+      "fields": [
+        { "name": "lat", "type": "int" },
+        { "name": "lon", "type": "int" },
+        { "name": "alt", "type": "double64" }
+      ]
+    },
+    {
+      "name": "complexPosition",
+      "kind": "record",
+      "fields": [
+        { "name": "position", "type": "myPos" },
+        { "name": "bg", "type": "int" }
+      ]
+    }
+  ],
+  "messages": [
+    {
+      "name": "PositionReport",
+      "opcode": "1",
+      "fields": [
+        {
+          "name": "opcode",
+          "type": "int32"
+        },
+        {
+          "name": "lat",
+          "type": "double64"
+        },
+        {
+          "name": "lon",
+          "type": "double64"
+        },
+        {
+          "name": "alt",
+          "type": "double64"
+        }
+      ]
+    },
+    {
+      "name": "MyPositionReport",
+      "opcode": "2",
+      "fields": [
+        {
+          "name": "opcode",
+          "type": "int32"
+        },
+        {
+          "name": "myPosition",
+          "type": "myPos"
+        }
+      ]
+    },
+    {
+      "name": "twoComplex",
+      "opcode": "3",
+      "fields": [
+        {
+          "name": "opcode",
+          "type": "int32"
+        },
+        {
+          "name": "first",
+          "type": "myPos"
+        },
+        {
+          "name": "one",
+          "type": "int32"
+        },
+        {
+          "name": "two",
+          "type": "int32"
+        },
+        {
+          "name": "three",
+          "type": "double64"
+        },
+        {
+          "name": "four",
+          "type": "myPos"
+        }
+      ]
+    },
+    {
+      "name": "complexOfComplext",
+      "opcode": "4",
+      "fields": [
+        {
+          "name": "opcode",
+          "type": "int32"
+        },
+        {
+          "name": "first",
+          "type": "complexPosition"
+        },
+        {
+          "name": "one",
+          "type": "int32"
+        }
+      ]
+    }
+  ]
+}

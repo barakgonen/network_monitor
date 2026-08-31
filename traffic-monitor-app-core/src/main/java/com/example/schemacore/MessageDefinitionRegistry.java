@@ -15,11 +15,13 @@ import java.util.Optional;
  * no reflective message classes) kept for direct programmatic/test use.
  */
 public final class MessageDefinitionRegistry {
+    private final List<MessageDefinition> all;
     private final Map<Integer, MessageDefinition> byOpcode;
     private final Map<String, MessageDefinition> byInterfaceAndType;
     private final Map<Class<?>, MessageDefinition> byMessageClass;
 
     public MessageDefinitionRegistry(List<MessageDefinition> definitions) {
+        this.all = List.copyOf(definitions);
         Map<Integer, MessageDefinition> opcodeMap = new HashMap<>();
         Map<String, MessageDefinition> typeMap = new HashMap<>();
         Map<Class<?>, MessageDefinition> classMap = new HashMap<>();
@@ -29,7 +31,14 @@ public final class MessageDefinitionRegistry {
 
             putUnique(opcodeMap, definition.opcode(), definition, "opcode " + definition.opcode());
             putUnique(typeMap, typeKey, definition, typeKey);
-            putUnique(classMap, definition.messageClass(), definition, "message class " + definition.messageClass());
+
+            // Serdes-backed definitions (see SerdesMessageDefinition) have no backing Class<?> and
+            // report messageClass() as null - that's not a real collision between two definitions,
+            // just "no class" reported twice, so it's excluded from the uniqueness check below
+            // (and from the lookup map, since findByMessageClass(null) would be meaningless anyway).
+            if (definition.messageClass() != null) {
+                putUnique(classMap, definition.messageClass(), definition, "message class " + definition.messageClass());
+            }
         }
 
         this.byOpcode = Map.copyOf(opcodeMap);
@@ -47,6 +56,11 @@ public final class MessageDefinitionRegistry {
         }
 
         return new MessageDefinitionRegistry(definitions);
+    }
+
+    /** Every definition in this registry, in the order they were registered. */
+    public List<MessageDefinition> all() {
+        return all;
     }
 
     public Optional<MessageDefinition> findByOpcode(int opcode) {

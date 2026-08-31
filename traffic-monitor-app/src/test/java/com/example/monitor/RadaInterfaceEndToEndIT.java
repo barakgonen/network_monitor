@@ -2,22 +2,64 @@ package com.example.monitor;
 
 import com.example.monitor.interfaces.InterfaceStatusDto;
 import com.example.monitor.model.ObservedMessage;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.rada.messages.RadaExtendedStatus;
-import com.example.schemas.rada.messages.RadaStatus;
-import com.example.schemas.rada.struct.RadaHeader;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.offset;
 
+/**
+ * End-to-end coverage for the rada/rada-le interfaces, now decoded via the JSON-schema-driven
+ * {@code com.example.schemacore.binaryserdes} engine (serdes/rada.protocol.json) instead of the
+ * {@code com.example.schemas.rada.*} classes that used to live in this module - those moved to
+ * traffic-tester-app, so payloads here are hand-built with {@link ByteBuffer} instead (mirrors
+ * {@link TestProtocolPayloads}'s approach for the legacy-envelope protocols).
+ */
 class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
 
     private static final int RADA_STATUS_OPCODE = 3;
     private static final int RADA_EXTENDED_STATUS_OPCODE = 1;
+
+    /** RadaHeader: msgCounter(int32) + msgType(int32) + icdVersion/reserved1-3(4x uint8) + msgSize(int32) = 16 bytes. */
+    private static void putRadaHeader(ByteBuffer buffer, int msgCounter, int msgType) {
+        buffer.putInt(msgCounter);
+        buffer.putInt(msgType);
+        buffer.put((byte) 0); // icdVersion
+        buffer.put((byte) 0); // reserved1
+        buffer.put((byte) 0); // reserved2
+        buffer.put((byte) 0); // reserved3
+        buffer.putInt(0); // msgSize
+    }
+
+    private static byte[] radaStatusPayload() {
+        ByteBuffer buffer = ByteBuffer.allocate(16 + 4 + 4 + 4 + 2 + 2 + 4 + 2);
+        putRadaHeader(buffer, 1, RADA_STATUS_OPCODE);
+        buffer.putInt(7); // radarSoftwareVersion
+        buffer.putInt(1); // recordingState
+        buffer.putInt(2); // workingMode
+        buffer.putShort((short) 100); // statusFlags
+        buffer.putShort((short) 200); // remainingRecordingSpace
+        buffer.putInt(3); // bitStatus
+        buffer.putShort((short) 50); // manufacturerData
+        return buffer.array();
+    }
+
+    private static byte[] radaExtendedStatusPayload(ByteOrder byteOrder, double latitude) {
+        ByteBuffer buffer = ByteBuffer.allocate(16 + 8 + 8 + 4 * 7).order(byteOrder);
+        putRadaHeader(buffer, 1, RADA_EXTENDED_STATUS_OPCODE);
+        buffer.putDouble(latitude);
+        buffer.putDouble(34.7818); // longitude
+        buffer.putFloat(12.5f); // altitude
+        buffer.putFloat(1.0f); // pitch
+        buffer.putFloat(2.0f); // roll
+        buffer.putFloat(3.0f); // heading
+        buffer.putFloat(4.0f); // coverage1Sector1
+        buffer.putFloat(5.0f); // coverage1Sector2
+        buffer.putFloat(6.0f); // coverage1Radius
+        return buffer.array();
+    }
 
     @AfterEach
     void stopRadaInterfaces() {
@@ -42,7 +84,13 @@ class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
 
         assertThat(message.interfaceName()).isEqualTo("Rada Interface");
         assertThat(message.parseError()).isNull();
-        assertThat(message.header().get("msgType")).isEqualTo(3L);
+        assertThat(message.header().get("msgType")).isEqualTo(3);
+        // Field values pass through a JSON intermediate representation (ProtocolIn/ProtocolOut),
+        // so a uint32 value that fits in int range round-trips as Integer, not Long - JSON itself
+        // has no int/long distinction, and Jackson's generic Map<String,Object> deserialization
+        // picks the smallest Java type that fits.
+        assertThat(message.body().get("radarSoftwareVersion")).isEqualTo(7);
+        assertThat(message.body().get("manufacturerData")).isEqualTo(50);
 
         InterfaceStatusDto[] afterMessage =
                 restTemplate.getForEntity(httpUrl("/api/interfaces"), InterfaceStatusDto[].class).getBody();
@@ -69,17 +117,10 @@ class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
         restTemplate.postForEntity(httpUrl("/api/interfaces/rada/start"), null, InterfaceStatusDto[].class);
         restTemplate.postForEntity(httpUrl("/api/interfaces/rada-le/start"), null, InterfaceStatusDto[].class);
 
-        RadaExtendedStatus message = radaExtendedStatusMessage();
-        byte[] bigEndianBytes = ReflectiveStructCodec.encode(message, ByteOrder.BIG_ENDIAN);
-        byte[] littleEndianBytes = ReflectiveStructCodec.encode(message, ByteOrder.LITTLE_ENDIAN);
-        // Sanity check the two encodings of the identical logical message really are different
-        // bytes on the wire - otherwise the rest of this test wouldn't prove anything.
-        assertThat(littleEndianBytes).isNotEqualTo(bigEndianBytes);
-
         // "rada" has no message-level override, so it inherits the interface's BIG_ENDIAN default.
-        sendUdp(radaPort, bigEndianBytes);
-        // "rada-le" overrides RadaExtendedStatus specifically to LITTLE_ENDIAN.
-        sendUdp(radaLePort, littleEndianBytes);
+        sendUdp(radaPort, radaExtendedStatusPayload(ByteOrder.BIG_ENDIAN, 32.0853));
+        // "rada-le" decodes everything LITTLE_ENDIAN instead.
+        sendUdp(radaLePort, radaExtendedStatusPayload(ByteOrder.LITTLE_ENDIAN, 32.0853));
 
         ObservedMessage bigEndianDecoded = awaitStoreContains(
                 m -> "Rada Interface".equals(m.interfaceName()) && "RadaExtendedStatus".equals(m.messageType()));
@@ -89,35 +130,7 @@ class RadaInterfaceEndToEndIT extends AbstractIntegrationTestBase {
 
         assertThat(bigEndianDecoded.parseError()).isNull();
         assertThat(littleEndianDecoded.parseError()).isNull();
-        assertThat((Double) bigEndianDecoded.body().get("latitude")).isEqualTo(message.getLatitude(), offset(1e-9));
-        assertThat((Double) littleEndianDecoded.body().get("latitude")).isEqualTo(message.getLatitude(), offset(1e-9));
-    }
-
-    private static RadaExtendedStatus radaExtendedStatusMessage() {
-        RadaHeader header = new RadaHeader();
-        header.setMsgCounter(1);
-        header.setMsgType(RADA_EXTENDED_STATUS_OPCODE);
-
-        RadaExtendedStatus message = new RadaExtendedStatus();
-        message.setHeader(header);
-        message.setLatitude(32.0853);
-        message.setLongitude(34.7818);
-        message.setAltitude(12.5f);
-
-        return message;
-    }
-
-    private static byte[] radaStatusPayload() {
-        RadaHeader header = new RadaHeader();
-        header.setMsgCounter(1);
-        header.setMsgType(RADA_STATUS_OPCODE);
-
-        RadaStatus status = new RadaStatus();
-        status.setHeader(header);
-        status.setRadarSoftwareVersion(7);
-        status.setRecordingState(1);
-        status.setWorkingMode(2);
-
-        return ReflectiveStructCodec.encode(status);
+        assertThat((Double) bigEndianDecoded.body().get("latitude")).isEqualTo(32.0853);
+        assertThat((Double) littleEndianDecoded.body().get("latitude")).isEqualTo(32.0853);
     }
 }

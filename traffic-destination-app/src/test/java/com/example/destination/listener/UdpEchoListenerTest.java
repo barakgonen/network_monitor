@@ -4,8 +4,6 @@ import com.example.destination.config.InterfaceEntry;
 import com.example.destination.config.ReplyMode;
 import com.example.schemacore.envelope.ProtocolHeader;
 import com.example.schemacore.envelope.ProtocolHeaderCodec;
-import com.example.schemacore.reflect.ReflectiveStructCodec;
-import com.example.schemas.ping.PingMessage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +29,13 @@ class UdpEchoListenerTest {
         try (DatagramSocket socket = new DatagramSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    /** Ping's body is just a single int32 sequence field (serdes/ping.protocol.json) - no message class needed to build it. */
+    private static byte[] pingWireBytes(int sequence) {
+        ByteBuffer body = ByteBuffer.allocate(Integer.BYTES);
+        body.putInt(sequence);
+        return ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), body.array());
     }
 
     private static InterfaceEntry entry(int port, ReplyMode replyMode) {
@@ -70,9 +75,7 @@ class UdpEchoListenerTest {
         try (DatagramSocket senderSocket = new DatagramSocket()) {
             senderSocket.setSoTimeout(2000);
 
-            PingMessage ping = new PingMessage(7);
-            byte[] pingBody = ReflectiveStructCodec.encode(ping);
-            byte[] pingWireBytes = ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), pingBody);
+            byte[] pingWireBytes = pingWireBytes(7);
             senderSocket.send(new DatagramPacket(pingWireBytes, pingWireBytes.length, InetAddress.getLoopbackAddress(), port));
 
             byte[] buffer = new byte[1024];
@@ -113,9 +116,7 @@ class UdpEchoListenerTest {
                     .isTrue();
 
             // A subsequent, valid Ping must still be handled correctly.
-            PingMessage ping = new PingMessage(11);
-            byte[] pingBody = ReflectiveStructCodec.encode(ping);
-            byte[] pingWireBytes = ProtocolHeaderCodec.encodeMessage(3001, System.currentTimeMillis(), pingBody);
+            byte[] pingWireBytes = pingWireBytes(11);
             senderSocket.send(new DatagramPacket(pingWireBytes, pingWireBytes.length, InetAddress.getLoopbackAddress(), port));
 
             senderSocket.setSoTimeout(2000);

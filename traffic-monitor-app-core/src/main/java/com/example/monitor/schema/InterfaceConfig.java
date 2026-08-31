@@ -73,6 +73,29 @@ public class InterfaceConfig {
      */
     private String swaggerFile;
 
+    /**
+     * Only meaningful for UDP/TCP interfaces (mutually exclusive with hand-listing {@link
+     * #getMessages()}) - a path (relative to the working directory, same convention as {@link
+     * #getSwaggerFile()}) to a JSON binary-serdes protocol file under the repo's {@code serdes/}
+     * directory. Every message (name, opcode, fields) is auto-discovered from that file at
+     * startup ({@code MessageSchemaWiringConfig}), the same way REST operations are auto-discovered
+     * from {@link #getSwaggerFile()} - no per-message {@code messageClass:}/{@code opcode:} entries
+     * needed, and no backing {@code Class<?>} at all (see {@code SerdesMessageDefinition}).
+     */
+    private String serdesFile;
+
+    /**
+     * Only meaningful when both {@link #getSerdesFile()} is set and {@link #isMessageOwnsHeader()}
+     * is {@code true} (e.g. rada) - the name of a {@code record}-kind type declared in that same
+     * file's {@code types:} list, used to decode this interface's header instead of a Java
+     * {@link #getHeaderType()} class. Lets a {@code messageOwnsHeader} interface's header be
+     * schema-driven too, for headers with no backing Java class (see {@code SerdesHeaderDecoder}).
+     * When unset, header decoding falls back to the usual {@link #getHeaderType()} Class-based path
+     * unchanged - every interface using the default {@code DefaultEnvelopeHeader} (fruit/weather/
+     * ping/candy/greeting) is unaffected by this field's existence.
+     */
+    private String serdesHeaderType;
+
     public String getKey() {
         return key;
     }
@@ -239,5 +262,29 @@ public class InterfaceConfig {
 
     public void setSwaggerFile(String swaggerFile) {
         this.swaggerFile = swaggerFile;
+    }
+
+    public String getSerdesFile() {
+        return serdesFile;
+    }
+
+    public void setSerdesFile(String serdesFile) {
+        this.serdesFile = serdesFile;
+    }
+
+    public boolean hasSerdesFile() {
+        return serdesFile != null && !serdesFile.isBlank();
+    }
+
+    public String getSerdesHeaderType() {
+        return serdesHeaderType;
+    }
+
+    public void setSerdesHeaderType(String serdesHeaderType) {
+        this.serdesHeaderType = serdesHeaderType;
+    }
+
+    public boolean hasSerdesHeaderType() {
+        return serdesHeaderType != null && !serdesHeaderType.isBlank();
     }
 }
