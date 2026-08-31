@@ -8,10 +8,9 @@ import java.util.Map;
 
 /**
  * Reflectively builds a message instance from a generic field map (the inverse of
- * {@link ReflectiveFieldExtractor}), used by the field-map based publish endpoints. Records are
- * built via their canonical constructor; plain classes via a no-arg constructor plus setters.
- * Nested/complex fields arrive as dotted paths (e.g. {@code "header.msgType"}, mirroring
- * {@link com.example.monitor.publisher.PublisherFieldMetadataService}'s flattening) - {@link
+ * {@link ReflectiveFieldExtractor}). Records are built via their canonical constructor; plain
+ * classes via a no-arg constructor plus setters. Nested/complex fields arrive as dotted paths
+ * (e.g. {@code "header.msgType"}) - {@link
  * FlattenedFieldPathUtil#unflatten} regroups one level of dotted keys per call, and {@link
  * #coerce} recurses into {@link #build} for nested targets, so arbitrarily deep nesting resolves
  * one level per recursive {@code build} call. Array-of-struct fields arrive as indexed paths

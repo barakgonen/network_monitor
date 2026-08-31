@@ -19,9 +19,7 @@ import java.util.Map;
  * its own {@code SerdesMessageDefinition} carrying just its own name/opcode.
  *
  * <p>There is no backing Java class, so {@link #messageClass()} returns {@code null} - safe
- * because {@code MessageDefinitionRegistry} excludes {@code null} from its class-uniqueness check,
- * and handler dispatch ({@code MessageHandlerRegistry}/{@code MessageArrivedDispatcher}) keys on
- * {@code (interfaceName, messageType)} strings, never on {@code Class<?>}.
+ * because {@code MessageDefinitionRegistry} excludes {@code null} from its class-uniqueness check.
  */
 public final class SerdesMessageDefinition implements MessageDefinition {
 

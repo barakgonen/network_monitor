@@ -45,9 +45,12 @@ public class MessageSchemaWiringConfig {
     /**
      * Every message from every interface in one flat registry, keyed by opcode/name rather than by
      * interface. Not used for ingestion routing (each interface decodes against its own scoped
-     * registry below) - this one backs cross-interface name/class lookups, namely
-     * {@code MonitorPayloadFactory}'s "encode by interfaceName+messageType" and "encode by message
-     * class" API.
+     * registry below) - this one backs cross-interface name/class lookups. Its only consumers
+     * (the encode-by-class/encode-by-name "Sample Publisher" flow) were removed along with the
+     * rest of publishing (see CLAUDE.md's "Publishing lives in sample-publisher-app, not here");
+     * kept here (unused today) since {@link MessageDefinitionRegistry}'s duplicate-detection
+     * invariant below is still independently useful/tested and a future consumer may want the
+     * same flat cross-interface view again.
      *
      * <p>Two interfaces may legitimately reuse the same opcode and message class - e.g. the same
      * protocol wired up twice with a different {@code byteOrder} (see the {@code rada}/{@code

@@ -1,56 +1,33 @@
-autoReply:
-  enabled: false
-
 interfaces:
   - key: fruit
     name: Fruit Interface
     protocol: UDP
     port: 5001
     serdesFile: serdes/fruit.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: weather
     name: Weather Interface
     protocol: UDP
     port: 5002
     serdesFile: serdes/weather.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: ping
     name: Ping Interface
     protocol: UDP
     port: 5003
     serdesFile: serdes/ping.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: candy
     name: Candy Interface
     protocol: TCP
     port: 5004
     serdesFile: serdes/candy.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: greeting
     name: Greeting Interface
     protocol: UDP
     port: 5005
     serdesFile: serdes/greeting.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: rada
     name: Rada Interface
@@ -66,8 +43,6 @@ interfaces:
     # message type as LITTLE_ENDIAN instead. All 4 messages (RadaStatus/RadaExtendedStatus/
     # RadaExtendedStatusMrs/RadaTracksExtended) are auto-discovered from serdesFile - no
     # messages: list needed, same as every other serdesFile-backed interface above.
-    autoReply:
-      enabled: false
 
   - key: rada-le
     name: Rada Interface (Little Endian Extended Status)
@@ -80,8 +55,6 @@ interfaces:
     messageOwnsHeader: true
     # Same protocol file as `rada` above, decoded with LITTLE_ENDIAN instead - demonstrates the
     # same message shapes decoding correctly under a different interface-level byte order.
-    autoReply:
-      enabled: false
 
   - key: pets
     name: Pets REST Interface

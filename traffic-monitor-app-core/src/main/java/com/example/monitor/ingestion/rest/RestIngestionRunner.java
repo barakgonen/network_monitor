@@ -41,8 +41,10 @@ import java.util.concurrent.Executors;
  *
  * <p>{@code mode: CLIENT} is deliberately a no-op here (unlike TCP client mode, which still runs a
  * background reconnect loop) - REST client mode has no persistent connection/server concept at
- * all; it's purely on-demand via the Generic Publisher (see {@code PublisherService}/{@code
- * RestOperationInvoker}), which captures the HTTP response as a newly-observed message itself.
+ * all; sending REST traffic on demand is sample-publisher-app's job now (see CLAUDE.md's
+ * "Publishing lives in sample-publisher-app, not here"), and that app has no ingestion/storage of
+ * its own - the HTTP response is returned directly to its caller, not captured as an observed
+ * message anywhere in this repo.
  */
 @Component
 public class RestIngestionRunner {

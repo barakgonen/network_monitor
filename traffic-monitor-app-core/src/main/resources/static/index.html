@@ -55,8 +55,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
       <button class="tab" id="interfacesTab" onclick="showTab('interfaces')">Interfaces</button>
-      <button class="tab" id="publisherTab" onclick="showTab('publisher')">Sample Publisher</button>
-      <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">Auto-Reply</button>
+      <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">REST Auto-Reply</button>
       <button class="tab" id="historyTab" onclick="showTab('history')">History</button>
     </nav>
 
@@ -81,7 +80,7 @@
             </thead>
             <tbody id="messagesTableBody"></tbody>
           </table>
-          <div id="emptyState" class="empty-state">No messages yet. Use the tester app or Sample Publisher.</div>
+          <div id="emptyState" class="empty-state">No messages yet. Use traffic-tester-app or sample-publisher-app to send traffic.</div>
         </div>
 
         <aside class="event-details-side">
@@ -130,217 +129,12 @@
       </div>
     </section>
 
-    <section id="publisherPanel" class="panel table-panel" style="display:none;">
-      <div class="panel-header">
-        <h2>Sample Publisher</h2>
-      </div>
-
-      <div class="publisher-layout">
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Build and send UDP message</h3>
-          </div>
-
-          <div class="publisher-form">
-            <div class="form-row">
-              <label for="publisherInterface">Interface</label>
-              <select id="publisherInterface" onchange="onPublisherInterfaceChanged()">
-                <option value="Fruit Interface">Fruit Interface</option>
-                <option value="Weather Interface">Weather Interface</option>
-              </select>
-            </div>
-
-            <div class="form-row">
-              <label for="publisherMessage">Message</label>
-              <select id="publisherMessage" onchange="renderPublisherFields()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="publisherHost">Target Host</label>
-              <input id="publisherHost" value="localhost">
-            </div>
-
-            <div class="form-row">
-              <label for="publisherPort">Target Port</label>
-              <input id="publisherPort" type="number" min="1" max="65535" value="5001">
-            </div>
-
-            <div class="form-row">
-              <label for="publisherTransport">Transport</label>
-              <select id="publisherTransport">
-                <option value="UDP">UDP</option>
-                <option value="TCP">TCP</option>
-              </select>
-            </div>
-
-            <div id="publisherFields"></div>
-
-            <button class="primary-btn" onclick="publishMessage()">Send Once</button>
-
-            <div class="periodic-box">
-              <div class="form-row">
-                <label for="eventsPerTimeUnit">Events / Time Unit</label>
-                <input id="eventsPerTimeUnit" type="number" min="1" value="1">
-              </div>
-
-              <div class="form-row">
-                <label for="periodicTimeUnit">Time Unit</label>
-                <select id="periodicTimeUnit">
-                  <option value="SECOND">Second</option>
-                  <option value="MINUTE">Minute</option>
-                  <option value="HOUR">Hour</option>
-                </select>
-              </div>
-
-              <div class="periodic-actions">
-                <button class="primary-btn" onclick="startPeriodicPublishing()">Start Periodic</button>
-                <button class="stop-btn" onclick="stopPeriodicPublishing()">Stop Periodic</button>
-                <button class="secondary-btn" onclick="loadPeriodicStatus()">Refresh Status</button>
-              </div>
-
-              <div id="periodicStatus" class="periodic-status">Periodic publisher is stopped.</div>
-            </div>
-          </div>
-
-          <div id="publisherResult" class="publisher-result">Ready.</div>
-        </div>
-
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Publisher Notes</h3>
-          </div>
-          <div class="publisher-help">
-            The backend creates the real protocol byte[] using the same codecs as the tester app.<br><br>
-            Enum fields are rendered as dropdowns:<br>
-            - Orange freshness: very_fresh / not_fresh / unknown<br>
-            - Weather condition: sunny / cloudy / rainy / unknown<br><br>
-            Default targets:<br>
-            - Fruit Interface → localhost:5001<br>
-            - Weather Interface → localhost:5003
-          </div>
-        </div>
-
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Generic Publisher (all interfaces)</h3>
-          </div>
-
-          <div class="publisher-form">
-            <div class="form-row">
-              <label for="genericPublisherInterface">Interface</label>
-              <select id="genericPublisherInterface" onchange="onGenericPublisherInterfaceChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="genericPublisherMessage">Message</label>
-              <select id="genericPublisherMessage" onchange="onGenericPublisherMessageChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="genericPublisherHost">Target Host</label>
-              <input id="genericPublisherHost" value="localhost">
-            </div>
-
-            <div class="form-row">
-              <label for="genericPublisherPort">Target Port</label>
-              <input id="genericPublisherPort" type="number" min="1" max="65535">
-            </div>
-
-            <div class="form-row">
-              <label for="genericPublisherTransport">Transport</label>
-              <select id="genericPublisherTransport">
-                <option value="UDP">UDP</option>
-                <option value="TCP">TCP</option>
-              </select>
-            </div>
-
-            <div id="genericPublisherFields"></div>
-
-            <button class="primary-btn" onclick="sendGenericPublish()">Send</button>
-          </div>
-
-          <div id="genericPublisherResult" class="publisher-result">
-            Fields are built from the message class's own fields via reflection - no hardcoded
-            per-message forms. Leave host/port blank to rely on the interface's configured
-            broadcast targets, if any.
-          </div>
-        </div>
-
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>REST Publisher</h3>
-          </div>
-
-          <div class="publisher-form">
-            <div class="form-row">
-              <label for="restPublisherInterface">Interface</label>
-              <select id="restPublisherInterface" onchange="onRestPublisherInterfaceChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="restPublisherOperation">Operation</label>
-              <select id="restPublisherOperation" onchange="onRestPublisherOperationChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="restPublisherHost">Target Host</label>
-              <input id="restPublisherHost" value="localhost">
-            </div>
-
-            <div class="form-row">
-              <label for="restPublisherPort">Target Port</label>
-              <input id="restPublisherPort" type="number" min="1" max="65535">
-            </div>
-
-            <div id="restPublisherFields"></div>
-
-            <button class="primary-btn" onclick="sendRestPublish()">Send</button>
-          </div>
-
-          <div id="restPublisherResult" class="publisher-result">
-            Fields cover the operation's path/query parameters and request body, discovered from
-            the interface's swagger file - the HTTP response is captured as a newly-observed
-            message, shown in Live/History like any inbound one.
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section id="autoReplyPanel" class="panel table-panel" style="display:none;">
       <div class="panel-header">
-        <h2>Auto-Reply</h2>
+        <h2>REST Auto-Reply</h2>
       </div>
 
       <div class="publisher-layout">
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Master Switch</h3>
-          </div>
-
-          <div class="publisher-form">
-            <div class="form-row toggle-row">
-              <label class="toggle-switch">
-                <input type="checkbox" id="globalAutoReplyToggle" onchange="toggleGlobalAutoReply()">
-                <span class="toggle-slider"></span>
-              </label>
-              <span id="globalAutoReplyLabel">Auto-Reply: disabled</span>
-            </div>
-          </div>
-
-          <div class="publisher-help">
-            When enabled, inbound messages matching a registered <code>onMessageArrived</code>
-            handler trigger an automatic reply. Each interface below also needs its own toggle
-            enabled, and a destination host/port to send replies to (e.g. traffic-tester-app).
-          </div>
-        </div>
-
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>Per-Interface Destinations</h3>
-          </div>
-          <div id="autoReplyAccordion" class="accordion"></div>
-        </div>
-
         <div class="publisher-card">
           <div class="publisher-card-header">
             <h3>REST Auto-Reply</h3>
@@ -451,32 +245,6 @@
   let allMessages = [];
   let selectedMessageId = null;
 
-  const messageDefinitions = {
-    "Fruit Interface": {
-      defaultPort: 5001,
-      messages: {
-        "Orange": [
-          { name: "sourceFarm", type: "string", defaultValue: "north-farm-17" },
-          { name: "freshness", type: "enum", defaultValue: "very_fresh", options: ["very_fresh", "not_fresh", "unknown"] }
-        ],
-        "Banana": [
-          { name: "color", type: "string", defaultValue: "yellow" },
-          { name: "weight", type: "number", defaultValue: 142.75 }
-        ]
-      }
-    },
-    "Weather Interface": {
-      defaultPort: 5003,
-      messages: {
-        "TemperatureReading": [
-          { name: "stationId", type: "string", defaultValue: "station-tlv-01" },
-          { name: "temperatureCelsius", type: "number", defaultValue: 28.4 },
-          { name: "condition", type: "enum", defaultValue: "sunny", options: ["sunny", "cloudy", "rainy", "unknown"] }
-        ]
-      }
-    }
-  };
-
   async function loadMessages() {
     const response = await fetch('/api/messages/recent');
     allMessages = await response.json();
@@ -494,7 +262,7 @@
 
     emptyState.style.display = visibleMessages.length === 0 ? 'block' : 'none';
     emptyState.innerText = allMessages.length === 0
-      ? 'No messages yet. Use the tester app or Sample Publisher.'
+      ? 'No messages yet. Use traffic-tester-app or sample-publisher-app to send traffic.'
       : 'No messages match the current filter. Click a highlighted interface/message in the sidebar to re-show it.';
 
     for (const msg of visibleMessages) {
@@ -539,13 +307,11 @@
   function showTab(tab) {
     document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
     document.getElementById('interfacesPanel').style.display = tab === 'interfaces' ? '' : 'none';
-    document.getElementById('publisherPanel').style.display = tab === 'publisher' ? '' : 'none';
     document.getElementById('autoReplyPanel').style.display = tab === 'autoreply' ? '' : 'none';
     document.getElementById('historyPanel').style.display = tab === 'history' ? '' : 'none';
 
     document.getElementById('liveTab').classList.toggle('active', tab === 'live');
     document.getElementById('interfacesTab').classList.toggle('active', tab === 'interfaces');
-    document.getElementById('publisherTab').classList.toggle('active', tab === 'publisher');
     document.getElementById('autoReplyTab').classList.toggle('active', tab === 'autoreply');
     document.getElementById('historyTab').classList.toggle('active', tab === 'history');
 
@@ -554,250 +320,12 @@
     }
 
     if (tab === 'autoreply') {
-      loadAutoReplySettings();
       loadRestAutoReplyInterfaces();
     }
 
     if (tab === 'history') {
       onHistoryFiltersChanged();
     }
-  }
-
-  function onPublisherInterfaceChanged() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageSelect = document.getElementById('publisherMessage');
-    const definition = messageDefinitions[interfaceName];
-
-    messageSelect.innerHTML = '';
-    Object.keys(definition.messages).forEach(messageType => {
-      const option = document.createElement('option');
-      option.value = messageType;
-      option.innerText = messageType;
-      messageSelect.appendChild(option);
-    });
-
-    document.getElementById('publisherPort').value = definition.defaultPort;
-    renderPublisherFields();
-  }
-
-  function renderPublisherFields() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageType = document.getElementById('publisherMessage').value;
-    const fieldsContainer = document.getElementById('publisherFields');
-    const fields = messageDefinitions[interfaceName].messages[messageType];
-
-    fieldsContainer.innerHTML = '';
-
-    for (const field of fields) {
-      const row = document.createElement('div');
-      row.className = 'form-row';
-
-      let inputHtml;
-
-      if (field.type === 'enum') {
-        inputHtml = `
-          <select id="field-${field.name}">
-            ${field.options.map(option => `
-              <option value="${escapeHtml(option)}" ${option === field.defaultValue ? 'selected' : ''}>${escapeHtml(option)}</option>
-            `).join('')}
-          </select>
-        `;
-      } else {
-        inputHtml = `<input id="field-${field.name}" type="${field.type === 'number' ? 'number' : 'text'}" value="${escapeHtml(field.defaultValue)}" ${field.type === 'number' ? 'step="any"' : ''}>`;
-      }
-
-      row.innerHTML = `
-        <label for="field-${field.name}">${escapeHtml(field.name)}</label>
-        ${inputHtml}
-      `;
-
-      fieldsContainer.appendChild(row);
-    }
-  }
-
-  function buildPublishRequest() {
-    const interfaceName = document.getElementById('publisherInterface').value;
-    const messageType = document.getElementById('publisherMessage').value;
-    const host = document.getElementById('publisherHost').value;
-    const port = Number(document.getElementById('publisherPort').value);
-    const transport = document.getElementById('publisherTransport').value;
-    const fields = {};
-
-    const definitions = messageDefinitions[interfaceName].messages[messageType];
-
-    for (const field of definitions) {
-      const input = document.getElementById(`field-${field.name}`);
-      fields[field.name] = field.type === 'number' ? Number(input.value) : input.value;
-    }
-
-    return { interfaceName, messageType, host, port, transport, fields };
-  }
-
-  async function publishMessage() {
-    const request = buildPublishRequest();
-
-    const result = document.getElementById('publisherResult');
-    result.className = 'publisher-result';
-    result.innerText = 'Sending...';
-
-    const response = await fetch('/api/publish/udp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request)
-    });
-
-    const responseBody = await response.json();
-
-    if (responseBody.success) {
-      result.className = 'publisher-result ok';
-      result.innerText = `Sent ${responseBody.messageType} to ${responseBody.host}:${responseBody.port} (${responseBody.bytesSent} bytes)`;
-      setTimeout(loadMessages, 300);
-    } else {
-      result.className = 'publisher-result error';
-      result.innerText = `Failed: ${responseBody.error}`;
-    }
-  }
-
-  async function startPeriodicPublishing() {
-    const publishRequest = buildPublishRequest();
-    const eventsPerTimeUnit = Number(document.getElementById('eventsPerTimeUnit').value);
-    const timeUnit = document.getElementById('periodicTimeUnit').value;
-
-    const response = await fetch('/api/publish/udp/periodic/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ publishRequest, eventsPerTimeUnit, timeUnit })
-    });
-
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  async function stopPeriodicPublishing() {
-    const response = await fetch('/api/publish/udp/periodic/stop', {
-      method: 'POST'
-    });
-
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  async function loadPeriodicStatus() {
-    const response = await fetch('/api/publish/udp/periodic/status');
-    const responseBody = await response.json();
-    renderPeriodicStatus(responseBody);
-  }
-
-  function renderPeriodicStatus(status) {
-    const el = document.getElementById('periodicStatus');
-
-    if (!status.running) {
-      el.innerText = `Periodic publisher is stopped. Sent count: ${status.sentCount || 0}`;
-      return;
-    }
-
-    el.innerText =
-      `Running: ${status.interfaceName} / ${status.messageType}\n` +
-      `Target: ${status.host}:${status.port}\n` +
-      `Rate: ${status.eventsPerTimeUnit} per ${String(status.timeUnit).toLowerCase()}\n` +
-      `Interval: ${status.intervalMillis} ms\n` +
-      `Sent: ${status.sentCount}\n` +
-      `Last error: ${status.lastError || 'none'}`;
-  }
-
-  async function loadAutoReplySettings() {
-    const response = await fetch('/api/autoreply/settings');
-    const settings = await response.json();
-    renderAutoReplyPanel(settings);
-  }
-
-  function renderAutoReplyPanel(settings) {
-    document.getElementById('globalAutoReplyToggle').checked = settings.globalEnabled;
-    document.getElementById('globalAutoReplyLabel').innerText =
-      `Auto-Reply: ${settings.globalEnabled ? 'enabled' : 'disabled'}`;
-
-    const accordion = document.getElementById('autoReplyAccordion');
-    accordion.innerHTML = '';
-
-    const interfaceNames = Object.keys(settings.interfaces || {}).sort();
-
-    if (interfaceNames.length === 0) {
-      accordion.innerHTML = '<div class="empty-state">No interfaces configured.</div>';
-      return;
-    }
-
-    for (const interfaceName of interfaceNames) {
-      const destination = settings.interfaces[interfaceName];
-      const row = document.createElement('div');
-      row.className = 'accordion-row';
-
-      row.innerHTML = `
-        <div class="accordion-header">
-          <label class="toggle-switch" onclick="event.stopPropagation()">
-            <input type="checkbox" class="interface-toggle" ${destination.enabled ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-          <span class="accordion-title">${escapeHtml(interfaceName)}</span>
-          <span class="accordion-summary">${escapeHtml(destination.host)}:${escapeHtml(destination.port)} (${escapeHtml(destination.transport || 'UDP')})</span>
-        </div>
-        <div class="accordion-body">
-          <div class="form-row">
-            <label>Host</label>
-            <input class="interface-host" value="${escapeHtml(destination.host)}">
-          </div>
-          <div class="form-row">
-            <label>Port</label>
-            <input class="interface-port" type="number" min="1" max="65535" value="${escapeHtml(destination.port)}">
-          </div>
-          <div class="form-row">
-            <label>Transport</label>
-            <select class="interface-transport">
-              <option value="UDP" ${(destination.transport || 'UDP') === 'UDP' ? 'selected' : ''}>UDP</option>
-              <option value="TCP" ${destination.transport === 'TCP' ? 'selected' : ''}>TCP</option>
-            </select>
-          </div>
-          <button class="primary-btn interface-save">Save</button>
-        </div>
-      `;
-
-      const header = row.querySelector('.accordion-header');
-      header.addEventListener('click', () => row.classList.toggle('expanded'));
-
-      const toggleInput = row.querySelector('.interface-toggle');
-      toggleInput.addEventListener('change', () => saveInterfaceAutoReply(interfaceName, row));
-
-      const saveBtn = row.querySelector('.interface-save');
-      saveBtn.addEventListener('click', () => saveInterfaceAutoReply(interfaceName, row));
-
-      accordion.appendChild(row);
-    }
-  }
-
-  async function toggleGlobalAutoReply() {
-    const enabled = document.getElementById('globalAutoReplyToggle').checked;
-
-    const response = await fetch('/api/autoreply/global', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled })
-    });
-
-    renderAutoReplyPanel(await response.json());
-  }
-
-  async function saveInterfaceAutoReply(interfaceName, row) {
-    const enabled = row.querySelector('.interface-toggle').checked;
-    const host = row.querySelector('.interface-host').value;
-    const port = Number(row.querySelector('.interface-port').value);
-    const transport = row.querySelector('.interface-transport').value;
-
-    const response = await fetch('/api/autoreply/interface', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interfaceName, enabled, host, port, transport })
-    });
-
-    renderAutoReplyPanel(await response.json());
   }
 
   let historyOffset = 0;
@@ -952,18 +480,18 @@
       .replaceAll("'", '&#039;');
   }
 
-  // --- Sidebar: dynamic interfaces list (backed by the generic publisher metadata endpoint,
-  // which already reflects every configured interface, legacy and dedicated-port alike), with
-  // click-to-toggle filtering of the Live Messages table. All shown by default; clicking an
-  // interface or message excludes it, clicking again re-includes it. ---
+  // --- Sidebar: dynamic interfaces list (backed by /api/interfaces/catalog, which reflects
+  // every configured interface, legacy and dedicated-port alike), with click-to-toggle filtering
+  // of the Live Messages table. All shown by default; clicking an interface or message excludes
+  // it, clicking again re-includes it. ---
 
-  let publisherInterfacesCache = [];
+  let interfaceCatalogCache = [];
   const excludedInterfaces = new Set();
   const excludedMessageTypes = new Set();
 
   async function loadSidebarInterfaces() {
-    const response = await fetch('/api/publisher/interfaces');
-    publisherInterfacesCache = await response.json();
+    const response = await fetch('/api/interfaces/catalog');
+    interfaceCatalogCache = await response.json();
 
     renderSidebarInterfaces();
     populateHistoryInterfaceFilter();
@@ -973,7 +501,7 @@
     const container = document.getElementById('sidebarInterfaces');
     container.innerHTML = '';
 
-    for (const iface of publisherInterfacesCache) {
+    for (const iface of interfaceCatalogCache) {
       const chip = document.createElement('div');
       chip.className = 'topic-chip' + (excludedInterfaces.has(iface.name) ? ' excluded' : '');
       chip.innerText = iface.name;
@@ -1000,7 +528,7 @@
   }
 
   function toggleInterfaceFilter(interfaceName) {
-    const iface = publisherInterfacesCache.find(i => i.name === interfaceName);
+    const iface = interfaceCatalogCache.find(i => i.name === interfaceName);
     const messageTypes = iface ? iface.messages.map(m => m.type) : [];
 
     if (excludedInterfaces.has(interfaceName)) {
@@ -1034,7 +562,7 @@
     const currentValue = select.value;
     select.innerHTML = '<option value="">All interfaces</option>';
 
-    for (const iface of publisherInterfacesCache) {
+    for (const iface of interfaceCatalogCache) {
       const option = document.createElement('option');
       option.value = iface.name;
       option.innerText = iface.name;
@@ -1141,330 +669,6 @@
     renderInterfaceStatuses(await response.json());
   }
 
-  // --- Generic publisher: works for any configured interface/message via reflection, no
-  // hardcoded per-message form definitions ---
-
-  async function loadGenericPublisherInterfaces() {
-    const response = await fetch('/api/publisher/interfaces');
-    const interfaces = await response.json();
-
-    const select = document.getElementById('genericPublisherInterface');
-    select.innerHTML = '';
-
-    for (const iface of interfaces) {
-      const option = document.createElement('option');
-      option.value = iface.key;
-      option.innerText = iface.name;
-      option.dataset.messages = JSON.stringify(iface.messages);
-      select.appendChild(option);
-    }
-
-    onGenericPublisherInterfaceChanged();
-  }
-
-  function onGenericPublisherInterfaceChanged() {
-    const select = document.getElementById('genericPublisherInterface');
-    const selectedOption = select.options[select.selectedIndex];
-    const messages = selectedOption ? JSON.parse(selectedOption.dataset.messages || '[]') : [];
-
-    const messageSelect = document.getElementById('genericPublisherMessage');
-    messageSelect.innerHTML = '';
-
-    for (const message of messages) {
-      const option = document.createElement('option');
-      option.value = message.type;
-      option.innerText = `${message.type} (opcode ${message.opcode})`;
-      option.dataset.messageClass = message.messageClass;
-      messageSelect.appendChild(option);
-    }
-
-    onGenericPublisherMessageChanged();
-  }
-
-  async function onGenericPublisherMessageChanged() {
-    const messageSelect = document.getElementById('genericPublisherMessage');
-    const selectedOption = messageSelect.options[messageSelect.selectedIndex];
-    const fieldsContainer = document.getElementById('genericPublisherFields');
-    fieldsContainer.innerHTML = '';
-
-    if (!selectedOption) {
-      return;
-    }
-
-    const response = await fetch(`/api/publisher/fields?messageClass=${encodeURIComponent(selectedOption.dataset.messageClass)}`);
-    const fields = await response.json();
-
-    renderFieldsInto(fieldsContainer, fields);
-  }
-
-  // Shared by the Generic Publisher (Class<?>-reflected fields) and REST Publisher
-  // (RestSchemaNode-walked fields) - both produce the exact same PublisherFieldDto shape
-  // (name/type/itemFields/maxLength), so one rendering function covers both.
-  //
-  // Nested/complex fields arrive flattened as dotted paths (e.g. "header.msgType"), grouped
-  // consecutively by their top-level prefix. Box up each run of fields sharing a prefix so it
-  // reads as one nested object instead of a flat list of unrelated-looking fields.
-  // Array-of-struct fields (e.g. "trackData") arrive as one entry with itemFields describing a
-  // single element instead - rendered as an add/remove-able list of item groups (see
-  // buildGenericArrayGroup) rather than flattened, since the element count isn't known here.
-  function renderFieldsInto(fieldsContainer, fields) {
-    let currentGroup = null;
-    let currentGroupKey = null;
-
-    for (const field of fields) {
-      if (field.itemFields && field.itemFields.length > 0) {
-        currentGroup = null;
-        currentGroupKey = null;
-        fieldsContainer.appendChild(buildGenericArrayGroup(field));
-        continue;
-      }
-
-      const dotIndex = field.name.indexOf('.');
-
-      if (dotIndex === -1) {
-        currentGroup = null;
-        currentGroupKey = null;
-        fieldsContainer.appendChild(buildGenericFieldRow(field.name, field.type, field.name));
-        continue;
-      }
-
-      const groupKey = field.name.slice(0, dotIndex);
-      const label = field.name.slice(dotIndex + 1);
-
-      if (groupKey !== currentGroupKey) {
-        currentGroupKey = groupKey;
-        currentGroup = document.createElement('div');
-        currentGroup.className = 'generic-field-group';
-
-        const heading = document.createElement('div');
-        heading.className = 'generic-field-group-label';
-        heading.textContent = groupKey;
-        currentGroup.appendChild(heading);
-
-        fieldsContainer.appendChild(currentGroup);
-      }
-
-      currentGroup.appendChild(buildGenericFieldRow(label, field.type, field.name));
-    }
-  }
-
-  function buildGenericFieldRow(label, type, fieldName) {
-    const row = document.createElement('div');
-    row.className = 'form-row';
-    row.innerHTML = `
-      <label for="generic-field-${fieldName}">${escapeHtml(label)} <span class="field-type">${escapeHtml(type)}</span></label>
-      <input id="generic-field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">
-    `;
-    return row;
-  }
-
-  // Builds the boxed "trackData" group for an array-of-struct field: a running list of item
-  // sub-forms (one per buildGenericFieldRow(itemField...) set, named "trackData[0].id" etc. so
-  // sendGenericPublish's flat field-collection loop picks them up with no changes) plus an Add
-  // button. Removing an item just deletes its box - indices are never renumbered, since the
-  // server pads any index that's missing from the submission with a default-constructed element
-  // (see ReflectiveFieldApplier.buildArray), so gaps left behind by a removal are harmless.
-  function buildGenericArrayGroup(field) {
-    const container = document.createElement('div');
-    container.className = 'generic-field-group generic-array-group';
-
-    const heading = document.createElement('div');
-    heading.className = 'generic-field-group-label';
-    heading.textContent = field.maxLength
-      ? `${field.name} ${field.type} (max ${field.maxLength})`
-      : `${field.name} ${field.type}`;
-    container.appendChild(heading);
-
-    const itemsContainer = document.createElement('div');
-    itemsContainer.className = 'generic-array-items';
-    itemsContainer.dataset.nextIndex = '0';
-    container.appendChild(itemsContainer);
-
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'secondary-btn generic-array-add';
-    addButton.textContent = `+ Add ${field.name}`;
-    addButton.onclick = () => addGenericArrayItem(itemsContainer, field, addButton);
-    container.appendChild(addButton);
-
-    return container;
-  }
-
-  function addGenericArrayItem(itemsContainer, field, addButton) {
-    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
-      return;
-    }
-
-    const index = Number(itemsContainer.dataset.nextIndex);
-    itemsContainer.dataset.nextIndex = String(index + 1);
-
-    const itemBox = document.createElement('div');
-    itemBox.className = 'generic-array-item';
-
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.className = 'secondary-btn';
-    removeButton.textContent = `Remove ${field.name}[${index}]`;
-    removeButton.onclick = () => {
-      itemBox.remove();
-      if (field.maxLength != null) {
-        addButton.disabled = itemsContainer.children.length >= field.maxLength;
-      }
-    };
-    itemBox.appendChild(removeButton);
-
-    for (const itemField of field.itemFields) {
-      itemBox.appendChild(buildGenericFieldRow(itemField.name, itemField.type, `${field.name}[${index}].${itemField.name}`));
-    }
-
-    itemsContainer.appendChild(itemBox);
-
-    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
-      addButton.disabled = true;
-    }
-  }
-
-  async function sendGenericPublish() {
-    const interfaceKey = document.getElementById('genericPublisherInterface').value;
-    const messageSelect = document.getElementById('genericPublisherMessage');
-    const messageType = messageSelect.value;
-    const host = document.getElementById('genericPublisherHost').value;
-    const portValue = document.getElementById('genericPublisherPort').value;
-    const transport = document.getElementById('genericPublisherTransport').value;
-
-    const fields = {};
-    document.querySelectorAll('#genericPublisherFields [data-field-name]').forEach(input => {
-      fields[input.dataset.fieldName] = input.value;
-    });
-
-    const result = document.getElementById('genericPublisherResult');
-    result.className = 'publisher-result';
-    result.innerText = 'Sending...';
-
-    const response = await fetch('/api/publisher/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        interfaceKey,
-        messageType,
-        host: host || null,
-        port: portValue ? Number(portValue) : null,
-        transport,
-        fields
-      })
-    });
-
-    const responseBody = await response.json();
-
-    if (responseBody.success) {
-      result.className = 'publisher-result ok';
-      result.innerText = `Sent ${responseBody.bytesSent} bytes to ${responseBody.targets.join(', ')}`;
-      setTimeout(loadMessages, 300);
-    } else {
-      result.className = 'publisher-result error';
-      result.innerText = `Failed: ${responseBody.error}`;
-    }
-  }
-
-  // --- REST publisher: lists REST interfaces/operations discovered from swagger files (kept
-  // separate from the Generic Publisher above since PublisherMessageDto is Class<?>+opcode-shaped
-  // and doesn't fit a REST operation) - reuses buildGenericFieldRow/buildGenericArrayGroup/
-  // renderFieldsInto unchanged, since those only ever consume the shared PublisherFieldDto shape.
-
-  async function loadRestPublisherInterfaces() {
-    const response = await fetch('/api/rest/interfaces');
-    const interfaces = await response.json();
-
-    const select = document.getElementById('restPublisherInterface');
-    select.innerHTML = '';
-
-    for (const iface of interfaces) {
-      const option = document.createElement('option');
-      option.value = iface.key;
-      option.innerText = iface.name;
-      option.dataset.operations = JSON.stringify(iface.operations);
-      select.appendChild(option);
-    }
-
-    onRestPublisherInterfaceChanged();
-  }
-
-  function onRestPublisherInterfaceChanged() {
-    const select = document.getElementById('restPublisherInterface');
-    const selectedOption = select.options[select.selectedIndex];
-    const operations = selectedOption ? JSON.parse(selectedOption.dataset.operations || '[]') : [];
-
-    const operationSelect = document.getElementById('restPublisherOperation');
-    operationSelect.innerHTML = '';
-
-    for (const operation of operations) {
-      const option = document.createElement('option');
-      option.value = operation.operationId;
-      option.innerText = `${operation.httpMethod} ${operation.pathTemplate} (${operation.operationId})`;
-      operationSelect.appendChild(option);
-    }
-
-    onRestPublisherOperationChanged();
-  }
-
-  async function onRestPublisherOperationChanged() {
-    const interfaceKey = document.getElementById('restPublisherInterface').value;
-    const operationSelect = document.getElementById('restPublisherOperation');
-    const operationId = operationSelect.value;
-    const fieldsContainer = document.getElementById('restPublisherFields');
-    fieldsContainer.innerHTML = '';
-
-    if (!interfaceKey || !operationId) {
-      return;
-    }
-
-    const response = await fetch(
-      `/api/rest/fields?interfaceKey=${encodeURIComponent(interfaceKey)}&operationId=${encodeURIComponent(operationId)}`);
-    const fields = await response.json();
-
-    renderFieldsInto(fieldsContainer, fields);
-  }
-
-  async function sendRestPublish() {
-    const interfaceKey = document.getElementById('restPublisherInterface').value;
-    const messageType = document.getElementById('restPublisherOperation').value;
-    const host = document.getElementById('restPublisherHost').value;
-    const portValue = document.getElementById('restPublisherPort').value;
-
-    const fields = {};
-    document.querySelectorAll('#restPublisherFields [data-field-name]').forEach(input => {
-      fields[input.dataset.fieldName] = input.value;
-    });
-
-    const result = document.getElementById('restPublisherResult');
-    result.className = 'publisher-result';
-    result.innerText = 'Sending...';
-
-    const response = await fetch('/api/publisher/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        interfaceKey,
-        messageType,
-        host: host || null,
-        port: portValue ? Number(portValue) : null,
-        transport: 'REST',
-        fields
-      })
-    });
-
-    const responseBody = await response.json();
-
-    if (responseBody.success) {
-      result.className = 'publisher-result ok';
-      result.innerText = `Received ${responseBody.bytesSent}-byte response from ${responseBody.targets.join(', ')}`;
-      setTimeout(loadMessages, 300);
-    } else {
-      result.className = 'publisher-result error';
-      result.innerText = `Failed: ${responseBody.error}`;
-    }
-  }
-
   // --- REST auto-reply: configures the static response a REST server-mode interface writes back
   // per operation - every request gets some response by necessity of HTTP, so this always shows
   // the resolved (configured-or-fallback) value, not just what's explicitly been set.
@@ -1548,12 +752,8 @@
     }
   }
 
-  onPublisherInterfaceChanged();
-  loadPeriodicStatus();
   loadMessages();
   loadSidebarInterfaces();
-  loadGenericPublisherInterfaces();
-  loadRestPublisherInterfaces();
   setInterval(loadMessages, 2000);
 </script>
 </body>

@@ -33,7 +33,7 @@ class FlattenedFieldPathUtilTest {
         Map<String, Object> owner = (Map<String, Object>) result.get("owner");
         // Only one level unflattens per call - the remaining "address.city" stays as a single
         // flattened key inside "owner", to be unflattened again by whatever recurses into it
-        // (ReflectiveFieldApplier.build, or RestRequestBodyAssembler.coerceObject).
+        // (e.g. ReflectiveFieldApplier.build).
         assertThat(owner).containsKey("address.city");
     }
 

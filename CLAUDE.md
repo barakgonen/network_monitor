@@ -23,11 +23,8 @@ traffic-monitor-app-core   The generic engine, plus what used to be two separate
                           codec, the reflective codec engine. Message classes are plain
                           `Object`s — no marker interface — identified by `Class<?>` and the
                           reflective codec's method-naming convention only (see below).
-                        - `com.example.handlercore` — MessageArrivedHandler<T>,
-                          MessageHandlerRegistry, MessageArrivedDispatcher, ReplySender,
-                          DestinationConfig.
                         - `com.example.monitor` — the engine itself: ingestion, persistence,
-                          analytics, auto-reply, publisher, interface runtime control, REST API,
+                          analytics, interface runtime control, REST API,
                           UI resources. Includes `.rest` (+ `.ingestion.rest`) — the dynamic,
                           no-codegen OpenAPI/Swagger-driven REST interface support (see "REST
                           interfaces" below); unlike everything else here, this sub-area's own
@@ -46,9 +43,6 @@ traffic-monitor-app  The runnable app, and also what used to be two more separat
                       TrafficMonitorApplication's main()):
                         - `com.example.schemas` — concrete message classes
                           (fruit/weather/ping/candy/rada).
-                        - `com.example.messagehandlers` — concrete MessageArrivedHandler
-                          implementations, one per message type, including
-                          messagehandlers/rada/RadaTracksExtendedHandler.
                       Holds the spring-boot-maven-plugin config and the module's
                       integration-test suite.
 traffic-tester-app   Standalone CLI tester, depends on traffic-monitor-app (for the message
@@ -73,9 +67,9 @@ module that depends on this one for its plain classes. Run the app via the `-exe
 
 ## Core architectural invariant: engine has zero schema dependency
 
-`traffic-monitor-app-core` never imports `com.example.schemas.*` or `com.example.messagehandlers.*`
+`traffic-monitor-app-core` never imports `com.example.schemas.*`
 in main code — enforced by the pom (it has no dependency on traffic-monitor-app, the module
-those packages now live in, at all, not even test-scope; see "IT suite lives in
+that package now lives in, at all, not even test-scope; see "IT suite lives in
 traffic-monitor-app" below for why). All wiring from
 generic engine to concrete protocol classes happens by fully-qualified class name string, read
 from YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at startup
@@ -84,13 +78,12 @@ from YAML config (`config/traffic-tool.yml`) and resolved via `Class.forName` at
 ## IT suite lives in traffic-monitor-app, not traffic-monitor-app-core (except REST)
 
 traffic-monitor-app-core's test Spring context boots the full app wiring (its trimmed
-`TrafficMonitorTestApplication` only scans `com.example.monitor`, no handler packages), so it
-can only host tests that don't need concrete message/handler classes on the classpath — plain
+`TrafficMonitorTestApplication` only scans `com.example.monitor`), so it
+can only host tests that don't need concrete message classes on the classpath — plain
 unit tests and Spring slice tests (`@WebMvcTest`, `@JdbcTest`). The real end-to-end integration
 suite (`*IT.java`, real UDP/TCP sockets + real Spring context wired to real interfaces) lives in
-`traffic-monitor-app` instead, which holds `com.example.schemas`/`com.example.messagehandlers`
-directly and has a real bootable `TrafficMonitorApplication` (scanning `com.example.messagehandlers`
-too) for the tests to boot against. Test config:
+`traffic-monitor-app` instead, which holds `com.example.schemas`
+directly and has a real bootable `TrafficMonitorApplication` for the tests to boot against. Test config:
 `traffic-monitor-app/src/test/resources/traffic-tool-test.yml` + `application.yml`.
 
 **Exception: REST ITs** (`RestServerIngestionIT`, `RestClientPublishingIT`) live in
@@ -189,10 +182,12 @@ because dedicated-port message classes (rada) re-parse their own header as part 
 decode (e.g. `RadaStatus.fromByteArray` calls `header.fromByteArray(buffer)` first). Don't
 "fix" this into stripping the header for both paths — it'll break rada.
 
-Corollary for the publisher (`PublisherService.buildPayload`): legacy interfaces need
-`definition.encodeBody(...)` wrapped in `ProtocolHeaderCodec.encodeMessage(opcode, ts, body)`;
-dedicated-port interfaces send `definition.encodeBody(...)` as-is (already includes the
-header). Branch on `InterfaceConfig.hasDedicatedPort()`.
+Corollary for anything encoding a message to send (sample-publisher-app's
+`SendOrchestrationService`, the only place this happens now that publishing moved out of this
+module): legacy interfaces need `definition.encodeBody(...)` wrapped in
+`ProtocolHeaderCodec.encodeMessage(opcode, ts, body)`; dedicated-port interfaces send
+`definition.encodeBody(...)` as-is (already includes the header). Branch on
+`InterfaceConfig.isMessageOwnsHeader()`.
 
 TCP dedicated-port ingestion **is implemented** (`TcpIngestionRunner`, one `ServerSocket` per
 enabled TCP interface) — Candy runs on it today. See "TCP client/server mode" below for the
@@ -226,6 +221,74 @@ server mode uses. `stopInterface`'s cleanup is shared across both modes via the 
 in flight has no live socket yet to force-close, so `stopInterface`'s worst-case latency for a
 `CLIENT` interface is bounded by `client-connect-timeout-ms`, not instant.
 
+## Auto-reply lives in traffic-destination-app, not here
+
+`traffic-monitor-app` is a UDP/TCP/REST **viewer** — it ingests, stores, analyzes, and publishes
+traffic, but (aside from REST's mandatory synchronous response, see below) it never replies to
+inbound traffic on its own. It used to have a generic, config-driven handler-based auto-reply
+mechanism (`com.example.handlercore` — `MessageArrivedHandler`/`MessageHandlerRegistry`/
+`MessageArrivedDispatcher`/`ReplySender`, plus `com.example.monitor.autoreply.AutoReplySettingsService`
+and an `/api/autoreply/*` REST API + UI panel), but it was fully dead by the time it was removed —
+every `autoReply.enabled` in config was `false`, and the `MessageArrivedHandler` implementations it
+would have dispatched to (`com.example.messagehandlers`) had already been deleted in an earlier
+session. It was deleted outright rather than kept as unused scaffolding.
+
+Real reply behavior (echoing, or building a protocol-correct response like Ping→Pong) now lives in
+`traffic-destination-app` instead — see that module's `ReplyMode` (`NONE`/`ECHO`/`PONG`/`GREETING`)
+in `config/destination-interfaces.yml`. That mechanism predates this reframing (it was built to make
+`traffic-destination-app` a believable backend sink for `traffic-proxy-app` to relay to) but is now
+this project's auto-reply story going forward; there is no plan to rebuild reply capability into
+`traffic-monitor-app`.
+
+REST is the one exception: a REST server must return *some* HTTP response by protocol necessity, so
+`RestAutoReplySettingsService`/`RestAutoReplyController` (see "REST interfaces" below) are untouched
+by this — they're not an optional add-on the way the deleted UDP/TCP mechanism was.
+
+## Publishing lives in sample-publisher-app, not here
+
+`traffic-monitor-app` sends nothing of its own choosing — the same "viewer" framing as auto-reply
+above. It used to have three ways to send test traffic (all in `index.html`'s "Sample Publisher"
+tab, backed by `com.example.monitor.publisher`/parts of `com.example.monitor.publishing`/`com.example.monitor.api`):
+a legacy hardcoded fruit/weather-only form with periodic send, a reflection-based "Generic
+Publisher" that worked for any interface via `Class.forName`, and a "REST Publisher" card. The
+Generic Publisher was fully broken by the time it was removed: every UDP/TCP interface had already
+migrated to the JSON-schema-driven `com.example.schemacore.binaryserdes` engine, where messages have
+**no backing `Class<?>` at all** (`SerdesMessageDefinition.messageClass()` deliberately returns `null`) — so
+`PublisherFieldMetadataService.describeFields(Class<?>)` had nothing to reflect on, and the UI sent
+the literal string `"null"` as a query param, crashing with `ClassNotFoundException: null` on every
+message. Rather than patch this in place, the whole publishing concern was extracted into its own
+module.
+
+All of it now lives in **`sample-publisher-app`** (package root `com.example.publisher`) — a
+separate Spring Boot app with its own static UI, depending directly on `traffic-monitor-app-core`
+(not `traffic-monitor-app`) and reading the *same* `config/traffic-tool.yml`. It describes UDP/TCP
+messages by walking the serdes `MessageType`/`Type`/`RecordType`/`ArrayType` tree directly (new
+`com.example.publisher.serdes.SerdesFieldMetadataService`/`SerdesRequestBodyAssembler`, mirroring
+`RestFieldMetadataService`/`RestRequestBodyAssembler`'s shape but for the serdes type tree instead
+of an OpenAPI schema) rather than reflecting a `Class<?>`, so it works for every current interface.
+REST operations reuse copies of `RestFieldMetadataService`/`RestRequestBodyAssembler` under
+`com.example.publisher.rest` (copied, not depended on — those two classes were deleted from
+`traffic-monitor-app-core` since nothing there needs them anymore; `RestSchemaNode`/
+`RestApiDefinitionBuilder`/`RestSchemaConverter`/`RestSwaggerLoader`/`RestSchemaWiringConfig` stay
+in `-core`, still needed by REST ingestion). Config wiring reuses `-core`'s own Spring
+`@Configuration` classes directly via `@Import` (`MessageSchemaWiringConfig`, `RestSchemaWiringConfig`)
+rather than re-implementing that logic, and explicitly `@Bean`-wires the reused plain classes
+(`UdpMessagePublisher`/`TcpMessagePublisher`/`RestOperationInvoker`/`RestSwaggerLoader`/etc.) instead
+of `@ComponentScan`-ning `com.example.monitor` (which would also pull in ingestion/persistence/
+auto-reply machinery this app has no business booting).
+
+Unlike the deleted `PublisherService`, sample-publisher-app has **no ingestion/storage of its
+own** — a REST response is returned directly to the HTTP caller, not captured as a newly-observed
+message anywhere. It also generalizes periodic sending (the old legacy card's only feature) to
+every UDP/TCP message and REST operation via `PeriodicSchedulerService`, supporting multiple
+concurrent jobs (not just one global slot) keyed by a generated `jobId`.
+
+`traffic-monitor-app-core` kept a small `InterfaceCatalogController`/`InterfaceCatalogService`
+(`GET /api/interfaces/catalog`) as a direct replacement for what `/api/publisher/interfaces` used
+to also serve besides publishing: the viewer's own sidebar filter chips and History tab's interface
+dropdown. It's built from `TrafficToolConfig` + the existing `interfaceMessageDefinitionRegistries`
+bean and never touches `messageClass()`/reflection at all.
+
 ## REST interfaces (dynamic, no codegen)
 
 `protocol: REST` interfaces are driven entirely by an OpenAPI/Swagger YAML file (`swaggerFile:`
@@ -236,14 +299,13 @@ unlike UDP/TCP where a message still needs a hand-written/reflective-codec-compa
 was a deliberate choice: dropping in a new swagger file is a restart, not a rebuild.
 
 Because REST messages have no backing `Class<?>`, they're a **parallel universe** alongside
-`com.example.schemacore`/`com.example.handlercore` rather than plugging into either — all new code
+`com.example.schemacore` rather than plugging into it — all new code
 lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), keyed by
 `operationId` instead of opcode/`Class<?>`:
 
 - `RestSchemaNode` — the `Schema`-walking analogue of a Java field tree (built by
-  `RestSchemaConverter`, same recursion shape and `MAX_DEPTH` guard as
-  `PublisherFieldMetadataService`'s reflection-based one — more important here, since OpenAPI
-  schemas can genuinely self-reference).
+  `RestSchemaConverter`, with a `MAX_DEPTH` guard — more important here than for a fixed Java
+  class tree, since OpenAPI schemas can genuinely self-reference).
 - `RestOperationDefinition`/`RestApiDefinition` — one per discovered operation/per interface,
   built by `RestApiDefinitionBuilder` walking the parsed `OpenAPI` model (JSON request/response
   media types only; other content types are skipped with a startup warning). Auto-discovered —
@@ -252,15 +314,13 @@ lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), ke
   a `@Bean Map<String, RestApiDefinition> restApiDefinitions`, one entry per REST interface. Same
   `@Qualifier("restApiDefinitions")` requirement as that other map bean (see the `Map<String, X>`
   gotcha below).
-- `RestFieldMetadataService`/`RestRequestBodyAssembler` — the REST analogues of
-  `PublisherFieldMetadataService`/`ReflectiveFieldApplier`, producing/consuming the exact same
-  `PublisherFieldDto` shape, so the Generic Publisher UI's field-rendering JS
-  (`buildGenericFieldRow`/`buildGenericArrayGroup`/`renderFieldsInto`) needs no changes to also
-  render REST operation forms. The dotted/indexed flattened-path parsing
-  (`unflatten`/`trackData[0].id`-style keys) was extracted out of `ReflectiveFieldApplier` into
-  `com.example.schemacore.reflect.FlattenedFieldPathUtil` specifically so both sides could share
-  it without a `com.example.monitor` → `com.example.schemacore` dependency going the wrong
-  direction.
+- The dotted/indexed flattened-path parsing (`unflatten`/`trackData[0].id`-style keys) lives in
+  `com.example.schemacore.reflect.FlattenedFieldPathUtil`, shared by `ReflectiveFieldApplier` here
+  and (via the compile dependency on this module) sample-publisher-app's own field-assembly
+  classes, without a `com.example.monitor` → `com.example.schemacore` dependency going the wrong
+  direction. `RestFieldMetadataService`/`RestRequestBodyAssembler` themselves moved to
+  sample-publisher-app (see "Publishing lives in sample-publisher-app, not here" above) — they
+  were publish-only, REST ingestion never used them.
 - `RestIngestionRunner` (`SERVER` mode) — mirrors `TcpIngestionRunner`'s one-dedicated-socket-per-interface
   pattern, but using the JDK's built-in `com.sun.net.httpserver.HttpServer` (no new dependency)
   instead of a raw `ServerSocket`, since HTTP framing is the server's job, not ours — considerably
@@ -273,28 +333,23 @@ lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), ke
 - `MessageIngestionPipeline.ingestRestOperation` — the REST entry point, sitting alongside
   `ingestForInterface`. Skips `decodeForInterface` entirely (the JSON body is already a
   `Map<String,Object>` via Jackson) and reuses only the shared store+archive tail
-  (`storeAndArchive`, extracted out of `finishIngest` for this purpose) — it deliberately does
-  **not** call `dispatchIfEligible`, since there's no `MessageArrivedHandler` to dispatch to for a
-  dynamically-discovered operation.
+  (`storeAndArchive`, extracted out of `finishIngest` for this purpose).
 - `RestAutoReplySettingsService` — REST server mode's "auto-reply" is a **mandatory** synchronous
-  HTTP response (every request gets *some* response, by necessity of the protocol), not an
-  optional async dispatch like `AutoReplySettingsService`, so it's a deliberately independent,
-  equally in-memory-only settings store keyed by `(interfaceKey, operationId)`. Falls back to the
+  HTTP response (every request gets *some* response, by necessity of the protocol) — the only
+  auto-reply mechanism traffic-monitor-app has (the old UDP/TCP handler-based auto-reply was
+  removed; see "Auto-reply lives in traffic-destination-app, not here" below). Deliberately
+  independent, in-memory-only settings store keyed by `(interfaceKey, operationId)`. Falls back to the
   OpenAPI spec's own response schema when nothing's configured: its `example` if present, else a
   synthesized placeholder instance (`""`/`0`/`false`/`[]`/recursive `{}` per leaf type).
 - `RestOperationInvoker` — REST client-mode/on-demand publishing, using the JDK's built-in
-  `java.net.http.HttpClient` (no new dependency). Wired into `PublisherService.send()` as a REST
-  branch (`sendRest`) — unlike UDP/TCP's fire-and-forget send, the whole point is the response:
-  it's captured via `MessageIngestionPipeline.ingestRestOperation` as a newly-observed message
-  (`messageType` suffixed `" (response)"`), reusing the existing Generic Publisher send flow
-  rather than a new independent poller. **Periodic** REST publish is a known gap (see below) —
-  `PeriodicPublisherService` is hard-wired to the legacy flat/opcode `PublishRequest` +
-  `MonitorPayloadFactory`, which has no way to represent a REST operation at all.
-- UI: a separate "REST Publisher" card (not merged into the Generic Publisher's interface/message
-  dropdowns, since `PublisherMessageDto` is `Class<?>`+opcode-shaped and doesn't fit an operation)
-  plus a "REST Auto-Reply" config panel, both in `index.html`, backed by
-  `RestOperationsController` (`/api/rest/interfaces`, `/api/rest/fields`) and
-  `RestAutoReplyController` (`/api/rest/{key}/autoreply[/{operationId}]`).
+  `java.net.http.HttpClient` (no new dependency). Moved to sample-publisher-app along with the rest
+  of publishing (see above) — unlike UDP/TCP's fire-and-forget send, the whole point is the
+  response, which that app now returns directly to its own caller (it has no ingestion of its own
+  to capture it into, unlike the deleted `PublisherService.sendRest`).
+- UI: a "REST Auto-Reply" config panel in `index.html`, backed by `RestOperationsController`
+  (`/api/rest/interfaces` — also used by that panel's interface/operation dropdowns) and
+  `RestAutoReplyController` (`/api/rest/{key}/autoreply[/{operationId}]`). Sending REST traffic
+  (the old "REST Publisher" card) is sample-publisher-app's own UI now.
 
 `http://` only in v1 (no HTTPS config surface); `oneOf`/`anyOf` schemas collapse to their first
 alternative for form-rendering (`RestSchemaConverter.firstAlternative`) rather than fully modeling
@@ -302,7 +357,7 @@ polymorphic bodies.
 
 ## Config files
 
-- `config/traffic-tool.yml` — the interfaces/messages/auto-reply config, loaded by
+- `config/traffic-tool.yml` — the interfaces/messages config, loaded by
   `TrafficToolConfigLoader` (env var `TRAFFIC_TOOL_CONFIG`, default path
   `config/traffic-tool.yml` relative to CWD — run from repo root). This is where
   `messageClass:`/`definitionClass:`, dedicated ports, `headerType:`, broadcast targets,
@@ -353,19 +408,19 @@ mixed byte orders, split it into multiple interfaces (one dedicated port each), 
 
 `rada` and `rada-le` both wire up `com.example.schemas.rada.messages.RadaExtendedStatus` at
 opcode 1. Per-interface *scoped* registries (`interfaceMessageDefinitionRegistries`, what
-ingestion actually decodes against) handle this fine — each interface gets its own isolated
-registry. The flat, cross-interface `messageDefinitionRegistry` bean (backs
-`MonitorPayloadFactory`'s "encode by opcode"/"encode by message class" API, used by
-`/api/publish/udp` and periodic publish) can't: its opcode/class-keyed maps require global
-uniqueness, by design (`MessageDefinitionRegistryTest` deliberately asserts duplicates throw —
-this catches real config typos, like copy-pasting an interface block and forgetting to bump an
-opcode). Rather than relaxing that invariant, `MessageSchemaWiringConfig.messageDefinitionRegistry`
-silently excludes a later interface's definition from this *flat view only* when its opcode or
-message class was already claimed by an earlier interface — `rada` (declared first) wins, so
-`/api/publish/udp` and periodic-publish can't target `rada-le`'s `RadaExtendedStatus` by
-interfaceName+messageType either (that lookup is also flat-registry-backed). The scoped-registry
-"Generic Publisher" UI (`PublisherService`/`PublisherMetadataService`) is unaffected and works
-for both interfaces, since it never touches the flat registry.
+ingestion actually decodes against, and what sample-publisher-app's send path uses too) handle
+this fine — each interface gets its own isolated registry. The flat, cross-interface
+`messageDefinitionRegistry` bean can't: its opcode/class-keyed maps require global uniqueness, by
+design (`MessageDefinitionRegistryTest` deliberately asserts duplicates throw — this catches real
+config typos, like copy-pasting an interface block and forgetting to bump an opcode). Rather than
+relaxing that invariant, `MessageSchemaWiringConfig.messageDefinitionRegistry` silently excludes a
+later interface's definition from this *flat view only* when its opcode or message class was
+already claimed by an earlier interface — `rada` (declared first) wins. This flat bean currently
+has no consumer at all (its only use - "encode by opcode"/"encode by message class" for the
+now-deleted legacy Sample Publisher - went away with the rest of publishing; see "Publishing lives
+in sample-publisher-app, not here" above) but is kept rather than deleted, since
+`MessageDefinitionRegistry`'s duplicate-detection invariant is independently useful/tested and a
+future flat-view consumer may want it again.
 
 ## Gotchas learned the hard way
 
@@ -374,7 +429,8 @@ for both interfaces, since it never touches the flat registry.
   constructor-injection silently gets Spring's *implicit* "collect all beans of type X keyed
   by bean name" behavior instead of your explicit bean — your keys get replaced by bean names
   and your entries vanish. Fix: `@Qualifier("yourBeanName")` on the injection point. Bit us in
-  `UdpIngestionRunner`/`PublisherMetadataService` with `interfaceMessageDefinitionRegistries`.
+  `UdpIngestionRunner` with `interfaceMessageDefinitionRegistries` (and again in
+  sample-publisher-app's own services depending on the same map, and `restApiDefinitions`).
 - **`@PathVariable`/`@RequestParam` without an explicit name** throws
   `IllegalArgumentException: Name for argument ... not specified` at request time (not compile
   time) because this project doesn't compile with `-parameters`. Always write
@@ -419,27 +475,23 @@ for both interfaces, since it never touches the flat registry.
   conditional-expression numeric promotion widens the `int` branch to `long` (binary numeric
   promotion of the two operand types) regardless of which branch actually executes at runtime, so
   a ternary mixing primitive `long`/`int` results autoboxes to `Long` unconditionally. Bit
-  `RestRequestBodyAssembler.coerceScalar` coercing an OpenAPI `integer`+`format: int32` field —
-  every "integer" field came out as `Long`, not just the `int64` ones. Fix: explicit boxed
-  `if`/`yield` branches in the switch expression, not a ternary mixing primitive numeric types.
-  Caught by an actual assertion failure (`expected: 3, but was: 3L`), not by inspection.
+  `RestRequestBodyAssembler.coerceScalar` (now in sample-publisher-app) coercing an OpenAPI
+  `integer`+`format: int32` field — every "integer" field came out as `Long`, not just the
+  `int64` ones. Fix: explicit boxed `if`/`yield` branches in the switch expression, not a ternary
+  mixing primitive numeric types. Caught by an actual assertion failure
+  (`expected: 3, but was: 3L`), not by inspection. Same gotcha applies to
+  sample-publisher-app's `SerdesRequestBodyAssembler.coerceScalar`, which mirrors this pattern.
 
 ## Known gaps / natural follow-ups
 
 - `RadaTracksExtended` Instancio generation (see above).
-- **Periodic REST publish** isn't wired up — `PeriodicPublisherService` is hard-wired to the
-  legacy flat/opcode `PublishRequest` + `MonitorPayloadFactory`, which has no way to represent a
-  REST operation at all. On-demand REST publish (`PublisherService.send`/the REST Publisher UI)
-  works fully; a periodic variant would need its own scheduler bound to the scoped/generic send
-  path (`PublisherSendRequest`), which would also generically benefit UDP/TCP's Generic Publisher
-  (today only the legacy Sample Publisher has periodic send at all).
 - **REST auto-reply bodies are fully static** — no variable interpolation/templating (e.g. can't
   echo a path parameter back into the configured response). A templated version is a materially
   bigger feature than what's built.
-- **No HTTPS for REST** — `RestOperationInvoker` only builds `http://` URIs; there's no TLS config
-  surface for REST client-mode targets.
+- **No HTTPS for REST** — sample-publisher-app's `RestOperationInvoker` only builds `http://`
+  URIs; there's no TLS config surface for REST client-mode targets.
 - **`oneOf`/`anyOf` OpenAPI schemas collapse to their first alternative** (`RestSchemaConverter.firstAlternative`)
-  rather than fully modeling a polymorphic request/response body in the Generic Publisher UI.
+  rather than fully modeling a polymorphic request/response body.
 - **Switching a UDP/TCP interface to `protocol: REST` at runtime (via the Interfaces tab) doesn't
   actually work** — `swaggerFile:` isn't part of `InterfaceConfigureRequest`, and even if it were,
   `restApiDefinitions` is built once at Spring context startup from the interfaces already
@@ -453,11 +505,6 @@ for both interfaces, since it never touches the flat registry.
 - Multi-select interface filtering in the Live/History UI tabs — dropdowns are dynamic now
   (all 5 interfaces show up) but still single-select; true multi-select needs
   `HistoryController`/`AnalyticsController` to accept a repeatable `interfaceName` param.
-- No standalone Spring-free ingestion library module or a second thin deployable app module
-  for customer-specific handler bundles — that capability exists conceptually (extend
-  `com.example.messagehandlers`-shaped classes) but isn't split into a separate reusable artifact;
-  after the shared-schemas/handler-app merge, extracting one would mean pulling packages back
-  out of traffic-monitor-app rather than depending on an existing standalone module.
 - `traffic-tester-app`'s `PayloadFactory` always encodes rada payloads via the 2-arg
   `ReflectiveStructCodec.encode(message)` (implicit `BIG_ENDIAN`), so it doesn't respect
   message-level `byteOrder:` overrides in `config/traffic-tool.yml` — the tester and the

@@ -11,7 +11,6 @@ public class InterfaceConfig {
     private String key;
     private String name;
     private List<MessageConfig> messages;
-    private AutoReplyDestinationConfig autoReply = new AutoReplyDestinationConfig();
 
     /**
      * Every interface gets its own dedicated socket on {@link #getPort()}/{@link #getProtocol()}
@@ -55,13 +54,6 @@ public class InterfaceConfig {
      * stream (UDP datagrams are already framed one-per-packet, so this is unused there).
      */
     private String bodyLengthFieldName = DEFAULT_BODY_LENGTH_FIELD_NAME;
-
-    /**
-     * When set, the publisher fans a UDP send out to every "host:port" target here in addition
-     * to (or instead of, depending on the request) the caller-specified destination.
-     */
-    private boolean shouldBroadcast = false;
-    private List<String> broadcastTargets = List.of();
 
     /**
      * Only meaningful when {@link #getProtocol()} is {@code "REST"} - a path (relative to the
@@ -118,14 +110,6 @@ public class InterfaceConfig {
 
     public void setMessages(List<MessageConfig> messages) {
         this.messages = messages;
-    }
-
-    public AutoReplyDestinationConfig getAutoReply() {
-        return autoReply;
-    }
-
-    public void setAutoReply(AutoReplyDestinationConfig autoReply) {
-        this.autoReply = autoReply;
     }
 
     public boolean isEnabled() {
@@ -238,22 +222,6 @@ public class InterfaceConfig {
 
     public void setBodyLengthFieldName(String bodyLengthFieldName) {
         this.bodyLengthFieldName = bodyLengthFieldName;
-    }
-
-    public boolean isShouldBroadcast() {
-        return shouldBroadcast;
-    }
-
-    public void setShouldBroadcast(boolean shouldBroadcast) {
-        this.shouldBroadcast = shouldBroadcast;
-    }
-
-    public List<String> getBroadcastTargets() {
-        return broadcastTargets;
-    }
-
-    public void setBroadcastTargets(List<String> broadcastTargets) {
-        this.broadcastTargets = broadcastTargets;
     }
 
     public String getSwaggerFile() {

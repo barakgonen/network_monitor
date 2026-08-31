@@ -17,12 +17,9 @@ class TrafficToolConfigLoaderTest {
     private final TrafficToolConfigLoader loader = new TrafficToolConfigLoader();
 
     @Test
-    void load_withValidYamlFile_parsesInterfacesAndAutoReplySettings() throws Exception {
+    void load_withValidYamlFile_parsesInterfaces() throws Exception {
         Path configFile = tempDir.resolve("valid.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: true
-
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -31,15 +28,10 @@ class TrafficToolConfigLoaderTest {
                     messages:
                       - type: Orange
                         definitionClass: com.example.schemas.fruit.OrangeMessageDefinition
-                    autoReply:
-                      enabled: true
-                      host: localhost
-                      port: 7001
                 """);
 
         TrafficToolConfig config = loader.load(configFile);
 
-        assertThat(config.getAutoReply().isEnabled()).isTrue();
         assertThat(config.getInterfaces()).hasSize(1);
         assertThat(config.getInterfaces().get(0).getName()).isEqualTo("Fruit Interface");
         assertThat(config.getInterfaces().get(0).getMessages()).hasSize(1);
@@ -60,8 +52,6 @@ class TrafficToolConfigLoaderTest {
     void load_withNoInterfacesDefined_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("no-interfaces.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces: []
                 """);
 
@@ -74,8 +64,6 @@ class TrafficToolConfigLoaderTest {
     void load_withInterfaceHavingNoMessages_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("no-messages.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -93,8 +81,6 @@ class TrafficToolConfigLoaderTest {
     void load_withMessageMissingDefinitionClass_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("missing-definition-class.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -113,8 +99,6 @@ class TrafficToolConfigLoaderTest {
     void load_withInterfaceMissingPort_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("missing-port.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -132,8 +116,6 @@ class TrafficToolConfigLoaderTest {
     void load_withValidClientModeInterface_parsesModeAndHost() throws Exception {
         Path configFile = tempDir.resolve("client-mode.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -157,8 +139,6 @@ class TrafficToolConfigLoaderTest {
     void load_withClientModeAndUdpProtocol_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("client-mode-udp.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -180,8 +160,6 @@ class TrafficToolConfigLoaderTest {
     void load_withClientModeAndMissingHost_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("client-mode-missing-host.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface
@@ -202,8 +180,6 @@ class TrafficToolConfigLoaderTest {
     void load_withMessageLevelByteOrder_parsesOverride_andLeavesOtherMessagesNull() throws Exception {
         Path configFile = tempDir.resolve("message-byte-order.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: rada
                     name: Rada Interface
@@ -244,8 +220,6 @@ class TrafficToolConfigLoaderTest {
 
         Path configFile = tempDir.resolve("serdes-interface.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: candy
                     name: Candy Interface
@@ -270,8 +244,6 @@ class TrafficToolConfigLoaderTest {
 
         Path configFile = tempDir.resolve("missing-serdes-header-type.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: rada
                     name: Rada Interface
@@ -290,8 +262,6 @@ class TrafficToolConfigLoaderTest {
     void load_withSerdesFileThatDoesNotExist_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("missing-serdes-file.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: candy
                     name: Candy Interface
@@ -309,8 +279,6 @@ class TrafficToolConfigLoaderTest {
     void load_withInvalidModeString_throwsIllegalArgumentException() throws Exception {
         Path configFile = tempDir.resolve("invalid-mode.yml");
         Files.writeString(configFile, """
-                autoReply:
-                  enabled: false
                 interfaces:
                   - key: fruit
                     name: Fruit Interface

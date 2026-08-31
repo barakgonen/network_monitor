@@ -1,0 +1,14 @@
+# Overrides (shadows, via normal classpath ordering - this module's own resources come before
+# dependency jars) traffic-monitor-app-core's application.yml, which this module inherits on its
+# classpath as a side effect of depending on that module's jar for its plain reusable classes.
+# This app has no persistence (see CLAUDE.md's "Publishing lives in sample-publisher-app, not
+# here") and no reason to share traffic-monitor-app's H2 file or port.
+server:
+  port: 8090
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration

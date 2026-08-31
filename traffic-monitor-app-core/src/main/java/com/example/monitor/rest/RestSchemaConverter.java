@@ -8,11 +8,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Walks a resolved OpenAPI {@link Schema} into a {@link RestSchemaNode} tree - the schema-object
- * analogue of {@link com.example.monitor.publisher.PublisherFieldMetadataService}'s
- * reflection-based recursion, same {@code MAX_DEPTH} guard (more important here, since OpenAPI
- * schemas can genuinely self-reference, e.g. a tree-shaped type, which reflection over a fixed
- * Java class tree never has to worry about).
+ * Walks a resolved OpenAPI {@link Schema} into a {@link RestSchemaNode} tree, recursing with a
+ * {@code MAX_DEPTH} guard - more important here than for a fixed Java class tree, since OpenAPI
+ * schemas can genuinely self-reference (e.g. a tree-shaped type).
  *
  * <p>{@code oneOf}/{@code anyOf} are collapsed to their first alternative for form-rendering
  * purposes - full polymorphic body support is out of scope (documented limitation, not an

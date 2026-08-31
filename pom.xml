@@ -14,6 +14,7 @@
     <module>traffic-tester-app</module>
     <module>traffic-proxy-app</module>
     <module>traffic-destination-app</module>
+    <module>sample-publisher-app</module>
   </modules>
 
   <properties>

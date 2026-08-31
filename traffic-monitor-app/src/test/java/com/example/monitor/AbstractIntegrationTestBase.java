@@ -1,7 +1,6 @@
 package com.example.monitor;
 
 import com.example.TrafficMonitorApplication;
-import com.example.monitor.autoreply.AutoReplySettingsService;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.HistoryQuery;
 import com.example.monitor.persistence.MessageArchiveRepository;
@@ -75,9 +74,6 @@ public abstract class AbstractIntegrationTestBase {
 
     @Autowired
     protected RecentMessageStore recentMessageStore;
-
-    @Autowired
-    protected AutoReplySettingsService autoReplySettingsService;
 
     @Autowired
     protected MessageArchiveRepository messageArchiveRepository;
