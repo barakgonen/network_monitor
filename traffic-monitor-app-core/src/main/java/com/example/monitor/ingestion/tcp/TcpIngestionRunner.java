@@ -227,7 +227,9 @@ public class TcpIngestionRunner {
             } catch (IOException e) {
                 closeQuietly(socket);
                 log.debug("TCP client connect attempt failed for interface {} ({}:{}), retrying", key, host, port, e);
-                incrementReconnectAttemptCounter(port);
+                if (!stopFlag.get()) {
+                    incrementReconnectAttemptCounter(port);
+                }
             }
 
             if (!stopFlag.get()) {
