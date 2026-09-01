@@ -20,7 +20,7 @@
     <dependency>
       <groupId>io.swagger.parser.v3</groupId>
       <artifactId>swagger-parser</artifactId>
-      <version>2.1.22</version>
+      <version>2.1.47</version>
     </dependency>
 
     <!-- RestApiDefinitionBuilder logs via slf4j directly - no Spring dependency here to pull
