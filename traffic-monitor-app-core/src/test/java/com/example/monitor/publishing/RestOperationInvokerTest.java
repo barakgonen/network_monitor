@@ -1,6 +1,6 @@
 package com.example.monitor.publishing;
 
-import com.example.monitor.rest.RestOperationDefinition;
+import com.example.restschema.RestOperationDefinition;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

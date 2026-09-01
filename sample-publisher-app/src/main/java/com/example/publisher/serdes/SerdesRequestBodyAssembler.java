@@ -1,11 +1,11 @@
 package com.example.publisher.serdes;
 
-import com.example.schemacore.binaryserdes.ArrayType;
-import com.example.schemacore.binaryserdes.MessageField;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.binaryserdes.RecordType;
-import com.example.schemacore.binaryserdes.Type;
-import com.example.schemacore.reflect.FlattenedFieldPathUtil;
+import com.example.binaryserdes.ArrayType;
+import com.example.binaryserdes.MessageField;
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.RecordType;
+import com.example.binaryserdes.Type;
+import com.example.publisher.util.FlattenedFieldPathUtil;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

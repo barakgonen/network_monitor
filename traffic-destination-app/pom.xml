@@ -18,6 +18,15 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- GreetingReplyEncoder/PongReplyEncoder use the binary-serdes engine directly - declared
+         explicitly rather than relying on the transitive path through traffic-monitor-app since
+         these classes import it directly. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>binary-serdes</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.yaml</groupId>
       <artifactId>snakeyaml</artifactId>

@@ -1,12 +1,12 @@
 package com.example.monitor.api;
 
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.monitor.schema.SerdesMessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.ProtocolOut;
-import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

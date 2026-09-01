@@ -1,11 +1,11 @@
 package com.example.destination.reply;
 
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.ProtocolOut;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.binaryserdes.config.ProtocolConfig;
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -23,7 +23,7 @@ import java.util.Map;
  * wire-format compatible with traffic-monitor-app's greeting interface (opcode 5001/5002,
  * always-BIG_ENDIAN legacy envelope) - the {@code GREETING} analogue of {@link PongReplyEncoder}.
  *
- * <p>Uses the same {@code com.example.schemacore.binaryserdes} JSON-schema-driven codec
+ * <p>Uses the same {@code com.example.binaryserdes} JSON-schema-driven codec
  * traffic-monitor-app's {@code greeting} interface decodes against, rather than a hand-written
  * {@code BeaconMessage}/{@code GreetingMessage} pair. The schema is bundled as a classpath
  * resource (a copy of the repo-root {@code serdes/greeting.protocol.json}) rather than loaded

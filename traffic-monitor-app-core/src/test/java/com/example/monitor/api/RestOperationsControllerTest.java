@@ -1,9 +1,9 @@
 package com.example.monitor.api;
 
-import com.example.monitor.rest.RestApiDefinition;
-import com.example.monitor.rest.RestOperationDefinition;
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;

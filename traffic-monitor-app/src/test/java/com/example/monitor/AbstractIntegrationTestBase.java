@@ -40,7 +40,7 @@ public abstract class AbstractIntegrationTestBase {
     protected int httpPort;
 
     /**
-     * Every interface now owns its own port/protocol (see {@code com.example.monitor.schema.InterfaceConfig}),
+     * Every interface now owns its own port/protocol (see {@code com.example.trafficconfig.InterfaceConfig}),
      * sourced from a plain YAML file rather than Spring properties - so unlike the old
      * {@code @Value("${traffic.udp.fruit-port}")} fields, these can't be dynamically overridden
      * per-Spring-context out of the box. {@link #configureDynamicInterfacePorts} works around that

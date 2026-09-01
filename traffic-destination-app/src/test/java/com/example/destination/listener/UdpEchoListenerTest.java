@@ -2,8 +2,8 @@ package com.example.destination.listener;
 
 import com.example.destination.config.InterfaceEntry;
 import com.example.destination.config.ReplyMode;
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

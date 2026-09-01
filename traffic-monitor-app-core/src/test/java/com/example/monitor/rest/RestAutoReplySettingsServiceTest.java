@@ -1,5 +1,8 @@
 package com.example.monitor.rest;
 
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
+import com.example.restschema.RestSchemaNode;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 

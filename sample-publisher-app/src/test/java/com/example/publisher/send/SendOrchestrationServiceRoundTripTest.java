@@ -1,10 +1,10 @@
 package com.example.publisher.send;
 
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.config.ProtocolConfig;
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

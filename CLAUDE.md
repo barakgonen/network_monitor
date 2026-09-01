@@ -10,30 +10,63 @@ says "seven modules" / "four protocols" — both are now wrong). Don't trust it 
 counts or class names; this file and the code are the source of truth. It should be
 regenerated/updated at some point.
 
-## Module graph (3 modules)
+## Module graph (9 modules)
 
 ```
+traffic-config        Plain config-loading classes with zero Spring/other dependency:
+                      `TrafficToolConfig`/`InterfaceConfig`/`MessageConfig`/`TrafficToolConfigLoader`/
+                      `InterfaceModeValidator` (package `com.example.trafficconfig`). Extracted from
+                      traffic-monitor-app-core's `com.example.monitor.schema` so sample-publisher-app
+                      could read `config/traffic-tool.yml` without depending on that module at all
+                      (see "Standalone-module extraction" below). `MessageSchemaWiringConfig` (the
+                      one Spring `@Configuration` class that used to live alongside these) stayed
+                      behind in traffic-monitor-app-core — it's ingestion-wiring glue, not reusable
+                      data — and now imports `TrafficToolConfig`/`InterfaceConfig` from here instead.
+binary-serdes         The JSON-schema-driven binary protocol engine, zero Spring dependency, classic
+                      Jackson 2 (`com.fasterxml.jackson.*`) rather than Jackson 3: `Protocol`/
+                      `ProtocolIn`/`ProtocolOut`/`MessageType`/`MessageField`/`Type`/`RecordType`/
+                      `ArrayType`/`Translator`+impls/`config.*` (package `com.example.binaryserdes`),
+                      plus the legacy 16-byte envelope codec `ProtocolHeaderCodec`/`ProtocolHeader`
+                      (`com.example.binaryserdes.envelope`). Extracted from traffic-monitor-app-core's
+                      `com.example.schemacore.binaryserdes`/`.envelope`. The two adapter classes
+                      bridging this engine to traffic-monitor-app-core's `MessageDefinition`/
+                      `HeaderDecoder` abstractions (`SerdesMessageDefinition`/`SerdesHeaderDecoder`)
+                      stayed behind, relocated to `com.example.monitor.schema` (their only
+                      consumers) — this engine has no concept of `MessageDefinition` itself.
+rest-schema           OpenAPI/Swagger discovery, zero Spring dependency: `RestSwaggerLoader`/
+                      `RestSchemaConverter`/`RestSchemaNode`/`RestApiDefinitionBuilder`/
+                      `RestOperationDefinition`/`RestApiDefinition`/`RestParameterDefinition`
+                      (package `com.example.restschema`). Extracted from traffic-monitor-app-core's
+                      `com.example.monitor.rest` — the ingestion/wiring-specific pieces
+                      (`RestSchemaWiringConfig`/`RestOperationRouter`/`RestAutoReplySettingsService`/
+                      `RestAutoReplyConfig`/`RestInterfaceDto`/`RestOperationSummaryDto`) stayed
+                      behind in `-core`, tied to REST ingestion/the REST Auto-Reply UI.
 traffic-monitor-app-core   The generic engine, plus what used to be two separate modules
                       (schema-core, handler-core) folded directly into it — merged because
                       handler-core and shared-schemas both compile-depended on schema-core, and
                       this module already compile-depended on handler-core, so schema-core
                       couldn't move here alone without a cycle. Package layout:
                         - `com.example.schemacore` (+ `.annotation`/`.envelope`/`.reflect`
-                          sub-packages) — MessageDefinition/Registry, the legacy fixed envelope
-                          codec, the reflective codec engine. Message classes are plain
-                          `Object`s — no marker interface — identified by `Class<?>` and the
-                          reflective codec's method-naming convention only (see below).
+                          sub-packages) — MessageDefinition/Registry, the reflective codec engine
+                          (the legacy fixed envelope *codec* itself, `ProtocolHeaderCodec`, moved to
+                          `binary-serdes`; `DefaultEnvelopeHeader`, a reflective-codec POJO, stayed).
+                          Message classes are plain `Object`s — no marker interface — identified by
+                          `Class<?>` and the reflective codec's method-naming convention only (see
+                          below).
                         - `com.example.monitor` — the engine itself: ingestion, persistence,
                           analytics, interface runtime control, REST API,
                           UI resources. Includes `.rest` (+ `.ingestion.rest`) — the dynamic,
                           no-codegen OpenAPI/Swagger-driven REST interface support (see "REST
-                          interfaces" below); unlike everything else here, this sub-area's own
-                          end-to-end IT suite lives in *this* module, not traffic-monitor-app.
-                      Has zero compile dependency on shared-schemas/handler-app (see invariant
-                      below) — its own test tree mostly holds pure unit/slice tests (the real
-                      end-to-end integration-test suite for UDP/TCP lives in traffic-monitor-app
-                      instead), except for REST's own IT suite (see "IT suite lives in
-                      traffic-monitor-app... (except REST)" below).
+                          interfaces" below), now built on the `rest-schema` module's discovery
+                          classes; unlike everything else here, this sub-area's own end-to-end IT
+                          suite lives in *this* module, not traffic-monitor-app.
+                      Depends on all three modules above (`traffic-config`/`binary-serdes`/
+                      `rest-schema`) for the pieces that moved out — see "Standalone-module
+                      extraction" below. Has zero compile dependency on shared-schemas/handler-app
+                      (see invariant below) — its own test tree mostly holds pure unit/slice tests
+                      (the real end-to-end integration-test suite for UDP/TCP lives in
+                      traffic-monitor-app instead), except for REST's own IT suite (see "IT suite
+                      lives in traffic-monitor-app... (except REST)" below).
 traffic-monitor-app  The runnable app, and also what used to be two more separate modules
                       (shared-schemas, handler-app) folded directly into it — merged the same
                       way, since neither has any other consumer besides this module and
@@ -46,9 +79,22 @@ traffic-monitor-app  The runnable app, and also what used to be two more separat
                       Holds the spring-boot-maven-plugin config and the module's
                       integration-test suite.
 traffic-tester-app   Standalone CLI tester, depends on traffic-monitor-app (for the message
-                      classes — it's a test tool, allowed to know the wire format) +
-                      Instancio for random payloads. See the exec-jar note below for why this
-                      dependency resolves to plain classes rather than the fat Spring Boot jar.
+                      classes — it's a test tool, allowed to know the wire format) + `binary-serdes`
+                      (directly — `PayloadFactory`/`KnownMessageDecoder` use the envelope codec) +
+                      Instancio for random payloads. See the exec-jar note below for why the
+                      traffic-monitor-app dependency resolves to plain classes rather than the fat
+                      Spring Boot jar.
+traffic-destination-app   Standalone reply-simulator app, depends on traffic-monitor-app + `binary-serdes`
+                      directly (`GreetingReplyEncoder`/`PongReplyEncoder` use the serdes engine and
+                      envelope codec to build protocol-correct replies). See "Auto-reply lives in
+                      traffic-destination-app, not here" below.
+traffic-proxy-app    Standalone UDP/TCP relay app sitting between traffic-tester-app and
+                      traffic-destination-app; only touches binary-serdes-era classes in its own
+                      test sources (via test-scoped deps on the two apps above).
+sample-publisher-app Standalone Spring Boot app (package `com.example.publisher`) for sending
+                      UDP/TCP/REST test traffic — depends on **only** `traffic-config`/
+                      `binary-serdes`/`rest-schema`, zero dependency on traffic-monitor-app/-core.
+                      See "Publishing lives in sample-publisher-app, not here" below.
 ```
 
 Build/test a module + its deps: `mvn -pl <module> -am test`. Full repo: `mvn clean verify`
@@ -64,6 +110,47 @@ jar — nested `BOOT-INF/classes/...`, not consumable as a library). Without the
 repackage replaces the main artifact in place with the fat jar, silently breaking any other
 module that depends on this one for its plain classes. Run the app via the `-exec` jar (or
 `mvn -pl traffic-monitor-app spring-boot:run`), not the plain one.
+
+## Standalone-module extraction (traffic-config / binary-serdes / rest-schema)
+
+These three modules exist for one reason: `sample-publisher-app` needed to read `config/traffic-tool.yml`,
+encode/decode binary protocol messages, and discover REST operations from swagger files, without
+depending on `traffic-monitor-app-core` — which drags in ingestion/persistence/auto-reply as unused
+transitive weight and defeats the point of `sample-publisher-app` being a truly standalone app (see
+"Publishing lives in sample-publisher-app, not here" below). All three are plain Java, zero Spring
+dependency — traffic-monitor-app-core and sample-publisher-app each wire their classes with their own
+explicit `@Bean` methods.
+
+The split rule throughout: **pure data/discovery/codec logic moved out; Spring wiring glue and
+ingestion-specific machinery stayed in traffic-monitor-app-core.** Concretely, `MessageSchemaWiringConfig`/
+`RestSchemaWiringConfig` (the `@Configuration` classes), `SerdesMessageDefinition`/`SerdesHeaderDecoder`
+(the adapters bridging `binary-serdes` to traffic-monitor-app-core's own `MessageDefinition`/`HeaderDecoder`
+interfaces), and `RestOperationRouter`/`RestAutoReplySettingsService`/`RestAutoReplyConfig` (REST
+ingestion/auto-reply) all stayed behind — none of them are things sample-publisher-app needs or should
+depend on.
+
+One consequence: `traffic-destination-app`/`traffic-tester-app` — which never asked to be part of this
+split — turned out to import `binary-serdes` classes (`Protocol`/`ProtocolIn`/`ProtocolOut`/
+`ProtocolHeaderCodec`) directly already, reached transitively through their existing dependency on
+traffic-monitor-app/-core. Once those classes physically moved modules, both apps needed their own
+explicit `binary-serdes` dependency + updated imports (mechanical, no behavior change) — a reminder that
+"which module actually declares a dependency" and "which module's classes does my code literally import"
+can silently diverge over a project's life, and only surfaces at compile time when something moves.
+
+`sample-publisher-app`'s own `SendOrchestrationService.sendSerdes` also had to change, not just its
+imports: it used to encode via `MessageDefinitionRegistry.find(...).encodeBody(...)`, but
+`MessageDefinition`/`MessageDefinitionRegistry`/`SerdesMessageDefinition` are traffic-monitor-app-core-only
+abstractions this app has no access to anymore. It now works one layer down — `ProtocolOut.encodeInto`
+directly (see `SendOrchestrationService.encodeSerdesBody`, which duplicates
+`SerdesMessageDefinition.encodeBody`'s "over-allocate a buffer, trim after" trick for variable-length
+fields, since `ProtocolOut.encode(...)`'s auto-sized buffer overload throws on those). Similarly, the
+5 send-mechanics classes (`UdpMessagePublisher`/`TcpMessagePublisher`/`RestOperationInvoker`/
+`RestInvocationResult`/`TransportSelector`) and the field-path utility `FlattenedFieldPathUtil` are
+**copied** into `com.example.publisher.send.io`/`com.example.publisher.util` rather than depended on —
+they're tiny, and the alternative (a fourth extraction module, or leaving sample-publisher-app dependent
+on traffic-monitor-app-core just for these) wasn't worth it. The copied `Udp`/`TcpMessagePublisher` drop
+their `MeterRegistry` metrics parameter (this app exposes no `/actuator/prometheus` endpoint, so the
+counters were never observable here).
 
 ## Core architectural invariant: engine has zero schema dependency
 
@@ -252,30 +339,31 @@ tab, backed by `com.example.monitor.publisher`/parts of `com.example.monitor.pub
 a legacy hardcoded fruit/weather-only form with periodic send, a reflection-based "Generic
 Publisher" that worked for any interface via `Class.forName`, and a "REST Publisher" card. The
 Generic Publisher was fully broken by the time it was removed: every UDP/TCP interface had already
-migrated to the JSON-schema-driven `com.example.schemacore.binaryserdes` engine, where messages have
-**no backing `Class<?>` at all** (`SerdesMessageDefinition.messageClass()` deliberately returns `null`) — so
-`PublisherFieldMetadataService.describeFields(Class<?>)` had nothing to reflect on, and the UI sent
-the literal string `"null"` as a query param, crashing with `ClassNotFoundException: null` on every
-message. Rather than patch this in place, the whole publishing concern was extracted into its own
-module.
+migrated to the JSON-schema-driven binary-serdes engine (`com.example.schemacore.binaryserdes` at the
+time; now the standalone `binary-serdes` module, see "Standalone-module extraction" above), where
+messages have **no backing `Class<?>` at all** (`SerdesMessageDefinition.messageClass()` deliberately
+returns `null`) — so `PublisherFieldMetadataService.describeFields(Class<?>)` had nothing to reflect
+on, and the UI sent the literal string `"null"` as a query param, crashing with
+`ClassNotFoundException: null` on every message. Rather than patch this in place, the whole publishing
+concern was extracted into its own module.
 
-All of it now lives in **`sample-publisher-app`** (package root `com.example.publisher`) — a
-separate Spring Boot app with its own static UI, depending directly on `traffic-monitor-app-core`
-(not `traffic-monitor-app`) and reading the *same* `config/traffic-tool.yml`. It describes UDP/TCP
-messages by walking the serdes `MessageType`/`Type`/`RecordType`/`ArrayType` tree directly (new
-`com.example.publisher.serdes.SerdesFieldMetadataService`/`SerdesRequestBodyAssembler`, mirroring
+All of it now lives in **`sample-publisher-app`** (package root `com.example.publisher`) — a separate
+Spring Boot app with its own static UI, depending on **only** `traffic-config`/`binary-serdes`/
+`rest-schema` (not `traffic-monitor-app`/`-core` at all — see "Standalone-module extraction" above)
+and reading the *same* `config/traffic-tool.yml`. It describes UDP/TCP messages by walking the serdes
+`MessageType`/`Type`/`RecordType`/`ArrayType` tree directly
+(`com.example.publisher.serdes.SerdesFieldMetadataService`/`SerdesRequestBodyAssembler`, mirroring
 `RestFieldMetadataService`/`RestRequestBodyAssembler`'s shape but for the serdes type tree instead
 of an OpenAPI schema) rather than reflecting a `Class<?>`, so it works for every current interface.
 REST operations reuse copies of `RestFieldMetadataService`/`RestRequestBodyAssembler` under
-`com.example.publisher.rest` (copied, not depended on — those two classes were deleted from
-`traffic-monitor-app-core` since nothing there needs them anymore; `RestSchemaNode`/
-`RestApiDefinitionBuilder`/`RestSchemaConverter`/`RestSwaggerLoader`/`RestSchemaWiringConfig` stay
-in `-core`, still needed by REST ingestion). Config wiring reuses `-core`'s own Spring
-`@Configuration` classes directly via `@Import` (`MessageSchemaWiringConfig`, `RestSchemaWiringConfig`)
-rather than re-implementing that logic, and explicitly `@Bean`-wires the reused plain classes
-(`UdpMessagePublisher`/`TcpMessagePublisher`/`RestOperationInvoker`/`RestSwaggerLoader`/etc.) instead
-of `@ComponentScan`-ning `com.example.monitor` (which would also pull in ingestion/persistence/
-auto-reply machinery this app has no business booting).
+`com.example.publisher.rest` (copied, not depended on, same reasoning as the send-mechanics classes
+in "Standalone-module extraction" above — `RestSchemaNode` now comes from the `rest-schema` module).
+Config wiring builds its own `@Bean`s directly from `traffic-config`/`rest-schema`/`binary-serdes`'s
+plain classes (`TrafficConfigBeans`/`RestSchemaBeans`/`SerdesEngineBeans` — the latter exposing both
+`Map<String, List<MessageType>>` for field description and `Map<String, ProtocolOut>` for encoding)
+rather than `@ComponentScan`-ning `com.example.monitor` (which would also pull in
+ingestion/persistence/auto-reply machinery this app has no business booting, and no longer even
+resolves on this app's classpath at all).
 
 Unlike the deleted `PublisherService`, sample-publisher-app has **no ingestion/storage of its
 own** — a REST response is returned directly to the HTTP caller, not captured as a newly-observed
@@ -294,14 +382,20 @@ bean and never touches `messageClass()`/reflection at all.
 `protocol: REST` interfaces are driven entirely by an OpenAPI/Swagger YAML file (`swaggerFile:`
 on `InterfaceConfig`, path relative to CWD like `config/traffic-tool.yml` itself, conventionally
 under the repo-root `swagger/` directory) — parsed at startup (`io.swagger.parser.v3:swagger-parser`,
-new dependency in `traffic-monitor-app-core/pom.xml`) with zero Java code required per new API,
-unlike UDP/TCP where a message still needs a hand-written/reflective-codec-compatible class. This
-was a deliberate choice: dropping in a new swagger file is a restart, not a rebuild.
+declared in the standalone `rest-schema` module's own pom, see "Standalone-module extraction" above;
+traffic-monitor-app-core gets the `io.swagger.v3.oas.models.OpenAPI` type it needs transitively via
+its dependency on `rest-schema` rather than declaring the parser directly) with zero Java code
+required per new API, unlike UDP/TCP where a message still needs a hand-written/reflective-codec-compatible
+class. This was a deliberate choice: dropping in a new swagger file is a restart, not a rebuild.
 
 Because REST messages have no backing `Class<?>`, they're a **parallel universe** alongside
-`com.example.schemacore` rather than plugging into it — all new code
-lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), keyed by
-`operationId` instead of opcode/`Class<?>`:
+`com.example.schemacore` rather than plugging into it. The pure discovery classes
+(`RestSchemaNode`/`RestSchemaConverter`/`RestOperationDefinition`/`RestApiDefinition`/
+`RestApiDefinitionBuilder`/`RestSwaggerLoader`/`RestParameterDefinition`) live in the standalone
+`rest-schema` module (`com.example.restschema`, no Spring dependency); the ingestion/wiring-specific
+code (`RestSchemaWiringConfig`/`RestOperationRouter`/`RestAutoReplySettingsService`/etc.) stays in
+`com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`) here, keyed by `operationId`
+instead of opcode/`Class<?>`:
 
 - `RestSchemaNode` — the `Schema`-walking analogue of a Java field tree (built by
   `RestSchemaConverter`, with a `MAX_DEPTH` guard — more important here than for a fixed Java
@@ -310,16 +404,21 @@ lives in `com.example.monitor.rest` (+ `com.example.monitor.ingestion.rest`), ke
   built by `RestApiDefinitionBuilder` walking the parsed `OpenAPI` model (JSON request/response
   media types only; other content types are skipped with a startup warning). Auto-discovered —
   there's no `messages:` list to hand-declare, unlike UDP/TCP.
-- `RestSchemaWiringConfig` — the REST analogue of `MessageSchemaWiringConfig.interfaceMessageDefinitionRegistries`:
-  a `@Bean Map<String, RestApiDefinition> restApiDefinitions`, one entry per REST interface. Same
+- `RestSchemaWiringConfig` (stays in traffic-monitor-app-core) — the REST analogue of
+  `MessageSchemaWiringConfig.interfaceMessageDefinitionRegistries`: a `@Bean Map<String, RestApiDefinition>
+  restApiDefinitions`, one entry per REST interface, built from `rest-schema`'s `RestSwaggerLoader`/
+  `RestApiDefinitionBuilder` (explicitly `@Bean`-wired here too, since those classes lost their
+  `@Component` annotation when they moved to a Spring-free module). Same
   `@Qualifier("restApiDefinitions")` requirement as that other map bean (see the `Map<String, X>`
-  gotcha below).
+  gotcha below). `sample-publisher-app` inlines the same discovery loop in its own `RestSchemaBeans`
+  rather than depending on this class, since it can't depend on traffic-monitor-app-core at all.
 - The dotted/indexed flattened-path parsing (`unflatten`/`trackData[0].id`-style keys) lives in
-  `com.example.schemacore.reflect.FlattenedFieldPathUtil`, shared by `ReflectiveFieldApplier` here
-  and (via the compile dependency on this module) sample-publisher-app's own field-assembly
-  classes, without a `com.example.monitor` → `com.example.schemacore` dependency going the wrong
-  direction. `RestFieldMetadataService`/`RestRequestBodyAssembler` themselves moved to
-  sample-publisher-app (see "Publishing lives in sample-publisher-app, not here" above) — they
+  `com.example.schemacore.reflect.FlattenedFieldPathUtil`, used by `ReflectiveFieldApplier` here.
+  `sample-publisher-app` has its own copy at `com.example.publisher.util.FlattenedFieldPathUtil`
+  (same reasoning as the send-mechanics classes in "Standalone-module extraction" above — it's
+  pure `Map`/`String` manipulation despite the original's package name, small enough to copy rather
+  than justify a new module). `RestFieldMetadataService`/`RestRequestBodyAssembler` themselves moved
+  to sample-publisher-app (see "Publishing lives in sample-publisher-app, not here" above) — they
   were publish-only, REST ingestion never used them.
 - `RestIngestionRunner` (`SERVER` mode) — mirrors `TcpIngestionRunner`'s one-dedicated-socket-per-interface
   pattern, but using the JDK's built-in `com.sun.net.httpserver.HttpServer` (no new dependency)

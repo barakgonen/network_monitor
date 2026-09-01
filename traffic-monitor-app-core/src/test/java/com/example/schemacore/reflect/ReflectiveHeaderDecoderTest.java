@@ -1,7 +1,7 @@
 package com.example.schemacore.reflect;
 
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.envelope.DefaultEnvelopeHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

@@ -2,7 +2,9 @@ package com.example.monitor.schema;
 
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.MessageConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

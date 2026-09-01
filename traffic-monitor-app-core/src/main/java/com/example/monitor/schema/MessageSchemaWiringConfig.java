@@ -1,15 +1,18 @@
 package com.example.monitor.schema;
 
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.ProtocolOut;
-import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.MessageConfig;
+import com.example.trafficconfig.TrafficToolConfig;
+import com.example.trafficconfig.TrafficToolConfigLoader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

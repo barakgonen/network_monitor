@@ -14,8 +14,25 @@
   <dependencies>
     <dependency>
       <groupId>com.example</groupId>
-      <artifactId>traffic-monitor-app-core</artifactId>
+      <artifactId>traffic-config</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>binary-serdes</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>rest-schema</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- Previously transitive via traffic-monitor-app-core; now declared directly since this
+         module no longer depends on that one at all. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
 
     <dependency>

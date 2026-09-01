@@ -1,0 +1,45 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>traffic-interface-tool</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>rest-schema</artifactId>
+
+  <dependencies>
+    <!-- Parses OpenAPI/Swagger YAML and walks the resulting Schema tree, resolving $ref/allOf/oneOf
+         so REST message shapes never need hand-written Java classes. Also the source of the
+         io.swagger.v3.oas.models.OpenAPI type that traffic-monitor-app-core's RestSchemaWiringConfig
+         depends on transitively via its dependency on this module - don't add a scope/exclusion here
+         without checking that consumer first. -->
+    <dependency>
+      <groupId>io.swagger.parser.v3</groupId>
+      <artifactId>swagger-parser</artifactId>
+      <version>2.1.22</version>
+    </dependency>
+
+    <!-- RestApiDefinitionBuilder logs via slf4j directly - no Spring dependency here to pull
+         it in transitively the way spring-boot-starter-logging does in the app modules. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.16</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,10 +1,10 @@
 package com.example.monitor.api;
 
-import com.example.monitor.rest.RestApiDefinition;
 import com.example.monitor.rest.RestInterfaceDto;
 import com.example.monitor.rest.RestOperationSummaryDto;
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.restschema.RestApiDefinition;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

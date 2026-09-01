@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * End-to-end coverage for the rada/rada-le interfaces, now decoded via the JSON-schema-driven
- * {@code com.example.schemacore.binaryserdes} engine (serdes/rada.protocol.json) instead of the
+ * {@code com.example.binaryserdes} engine (serdes/rada.protocol.json) instead of the
  * {@code com.example.schemas.rada.*} classes that used to live in this module - those moved to
  * traffic-tester-app, so payloads here are hand-built with {@link ByteBuffer} instead (mirrors
  * {@link TestProtocolPayloads}'s approach for the legacy-envelope protocols).

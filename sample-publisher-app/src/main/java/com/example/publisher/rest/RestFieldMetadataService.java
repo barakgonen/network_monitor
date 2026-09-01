@@ -1,7 +1,7 @@
 package com.example.publisher.rest;
 
-import com.example.monitor.rest.RestSchemaNode;
 import com.example.publisher.dto.FieldDto;
+import com.example.restschema.RestSchemaNode;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

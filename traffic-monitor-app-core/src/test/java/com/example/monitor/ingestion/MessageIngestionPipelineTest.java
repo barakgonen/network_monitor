@@ -1,13 +1,13 @@
 package com.example.monitor.ingestion;
 
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
-import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
-import com.example.schemacore.envelope.DefaultEnvelopeHeader;
 import com.example.schemacore.MessageDefinition;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.MessageDefinitionRegistry;
+import com.example.schemacore.envelope.DefaultEnvelopeHeader;
+import com.example.trafficconfig.InterfaceConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,6 @@
 package com.example.monitor.publishing;
 
-import com.example.monitor.rest.RestOperationDefinition;
+import com.example.restschema.RestOperationDefinition;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 

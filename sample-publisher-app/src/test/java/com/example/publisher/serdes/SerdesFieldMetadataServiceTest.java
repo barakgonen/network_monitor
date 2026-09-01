@@ -1,10 +1,10 @@
 package com.example.publisher.serdes;
 
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.publisher.dto.FieldDto;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;

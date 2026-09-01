@@ -9,7 +9,7 @@ import java.util.Map;
  * the body-length field) before it knows which {@link MessageDefinition} applies. Two
  * implementations: {@code com.example.schemacore.reflect.ReflectiveHeaderDecoder} (a Java
  * header class, e.g. {@code DefaultEnvelopeHeader}) and {@code
- * com.example.schemacore.binaryserdes.SerdesHeaderDecoder} (a {@code record} type declared in a
+ * com.example.monitor.schema.SerdesHeaderDecoder} (a {@code record} type declared in a
  * {@code serdesFile:}, for {@code messageOwnsHeader} interfaces whose header has no backing Java
  * class, e.g. rada).
  */

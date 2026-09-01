@@ -1,12 +1,12 @@
 package com.example.publisher.metadata;
 
-import com.example.monitor.rest.RestApiDefinition;
-import com.example.monitor.rest.RestOperationDefinition;
-import com.example.monitor.schema.InterfaceConfig;
+import com.example.binaryserdes.MessageType;
 import com.example.publisher.dto.FieldDto;
 import com.example.publisher.rest.RestFieldMetadataService;
 import com.example.publisher.serdes.SerdesFieldMetadataService;
-import com.example.schemacore.binaryserdes.MessageType;
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
+import com.example.trafficconfig.InterfaceConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 

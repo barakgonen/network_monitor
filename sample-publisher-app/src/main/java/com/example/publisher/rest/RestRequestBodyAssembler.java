@@ -1,7 +1,7 @@
 package com.example.publisher.rest;
 
-import com.example.monitor.rest.RestSchemaNode;
-import com.example.schemacore.reflect.FlattenedFieldPathUtil;
+import com.example.publisher.util.FlattenedFieldPathUtil;
+import com.example.restschema.RestSchemaNode;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

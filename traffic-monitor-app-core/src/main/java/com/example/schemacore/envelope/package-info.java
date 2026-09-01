@@ -1,7 +1,8 @@
 /**
  * The legacy fixed 16-byte envelope (opcode + send time + body length) shared by the
- * fruit/weather/ping/candy interfaces: {@link com.example.schemacore.envelope.ProtocolHeaderCodec}
- * is the hand-written codec used directly by that ingestion/publish path, and
+ * fruit/weather/ping/candy interfaces: {@code com.example.binaryserdes.envelope.ProtocolHeaderCodec}
+ * (now in the standalone {@code binary-serdes} module) is the hand-written codec used directly by
+ * that ingestion/publish path, and
  * {@link com.example.schemacore.envelope.DefaultEnvelopeHeader} is a reflective POJO mirroring the
  * same layout, used as the default {@code headerType} for dedicated-port interfaces that don't
  * configure a custom header class.

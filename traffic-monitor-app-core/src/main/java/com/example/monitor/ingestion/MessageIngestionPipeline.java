@@ -1,18 +1,18 @@
 package com.example.monitor.ingestion;
 
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.RecordType;
+import com.example.binaryserdes.Type;
+import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
-import com.example.monitor.schema.InterfaceConfig;
+import com.example.monitor.schema.SerdesHeaderDecoder;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.HeaderDecoder;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.RecordType;
-import com.example.schemacore.binaryserdes.SerdesHeaderDecoder;
-import com.example.schemacore.binaryserdes.Type;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.reflect.ReflectiveHeaderDecoder;
+import com.example.trafficconfig.InterfaceConfig;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;

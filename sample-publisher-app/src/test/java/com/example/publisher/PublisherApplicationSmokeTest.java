@@ -1,9 +1,9 @@
 package com.example.publisher;
 
-import com.example.monitor.rest.RestApiDefinition;
-import com.example.monitor.schema.TrafficToolConfig;
-import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.MessageType;
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.restschema.RestApiDefinition;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,8 +25,7 @@ class PublisherApplicationSmokeTest {
     private TrafficToolConfig trafficToolConfig;
 
     @Autowired
-    @Qualifier("interfaceMessageDefinitionRegistries")
-    private Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries;
+    private Map<String, ProtocolOut> interfaceProtocolOuts;
 
     @Autowired
     @Qualifier("restApiDefinitions")
@@ -38,8 +37,7 @@ class PublisherApplicationSmokeTest {
     @Test
     void contextLoadsAgainstRealConfigWithNoMonitorScanning() {
         assertThat(trafficToolConfig.getInterfaces()).isNotEmpty();
-        assertThat(interfaceMessageDefinitionRegistries).containsKey("fruit");
-        assertThat(interfaceMessageDefinitionRegistries.get("fruit").all()).isNotEmpty();
+        assertThat(interfaceProtocolOuts).containsKey("fruit");
         assertThat(interfaceMessageTypes).containsKey("fruit");
         assertThat(interfaceMessageTypes.get("fruit")).isNotEmpty();
         assertThat(restApiDefinitions).containsKey("pets");

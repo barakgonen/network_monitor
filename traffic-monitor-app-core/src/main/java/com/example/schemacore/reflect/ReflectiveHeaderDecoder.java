@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * The original header-decode behavior {@code MessageIngestionPipeline} always used before
- * {@link com.example.schemacore.binaryserdes.SerdesHeaderDecoder} existed: a Java header class
+ * {@code com.example.monitor.schema.SerdesHeaderDecoder} existed: a Java header class
  * (e.g. {@code DefaultEnvelopeHeader}, or rada's own header class back when it lived in this
  * module) decoded via {@link ReflectiveStructCodec}/{@link ReflectiveFieldExtractor}.
  */

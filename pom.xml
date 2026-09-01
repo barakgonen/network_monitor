@@ -9,6 +9,9 @@
   <packaging>pom</packaging>
 
   <modules>
+    <module>traffic-config</module>
+    <module>binary-serdes</module>
+    <module>rest-schema</module>
     <module>traffic-monitor-app-core</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>

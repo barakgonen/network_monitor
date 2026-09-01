@@ -1,7 +1,7 @@
 package com.example.destination.reply;
 
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

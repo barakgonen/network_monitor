@@ -1,9 +1,9 @@
 package com.example.publisher.metadata;
 
-import com.example.monitor.rest.RestApiDefinition;
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
-import com.example.schemacore.binaryserdes.MessageType;
+import com.example.binaryserdes.MessageType;
+import com.example.restschema.RestApiDefinition;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 

@@ -13,6 +13,25 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-config</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>binary-serdes</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Also the transitive source of io.swagger.v3.oas.models.OpenAPI, which
+         RestSchemaWiringConfig imports directly - don't add a scope/exclusion to this dependency
+         without checking that consumer first. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>rest-schema</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
@@ -49,14 +68,6 @@
       <groupId>org.yaml</groupId>
       <artifactId>snakeyaml</artifactId>
       <version>2.2</version>
-    </dependency>
-
-    <!-- Parses OpenAPI/Swagger YAML for REST interfaces (com.example.monitor.rest), resolving
-         $ref/allOf/oneOf so message shapes never need hand-written Java classes. -->
-    <dependency>
-      <groupId>io.swagger.parser.v3</groupId>
-      <artifactId>swagger-parser</artifactId>
-      <version>2.1.22</version>
     </dependency>
 
     <dependency>

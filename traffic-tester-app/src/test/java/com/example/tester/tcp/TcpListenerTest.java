@@ -1,6 +1,6 @@
 package com.example.tester.tcp;
 
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.tester.schemas.candy.CandyMessage;
 import org.junit.jupiter.api.AfterEach;

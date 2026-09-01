@@ -1,28 +1,30 @@
 package com.example.publisher.send;
 
-import com.example.monitor.publishing.RestInvocationResult;
-import com.example.monitor.publishing.RestOperationInvoker;
-import com.example.monitor.publishing.TcpMessagePublisher;
-import com.example.monitor.publishing.TransportSelector;
-import com.example.monitor.publishing.UdpMessagePublisher;
-import com.example.monitor.rest.RestApiDefinition;
-import com.example.monitor.rest.RestOperationDefinition;
-import com.example.monitor.rest.RestParameterDefinition;
-import com.example.monitor.schema.InterfaceConfig;
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.publisher.metadata.PublishableInterfaceService;
 import com.example.publisher.rest.RestRequestBodyAssembler;
+import com.example.publisher.send.io.RestInvocationResult;
+import com.example.publisher.send.io.RestOperationInvoker;
+import com.example.publisher.send.io.TcpMessagePublisher;
+import com.example.publisher.send.io.TransportSelector;
+import com.example.publisher.send.io.UdpMessagePublisher;
 import com.example.publisher.serdes.SerdesRequestBodyAssembler;
-import com.example.schemacore.MessageDefinition;
-import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
+import com.example.restschema.RestParameterDefinition;
+import com.example.trafficconfig.InterfaceConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,13 +35,26 @@ import java.util.Map;
  * {@code com.example.monitor.publisher.PublisherService}, there is no ingestion side effect - a
  * REST response is returned directly in the {@link SendResult}, not captured as an "observed
  * message" (this app doesn't store anything).
+ *
+ * <p>{@code sendSerdes} deliberately bypasses the {@code MessageDefinition}/
+ * {@code MessageDefinitionRegistry} abstraction traffic-monitor-app-core's ingestion pipeline
+ * uses - this app has no access to it (those interfaces, and their
+ * {@code SerdesMessageDefinition} adapter, stayed behind in traffic-monitor-app-core as
+ * ingestion-only concerns) and no reason to: it already holds the parsed {@link MessageType} for
+ * field description, so it encodes directly via {@link ProtocolOut#encode(String, String, java.nio.ByteOrder)}
+ * instead, the same API {@code SerdesMessageDefinition.encodeBody} wraps one layer up.
  */
 @Component
 public class SendOrchestrationService {
 
+    // Classic Jackson 2, matching what the binary-serdes engine's ProtocolOut/ProtocolIn use
+    // internally - Spring only autoconfigures a Jackson 3 (tools.jackson.*) ObjectMapper bean, so
+    // this one is a plain static instance, same as SerdesMessageDefinition.encodeBody does.
+    private static final com.fasterxml.jackson.databind.ObjectMapper SERDES_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final PublishableInterfaceService interfaceService;
-    private final Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries;
     private final Map<String, List<MessageType>> interfaceMessageTypes;
+    private final Map<String, ProtocolOut> interfaceProtocolOuts;
     private final Map<String, RestApiDefinition> restApiDefinitions;
     private final SerdesRequestBodyAssembler serdesRequestBodyAssembler;
     private final RestRequestBodyAssembler restRequestBodyAssembler;
@@ -50,8 +65,8 @@ public class SendOrchestrationService {
 
     public SendOrchestrationService(
             PublishableInterfaceService interfaceService,
-            @Qualifier("interfaceMessageDefinitionRegistries") Map<String, MessageDefinitionRegistry> interfaceMessageDefinitionRegistries,
             Map<String, List<MessageType>> interfaceMessageTypes,
+            Map<String, ProtocolOut> interfaceProtocolOuts,
             @Qualifier("restApiDefinitions") Map<String, RestApiDefinition> restApiDefinitions,
             SerdesRequestBodyAssembler serdesRequestBodyAssembler,
             RestRequestBodyAssembler restRequestBodyAssembler,
@@ -61,8 +76,8 @@ public class SendOrchestrationService {
             ObjectMapper objectMapper
     ) {
         this.interfaceService = interfaceService;
-        this.interfaceMessageDefinitionRegistries = interfaceMessageDefinitionRegistries;
         this.interfaceMessageTypes = interfaceMessageTypes;
+        this.interfaceProtocolOuts = interfaceProtocolOuts;
         this.restApiDefinitions = restApiDefinitions;
         this.serdesRequestBodyAssembler = serdesRequestBodyAssembler;
         this.restRequestBodyAssembler = restRequestBodyAssembler;
@@ -87,21 +102,20 @@ public class SendOrchestrationService {
     }
 
     private SendResult sendSerdes(InterfaceConfig interfaceConfig, SendRequest request) throws Exception {
-        MessageDefinitionRegistry registry = interfaceMessageDefinitionRegistries.get(interfaceConfig.getKey());
-        MessageDefinition definition = registry.find(interfaceConfig.getName(), request.messageId())
-                .orElseThrow(() -> new IllegalArgumentException("Unknown message type: " + request.messageId()));
         MessageType messageType = findMessageType(interfaceConfig.getKey(), request.messageId());
+        ProtocolOut protocolOut = interfaceProtocolOuts.get(interfaceConfig.getKey());
 
         Map<String, Object> fields = serdesRequestBodyAssembler.assemble(
                 messageType, request.fields() != null ? request.fields() : Map.of());
-        byte[] body = definition.encodeBody(fields);
+        String json = SERDES_MAPPER.writeValueAsString(fields);
+        byte[] body = encodeSerdesBody(protocolOut, messageType.getName(), json, interfaceConfig.resolveByteOrder());
 
         // messageOwnsHeader interfaces (e.g. rada) already include header fields in their own
         // field list - the body IS the full wire payload. Everything else needs the legacy
         // opcode+timestamp+bodyLength envelope wrapped around it.
         byte[] payload = interfaceConfig.isMessageOwnsHeader()
                 ? body
-                : ProtocolHeaderCodec.encodeMessage(definition.opcode(), Instant.now().toEpochMilli(), body);
+                : ProtocolHeaderCodec.encodeMessage(messageType.getOpcode(), Instant.now().toEpochMilli(), body);
 
         String host = request.host() != null && !request.host().isBlank() ? request.host() : "localhost";
         Integer port = request.port() != null ? request.port() : interfaceConfig.getPort();
@@ -182,6 +196,23 @@ public class SendOrchestrationService {
         } catch (Exception e) {
             return Map.of("raw", new String(bytes, StandardCharsets.UTF_8));
         }
+    }
+
+    /**
+     * {@link ProtocolOut#encode(String, String, ByteOrder)} pre-sizes its buffer by summing every
+     * field's fixed {@code sizeInBytes} and throws if any field is variable-length (e.g. a
+     * {@code string}) - it has no way to know the encoded size of a variable field before writing
+     * it. Every legacy envelope protocol this app sends for (fruit/weather/candy/greeting) has at
+     * least one string field, so this over-allocates a buffer generously instead and trims to the
+     * bytes {@link ProtocolOut#encodeInto(String, String, ByteBuffer)} actually wrote - identical
+     * to what {@code SerdesMessageDefinition.encodeBody} does in traffic-monitor-app-core, since
+     * this app has no access to that ingestion-only class.
+     */
+    private byte[] encodeSerdesBody(ProtocolOut protocolOut, String messageName, String json, ByteOrder byteOrder) throws Exception {
+        int bufferSize = json.getBytes(StandardCharsets.UTF_8).length + 1024;
+        ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(byteOrder);
+        protocolOut.encodeInto(messageName, json, buffer);
+        return Arrays.copyOf(buffer.array(), buffer.position());
     }
 
     private MessageType findMessageType(String interfaceKey, String messageId) {

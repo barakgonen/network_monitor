@@ -1,8 +1,8 @@
 package com.example.monitor.api;
 
-import com.example.monitor.rest.RestApiDefinition;
 import com.example.monitor.rest.RestAutoReplySettingsService;
-import com.example.monitor.rest.RestOperationDefinition;
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
