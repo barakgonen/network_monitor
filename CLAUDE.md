@@ -38,9 +38,8 @@ rest-schema           OpenAPI/Swagger discovery, zero Spring dependency: `RestSw
                       `RestOperationDefinition`/`RestApiDefinition`/`RestParameterDefinition`
                       (package `com.example.restschema`). Extracted from traffic-monitor-app-core's
                       `com.example.monitor.rest` — the ingestion/wiring-specific pieces
-                      (`RestSchemaWiringConfig`/`RestOperationRouter`/`RestAutoReplySettingsService`/
-                      `RestAutoReplyConfig`/`RestInterfaceDto`/`RestOperationSummaryDto`) stayed
-                      behind in `-core`, tied to REST ingestion/the REST Auto-Reply UI.
+                      (`RestSchemaWiringConfig`/`RestOperationRouter`/`RestAutoReplySettingsService`)
+                      stayed behind in `-core`, tied to REST ingestion.
 traffic-monitor-app-core   The generic engine, plus what used to be two separate modules
                       (schema-core, handler-core) folded directly into it — merged because
                       handler-core and shared-schemas both compile-depended on schema-core, and
@@ -125,9 +124,8 @@ The split rule throughout: **pure data/discovery/codec logic moved out; Spring w
 ingestion-specific machinery stayed in traffic-monitor-app-core.** Concretely, `MessageSchemaWiringConfig`/
 `RestSchemaWiringConfig` (the `@Configuration` classes), `SerdesMessageDefinition`/`SerdesHeaderDecoder`
 (the adapters bridging `binary-serdes` to traffic-monitor-app-core's own `MessageDefinition`/`HeaderDecoder`
-interfaces), and `RestOperationRouter`/`RestAutoReplySettingsService`/`RestAutoReplyConfig` (REST
-ingestion/auto-reply) all stayed behind — none of them are things sample-publisher-app needs or should
-depend on.
+interfaces), and `RestOperationRouter`/`RestAutoReplySettingsService` (REST ingestion/auto-reply)
+all stayed behind — none of them are things sample-publisher-app needs or should depend on.
 
 One consequence: `traffic-destination-app`/`traffic-tester-app` — which never asked to be part of this
 split — turned out to import `binary-serdes` classes (`Protocol`/`ProtocolIn`/`ProtocolOut`/
@@ -328,8 +326,14 @@ this project's auto-reply story going forward; there is no plan to rebuild reply
 `traffic-monitor-app`.
 
 REST is the one exception: a REST server must return *some* HTTP response by protocol necessity, so
-`RestAutoReplySettingsService`/`RestAutoReplyController` (see "REST interfaces" below) are untouched
-by this — they're not an optional add-on the way the deleted UDP/TCP mechanism was.
+`RestAutoReplySettingsService` (see "REST interfaces" below) is untouched by this — it's not an
+optional add-on the way the deleted UDP/TCP mechanism was. Unlike that mechanism, though, REST's
+version was never user-configurable to begin with: the old "REST Auto-Reply" UI tab that let you
+override the response per operation was itself removed (along with `RestAutoReplyController`/
+`RestOperationsController` and their DTOs) since it was a configuration nicety on top of the
+mandatory response, not the mandatory response itself. `RestAutoReplySettingsService.resolve()`
+now unconditionally derives the response from the OpenAPI spec (example, or a synthesized
+placeholder) — see "REST interfaces" below.
 
 ## Publishing lives in sample-publisher-app, not here
 
@@ -436,19 +440,22 @@ instead of opcode/`Class<?>`:
 - `RestAutoReplySettingsService` — REST server mode's "auto-reply" is a **mandatory** synchronous
   HTTP response (every request gets *some* response, by necessity of the protocol) — the only
   auto-reply mechanism traffic-monitor-app has (the old UDP/TCP handler-based auto-reply was
-  removed; see "Auto-reply lives in traffic-destination-app, not here" below). Deliberately
-  independent, in-memory-only settings store keyed by `(interfaceKey, operationId)`. Falls back to the
-  OpenAPI spec's own response schema when nothing's configured: its `example` if present, else a
-  synthesized placeholder instance (`""`/`0`/`false`/`[]`/recursive `{}` per leaf type).
+  removed; see "Auto-reply lives in traffic-destination-app, not here" below). `resolve()`
+  unconditionally derives the response from the OpenAPI spec's own response schema: its
+  `example` if present, else a synthesized placeholder instance (`""`/`0`/`false`/`[]`/recursive
+  `{}` per leaf type). It used to also be a per-`(interfaceKey, operationId)` settings store with
+  a user-configurable override (`update()`/`configuredValue()`, backing a "REST Auto-Reply" UI
+  tab) — that override capability was removed as an unwanted configuration nicety, along with
+  `RestAutoReplyController`, `RestOperationsController`, and their DTOs (`RestAutoReplyConfig`/
+  `RestInterfaceDto`/`RestOperationSummaryDto`); the mandatory spec-derived fallback is the only
+  behavior left.
 - `RestOperationInvoker` — REST client-mode/on-demand publishing, using the JDK's built-in
   `java.net.http.HttpClient` (no new dependency). Moved to sample-publisher-app along with the rest
   of publishing (see above) — unlike UDP/TCP's fire-and-forget send, the whole point is the
   response, which that app now returns directly to its own caller (it has no ingestion of its own
   to capture it into, unlike the deleted `PublisherService.sendRest`).
-- UI: a "REST Auto-Reply" config panel in `index.html`, backed by `RestOperationsController`
-  (`/api/rest/interfaces` — also used by that panel's interface/operation dropdowns) and
-  `RestAutoReplyController` (`/api/rest/{key}/autoreply[/{operationId}]`). Sending REST traffic
-  (the old "REST Publisher" card) is sample-publisher-app's own UI now.
+- UI: sending REST traffic (the old "REST Publisher" card) is sample-publisher-app's own UI now.
+  There is no REST auto-reply UI in traffic-monitor-app anymore.
 
 `http://` only in v1 (no HTTPS config surface); `oneOf`/`anyOf` schemas collapse to their first
 alternative for form-rendering (`RestSchemaConverter.firstAlternative`) rather than fully modeling
@@ -584,9 +591,6 @@ future flat-view consumer may want it again.
 ## Known gaps / natural follow-ups
 
 - `RadaTracksExtended` Instancio generation (see above).
-- **REST auto-reply bodies are fully static** — no variable interpolation/templating (e.g. can't
-  echo a path parameter back into the configured response). A templated version is a materially
-  bigger feature than what's built.
 - **No HTTPS for REST** — sample-publisher-app's `RestOperationInvoker` only builds `http://`
   URIs; there's no TLS config surface for REST client-mode targets.
 - **`oneOf`/`anyOf` OpenAPI schemas collapse to their first alternative** (`RestSchemaConverter.firstAlternative`)

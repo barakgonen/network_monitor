@@ -27,19 +27,6 @@ class RestAutoReplySettingsServiceTest {
     }
 
     @Test
-    void resolve_withConfiguredValue_winsOverFallback() {
-        RestOperationDefinition operation = operationWithResponses(Map.of());
-        RestAutoReplySettingsService service = service(operation);
-
-        service.update("pets", "getPet", 418, "{\"teapot\":true}");
-
-        RestAutoReplySettingsService.ResolvedReply resolved = service.resolve("pets", "getPet");
-
-        assertThat(resolved.statusCode()).isEqualTo(418);
-        assertThat(resolved.body()).isEqualTo("{\"teapot\":true}");
-    }
-
-    @Test
     void resolve_withNoConfiguredValue_fallsBackToSchemaExample() {
         RestSchemaNode responseSchema = new RestSchemaNode("", "object",
                 null, List.of(new RestSchemaNode("name", "string", null, null, null, "Rex", false, null)),

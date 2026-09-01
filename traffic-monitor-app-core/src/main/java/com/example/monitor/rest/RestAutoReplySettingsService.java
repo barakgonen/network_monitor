@@ -11,19 +11,18 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolves the static HTTP response a REST server-mode interface writes back for a given
  * operation - REST's "auto-reply" is a mandatory synchronous HTTP response (every request gets
- * some response, by necessity of the protocol), not an optional async dispatch like {@code
- * AutoReplySettingsService}, so this is deliberately its own independent, in-memory-only settings
- * store (same pattern as {@code AutoReplySettingsService}: {@link ConcurrentHashMap}, no DB table,
- * no config-file seeding) rather than built on top of it.
+ * some response, by necessity of the protocol), unlike the deleted UDP/TCP handler-based
+ * auto-reply mechanism (see CLAUDE.md's "Auto-reply removal").
  *
- * <p>When nothing's configured for an operation, {@link #resolve} falls back to the OpenAPI
- * spec's own response schema: its {@code example} if present, else a synthesized placeholder
- * instance (empty string/zero/false/empty array/nested object per leaf type).
+ * <p>{@link #resolve} always derives the response from the OpenAPI spec's own response schema:
+ * its {@code example} if present, else a synthesized placeholder instance (empty
+ * string/zero/false/empty array/nested object per leaf type). There is no per-operation
+ * override capability - that used to be configurable via a "REST Auto-Reply" UI tab, which was
+ * removed along with its settings-store backing.
  */
 @Component
 public class RestAutoReplySettingsService {
@@ -32,7 +31,6 @@ public class RestAutoReplySettingsService {
 
     private final Map<String, RestApiDefinition> restApiDefinitions;
     private final ObjectMapper objectMapper;
-    private final Map<String, Map<String, RestAutoReplyConfig>> configuredByInterfaceAndOperation = new ConcurrentHashMap<>();
 
     public record ResolvedReply(int statusCode, String body) {
     }
@@ -45,25 +43,7 @@ public class RestAutoReplySettingsService {
     }
 
     public ResolvedReply resolve(String interfaceKey, String operationId) {
-        RestAutoReplyConfig configured = configuredByInterfaceAndOperation
-                .getOrDefault(interfaceKey, Map.of())
-                .get(operationId);
-
-        if (configured != null) {
-            return new ResolvedReply(configured.statusCode(), configured.bodyTemplate());
-        }
-
         return fallbackFromSpec(interfaceKey, operationId);
-    }
-
-    public Optional<RestAutoReplyConfig> configuredValue(String interfaceKey, String operationId) {
-        return Optional.ofNullable(configuredByInterfaceAndOperation.getOrDefault(interfaceKey, Map.of()).get(operationId));
-    }
-
-    public void update(String interfaceKey, String operationId, int statusCode, String bodyTemplate) {
-        configuredByInterfaceAndOperation
-                .computeIfAbsent(interfaceKey, key -> new ConcurrentHashMap<>())
-                .put(operationId, new RestAutoReplyConfig(statusCode, bodyTemplate));
     }
 
     private ResolvedReply fallbackFromSpec(String interfaceKey, String operationId) {
