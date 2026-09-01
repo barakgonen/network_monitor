@@ -1,11 +1,11 @@
 package com.example.destination.reply;
 
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.ProtocolOut;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
-import com.example.schemacore.envelope.ProtocolHeader;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.binaryserdes.config.ProtocolConfig;
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Decodes an incoming legacy-envelope Ping message and builds a matching Pong reply, wire-format
  * compatible with traffic-monitor-app's ping interface (opcode 3001/3002, always-BIG_ENDIAN
- * legacy envelope). Uses the same {@code com.example.schemacore.binaryserdes} JSON-schema-driven
+ * legacy envelope). Uses the same {@code com.example.binaryserdes} JSON-schema-driven
  * codec traffic-monitor-app's {@code ping} interface decodes against, rather than a hand-written
  * {@code PingMessage}/{@code PongMessage} pair. The schema is bundled as a classpath resource (a
  * copy of the repo-root {@code serdes/ping.protocol.json}) rather than loaded from a CWD-relative

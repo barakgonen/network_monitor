@@ -1,5 +1,8 @@
 package com.example.monitor.rest;
 
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
+import com.example.restschema.RestSchemaNode;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;

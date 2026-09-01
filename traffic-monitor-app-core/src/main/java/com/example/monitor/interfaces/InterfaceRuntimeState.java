@@ -1,7 +1,7 @@
 package com.example.monitor.interfaces;
 
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.InterfaceModeValidator;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.InterfaceModeValidator;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;

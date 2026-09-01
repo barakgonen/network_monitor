@@ -10,12 +10,10 @@ import java.util.regex.Pattern;
  * Regroups dotted/indexed flattened field paths (e.g. {@code "header.msgType"},
  * {@code "trackData[0].id"}) back into a nested {@code Map}/{@code Map<Integer,Object>} tree, one
  * level per call. Pure {@code Map}/{@code String} manipulation with no reflection dependency -
- * shared by {@link ReflectiveFieldApplier} (which recurses into this one level per {@code build}
- * call to resolve nested Java objects/arrays) and {@code com.example.monitor.rest.RestRequestBodyAssembler}
- * (which needs the exact same regrouping to assemble a JSON body from OpenAPI-schema-described
- * fields, with no Java class involved at all - kept here rather than under {@code com.example.monitor}
- * so the dependency direction stays "monitor depends on schemacore", the same direction every
- * other cross-package reference in this module already goes).
+ * used by {@link ReflectiveFieldApplier} (which recurses into this one level per {@code build}
+ * call to resolve nested Java objects/arrays) here, and reused as-is (via the compile dependency
+ * on this module) by sample-publisher-app's own REST/serdes field-assembly classes, which need
+ * the exact same regrouping with no Java class involved at all.
  */
 public final class FlattenedFieldPathUtil {
     private static final Pattern PATH_SEGMENT = Pattern.compile("^([^.\\[]+)(?:\\[(\\d+)])?(?:\\.(.+))?$");

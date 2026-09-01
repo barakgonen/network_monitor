@@ -6,11 +6,15 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="binary-serdes" />
+        <module name="traffic-monitor-app-core" />
+        <module name="sample-publisher-app" />
+        <module name="traffic-destination-app" />
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
-        <module name="traffic-monitor-app-core" />
+        <module name="traffic-config" />
         <module name="traffic-proxy-app" />
-        <module name="traffic-destination-app" />
+        <module name="rest-schema" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

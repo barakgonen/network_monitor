@@ -3,8 +3,9 @@ package com.example.schemacore.envelope;
 import java.nio.ByteBuffer;
 
 /**
- * Reflective POJO mirroring {@link ProtocolHeaderCodec}'s fixed envelope layout byte-for-byte
- * (opcode:int, sendTimeEpochMillis:long, bodyLength:int, big-endian). This is the default
+ * Reflective POJO mirroring {@code com.example.binaryserdes.envelope.ProtocolHeaderCodec}'s fixed
+ * envelope layout byte-for-byte (opcode:int, sendTimeEpochMillis:long, bodyLength:int, big-endian).
+ * This is the default
  * {@code headerType} for interfaces that don't configure a custom one, so existing wire formats
  * keep working unchanged once ingestion becomes per-interface-aware.
  */

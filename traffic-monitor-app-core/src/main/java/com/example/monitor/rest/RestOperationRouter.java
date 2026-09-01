@@ -1,5 +1,7 @@
 package com.example.monitor.rest;
 
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestOperationDefinition;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

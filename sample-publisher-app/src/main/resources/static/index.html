@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Publisher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2 11 13"/>
+          <path d="M22 2 15 22 11 13 2 9z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Traffic Interface</h1>
+        <p>Publisher</p>
+      </div>
+    </div>
+
+    <section class="sidebar-panel">
+      <div class="sidebar-panel-header">
+        <span class="sidebar-panel-title">Configured Interfaces</span>
+      </div>
+      <div id="sidebarInterfaces"></div>
+    </section>
+  </aside>
+
+  <main class="main-content">
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-heading">
+          <h2>Sample Publisher</h2>
+          <p>Send UDP / TCP / REST test traffic to any configured interface</p>
+        </div>
+
+        <div class="stats-row" id="statsRow"></div>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" id="sendTab" onclick="showTab('send')">Send</button>
+      <button class="tab" id="periodicTab" onclick="showTab('periodic')">Periodic Jobs</button>
+    </nav>
+
+    <section id="sendPanel" class="panel table-panel">
+      <div class="panel-header">
+        <h2>Send a Message</h2>
+      </div>
+
+      <div class="publisher-layout">
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Target</h3>
+          </div>
+
+          <div class="publisher-form">
+            <div class="form-row">
+              <label for="interfaceSelect">Interface</label>
+              <select id="interfaceSelect" onchange="onInterfaceChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="messageSelect">Message / Operation</label>
+              <select id="messageSelect" onchange="onMessageChanged()"></select>
+            </div>
+
+            <div class="form-row">
+              <label for="hostInput">Host</label>
+              <input id="hostInput" value="localhost">
+            </div>
+
+            <div class="form-row">
+              <label for="portInput">Port</label>
+              <input id="portInput" type="number" min="1" max="65535">
+            </div>
+
+            <div class="form-row" id="transportRow">
+              <label for="transportSelect">Transport</label>
+              <select id="transportSelect">
+                <option value="">(interface default)</option>
+                <option value="UDP">UDP</option>
+                <option value="TCP">TCP</option>
+              </select>
+            </div>
+
+            <div id="fieldsContainer"></div>
+
+            <div class="periodic-box">
+              <div class="form-row">
+                <label for="eventsPerTimeUnit">Periodic rate</label>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input id="eventsPerTimeUnit" type="number" min="1" value="1" style="width: 70px;">
+                  <span style="color: var(--muted); font-family: var(--mono); font-size: 11px;">times per</span>
+                  <select id="timeUnitSelect">
+                    <option value="SECOND">second</option>
+                    <option value="MINUTE">minute</option>
+                    <option value="HOUR">hour</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="periodic-actions">
+                <button class="primary-btn" onclick="sendOnce()">Send Once</button>
+                <button class="secondary-btn" onclick="startPeriodic()">Start Periodic</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="sendResult" class="publisher-result" style="display:none;"></div>
+        </div>
+
+        <div class="publisher-card">
+          <div class="publisher-card-header">
+            <h3>Notes</h3>
+          </div>
+          <div class="publisher-help">
+            UDP/TCP messages are described straight from each interface's <code>serdes/*.protocol.json</code>
+            file - no reflection, no Java class needed. REST operations are described from the
+            interface's <code>swagger/*.yml</code> file. Nested/complex fields are grouped visually
+            by their dotted path (e.g. <code>header.msgType</code>); array-of-struct fields get an
+            "add row" control. Leave Host/Port blank to fall back to the interface's own configured
+            port on <code>localhost</code>. "Start Periodic" schedules a repeating send and switches
+            you to the <strong>Periodic Jobs</strong> tab - multiple concurrent jobs are supported,
+            even for the same message with different targets.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="periodicPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>Periodic Jobs</h2>
+      </div>
+
+      <p class="panel-note">
+        Every "Start Periodic" click creates an independent job, identified by a generated id -
+        stopping one doesn't affect the others. Job state is in-memory only and lost on restart.
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+          <tr>
+            <th>Interface</th>
+            <th>Message</th>
+            <th>Target</th>
+            <th>Rate</th>
+            <th>Sent</th>
+            <th>Last Error</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+          </thead>
+          <tbody id="jobsTableBody"></tbody>
+        </table>
+        <div id="jobsEmptyState" class="empty-state" style="display:none;">
+          No periodic jobs running.
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  let interfaces = [];
+
+  function showTab(tab) {
+    document.getElementById('sendPanel').style.display = tab === 'send' ? '' : 'none';
+    document.getElementById('periodicPanel').style.display = tab === 'periodic' ? '' : 'none';
+
+    document.getElementById('sendTab').classList.toggle('active', tab === 'send');
+    document.getElementById('periodicTab').classList.toggle('active', tab === 'periodic');
+
+    if (tab === 'periodic') {
+      loadJobs();
+    }
+  }
+
+  async function loadInterfaces() {
+    const response = await fetch('/api/interfaces');
+    interfaces = await response.json();
+
+    renderSidebarInterfaces();
+
+    const select = document.getElementById('interfaceSelect');
+    select.innerHTML = '';
+    for (const iface of interfaces) {
+      const option = document.createElement('option');
+      option.value = iface.key;
+      option.textContent = `${iface.name} (${iface.protocol})`;
+      select.appendChild(option);
+    }
+
+    await onInterfaceChanged();
+  }
+
+  function renderSidebarInterfaces() {
+    const container = document.getElementById('sidebarInterfaces');
+    container.innerHTML = '';
+
+    for (const iface of interfaces) {
+      const chip = document.createElement('div');
+      chip.className = 'topic-chip';
+      chip.innerText = iface.name;
+      chip.title = 'Click to select this interface';
+      chip.addEventListener('click', () => selectInterface(iface.key));
+      container.appendChild(chip);
+
+      if (iface.messages.length === 0) {
+        const note = document.createElement('div');
+        note.className = 'sidebar-note';
+        note.innerText = 'no messages configured';
+        container.appendChild(note);
+      } else {
+        for (const message of iface.messages) {
+          const note = document.createElement('div');
+          note.className = 'sidebar-note';
+          note.innerText = message.id;
+          container.appendChild(note);
+        }
+      }
+    }
+  }
+
+  async function selectInterface(key) {
+    document.getElementById('interfaceSelect').value = key;
+    await onInterfaceChanged();
+  }
+
+  function currentInterface() {
+    const key = document.getElementById('interfaceSelect').value;
+    return interfaces.find(iface => iface.key === key);
+  }
+
+  async function onInterfaceChanged() {
+    const iface = currentInterface();
+    if (!iface) {
+      return;
+    }
+
+    document.getElementById('portInput').value = iface.defaultPort ?? '';
+    document.getElementById('transportRow').style.display = iface.protocol === 'REST' ? 'none' : '';
+
+    const messageSelect = document.getElementById('messageSelect');
+    messageSelect.innerHTML = '';
+    for (const message of iface.messages) {
+      const option = document.createElement('option');
+      option.value = message.id;
+      option.textContent = message.label;
+      messageSelect.appendChild(option);
+    }
+
+    await onMessageChanged();
+  }
+
+  async function onMessageChanged() {
+    const iface = currentInterface();
+    const messageId = document.getElementById('messageSelect').value;
+    const fieldsContainer = document.getElementById('fieldsContainer');
+    fieldsContainer.innerHTML = '';
+
+    if (!iface || !messageId) {
+      return;
+    }
+
+    const response = await fetch(`/api/fields?interfaceKey=${encodeURIComponent(iface.key)}&messageId=${encodeURIComponent(messageId)}`);
+    const fields = await response.json();
+    renderFieldsInto(fieldsContainer, fields);
+  }
+
+  // Shared field-rendering logic (flattened dotted-path fields grouped visually, array-of-struct
+  // fields boxed with add/remove controls) - same FieldDto shape and data-field-name convention,
+  // and the same CSS classes (generic-field-group/generic-array-item/field-type), that
+  // traffic-monitor-app's Generic/REST Publisher UI used before this app existed.
+  function renderFieldsInto(fieldsContainer, fields) {
+    let currentGroup = null;
+    let currentGroupKey = null;
+
+    for (const field of fields) {
+      if (field.itemFields && field.itemFields.length > 0) {
+        currentGroup = null;
+        currentGroupKey = null;
+        fieldsContainer.appendChild(buildArrayGroup(field));
+        continue;
+      }
+
+      const dotIndex = field.name.indexOf('.');
+
+      if (dotIndex === -1) {
+        currentGroup = null;
+        currentGroupKey = null;
+        fieldsContainer.appendChild(buildFieldRow(field.name, field.type, field.name));
+        continue;
+      }
+
+      const groupKey = field.name.slice(0, dotIndex);
+      const label = field.name.slice(dotIndex + 1);
+
+      if (groupKey !== currentGroupKey) {
+        currentGroupKey = groupKey;
+        currentGroup = document.createElement('div');
+        currentGroup.className = 'generic-field-group';
+
+        const heading = document.createElement('div');
+        heading.className = 'generic-field-group-label';
+        heading.textContent = groupKey;
+        currentGroup.appendChild(heading);
+
+        fieldsContainer.appendChild(currentGroup);
+      }
+
+      currentGroup.appendChild(buildFieldRow(label, field.type, field.name));
+    }
+  }
+
+  function buildFieldRow(label, type, fieldName) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    row.innerHTML = `
+      <label for="field-${fieldName}">${escapeHtml(label)} <span class="field-type">${escapeHtml(type)}</span></label>
+      <input id="field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">
+    `;
+    return row;
+  }
+
+  // Indices are never renumbered after a row is removed - the server pads any missing index
+  // with a default value (serdes fixed-length arrays) or simply omits it (REST arrays), so gaps
+  // left behind by a removal are harmless.
+  function buildArrayGroup(field) {
+    const container = document.createElement('div');
+    container.className = 'generic-field-group';
+
+    const heading = document.createElement('div');
+    heading.className = 'generic-field-group-label';
+    heading.textContent = field.maxLength
+      ? `${field.name} ${field.type} (max ${field.maxLength})`
+      : `${field.name} ${field.type}`;
+    container.appendChild(heading);
+
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'generic-array-items';
+    itemsContainer.dataset.nextIndex = '0';
+    container.appendChild(itemsContainer);
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'secondary-btn generic-array-add';
+    addButton.textContent = `+ Add ${field.name}`;
+    addButton.onclick = () => addArrayItem(itemsContainer, field, addButton);
+    container.appendChild(addButton);
+
+    return container;
+  }
+
+  function addArrayItem(itemsContainer, field, addButton) {
+    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
+      return;
+    }
+
+    const index = Number(itemsContainer.dataset.nextIndex);
+    itemsContainer.dataset.nextIndex = String(index + 1);
+
+    const itemBox = document.createElement('div');
+    itemBox.className = 'generic-array-item';
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'secondary-btn';
+    removeButton.textContent = `Remove ${field.name}[${index}]`;
+    removeButton.onclick = () => {
+      itemBox.remove();
+      if (field.maxLength != null) {
+        addButton.disabled = itemsContainer.children.length >= field.maxLength;
+      }
+    };
+    itemBox.appendChild(removeButton);
+
+    for (const itemField of field.itemFields) {
+      itemBox.appendChild(buildFieldRow(itemField.name, itemField.type, `${field.name}[${index}].${itemField.name}`));
+    }
+
+    itemsContainer.appendChild(itemBox);
+
+    if (field.maxLength != null && itemsContainer.children.length >= field.maxLength) {
+      addButton.disabled = true;
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function collectFields() {
+    const fields = {};
+    document.querySelectorAll('#fieldsContainer [data-field-name]').forEach(input => {
+      fields[input.dataset.fieldName] = input.value;
+    });
+    return fields;
+  }
+
+  function buildSendRequest() {
+    const iface = currentInterface();
+    const port = document.getElementById('portInput').value;
+    return {
+      interfaceKey: iface.key,
+      messageId: document.getElementById('messageSelect').value,
+      host: document.getElementById('hostInput').value || null,
+      port: port ? Number(port) : null,
+      transport: document.getElementById('transportSelect').value || null,
+      fields: collectFields()
+    };
+  }
+
+  async function sendOnce() {
+    const resultDiv = document.getElementById('sendResult');
+    resultDiv.style.display = '';
+    resultDiv.className = 'publisher-result';
+    resultDiv.innerText = 'Sending...';
+
+    const response = await fetch('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildSendRequest())
+    });
+    const result = await response.json();
+
+    resultDiv.className = 'publisher-result ' + (result.success ? 'ok' : 'error');
+    resultDiv.innerText = JSON.stringify(result, null, 2);
+  }
+
+  async function startPeriodic() {
+    const request = {
+      sendRequest: buildSendRequest(),
+      eventsPerTimeUnit: Number(document.getElementById('eventsPerTimeUnit').value),
+      timeUnit: document.getElementById('timeUnitSelect').value
+    };
+
+    await fetch('/api/periodic/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+
+    showTab('periodic');
+    await loadJobs();
+  }
+
+  async function stopJob(jobId) {
+    await fetch(`/api/periodic/${encodeURIComponent(jobId)}/stop`, { method: 'POST' });
+    await loadJobs();
+  }
+
+  async function loadJobs() {
+    const response = await fetch('/api/periodic');
+    const jobs = await response.json();
+
+    renderStats(jobs);
+
+    const tbody = document.getElementById('jobsTableBody');
+    tbody.innerHTML = '';
+    document.getElementById('jobsEmptyState').style.display = jobs.length === 0 ? 'block' : 'none';
+
+    for (const job of jobs) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${escapeHtml(job.interfaceKey)}</td>
+        <td class="message-name">${escapeHtml(job.messageId)}</td>
+        <td>${escapeHtml(job.host)}:${escapeHtml(job.port)}</td>
+        <td>${escapeHtml(job.eventsPerTimeUnit)}/${escapeHtml(job.timeUnit.toLowerCase())}</td>
+        <td>${escapeHtml(job.sentCount)}</td>
+        <td class="${job.lastError ? 'error-text' : ''}">${job.lastError ? escapeHtml(job.lastError) : ''}</td>
+        <td><span class="status-badge ${job.running ? 'status-on' : 'status-off'}">${job.running ? 'Running' : 'Stopped'}</span></td>
+        <td></td>
+      `;
+
+      const actionsCell = row.lastElementChild;
+      if (job.running) {
+        const stopButton = document.createElement('button');
+        stopButton.className = 'secondary-btn stop-btn';
+        stopButton.textContent = 'Stop';
+        stopButton.onclick = () => stopJob(job.jobId);
+        actionsCell.appendChild(stopButton);
+      }
+
+      tbody.appendChild(row);
+    }
+  }
+
+  function renderStats(jobs) {
+    const running = jobs.filter(j => j.running).length;
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-pill ${running > 0 ? 'highlight' : ''}">
+        <strong>${running}</strong><span>periodic job${running === 1 ? '' : 's'} running</span>
+      </div>
+    `;
+  }
+
+  loadInterfaces();
+  loadJobs();
+  setInterval(loadJobs, 2000);
+</script>
+</body>
+</html>

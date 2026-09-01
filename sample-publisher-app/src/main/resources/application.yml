@@ -1,0 +1,6 @@
+# This app has no persistence (see CLAUDE.md's "Publishing lives in sample-publisher-app, not
+# here") and no reason to share traffic-monitor-app's H2 file or port. No datasource
+# autoconfigure-exclude needed here (unlike traffic-monitor-app-core) - this module depends only
+# on traffic-config/binary-serdes/rest-schema, none of which pull in spring-boot-starter-jdbc.
+server:
+  port: 8090

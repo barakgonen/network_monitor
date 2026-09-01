@@ -1,16 +1,13 @@
 package com.example.monitor.ingestion;
 
-import com.example.handlercore.DestinationConfig;
-import com.example.handlercore.MessageArrivedDispatcher;
-import com.example.monitor.autoreply.AutoReplySettingsService;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
-import com.example.monitor.schema.InterfaceConfig;
 import com.example.monitor.store.RecentMessageStore;
-import com.example.schemacore.envelope.DefaultEnvelopeHeader;
 import com.example.schemacore.MessageDefinition;
-import com.example.schemacore.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.MessageDefinitionRegistry;
+import com.example.schemacore.envelope.DefaultEnvelopeHeader;
+import com.example.trafficconfig.InterfaceConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,10 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,13 +40,7 @@ class MessageIngestionPipelineTest {
     private RecentMessageStore recentMessageStore;
 
     @Mock
-    private MessageArrivedDispatcher messageArrivedDispatcher;
-
-    @Mock
     private MessageDefinitionRegistry scopedRegistry;
-
-    @Mock
-    private AutoReplySettingsService autoReplySettingsService;
 
     @Mock
     private MessageArchiveRepository messageArchiveRepository;
@@ -68,8 +56,7 @@ class MessageIngestionPipelineTest {
     @BeforeEach
     void setUp() {
         pipeline = new MessageIngestionPipeline(
-                recentMessageStore, messageArrivedDispatcher,
-                autoReplySettingsService, messageArchiveRepository, meterRegistry, new SynchronousExecutorService());
+                recentMessageStore, messageArchiveRepository, meterRegistry, new SynchronousExecutorService());
 
         interfaceConfig = new InterfaceConfig();
         interfaceConfig.setName("Stub Interface");
@@ -86,7 +73,6 @@ class MessageIngestionPipelineTest {
     void ingestForInterface_withValidPayload_storesArchivesAndReturnsPopulatedMessage() {
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         ObservedMessage message = pipeline.ingestForInterface(
                 stubPayload(), "TCP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
@@ -100,7 +86,6 @@ class MessageIngestionPipelineTest {
 
         verify(recentMessageStore).add(message);
         verify(messageArchiveRepository).save(message);
-        verify(messageArrivedDispatcher, never()).dispatch(any(), any(), any(), any());
 
         assertThat(meterRegistry.counter("network_monitor.messages.received",
                 "transport", "TCP", "interfaceName", "Stub Interface", "parseError", "false").count()).isEqualTo(1.0);
@@ -108,7 +93,7 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingestForInterface_withMalformedPayload_setsParseErrorAndNeverDispatches() {
+    void ingestForInterface_withMalformedPayload_setsParseError() {
         byte[] malformed = new byte[] {1, 2, 3};
 
         ObservedMessage message = pipeline.ingestForInterface(
@@ -120,7 +105,6 @@ class MessageIngestionPipelineTest {
 
         verify(recentMessageStore).add(message);
         verify(messageArchiveRepository).save(message);
-        verifyNoInteractions(messageArrivedDispatcher);
 
         assertThat(meterRegistry.counter("network_monitor.messages.received",
                 "transport", "TCP", "interfaceName", "Unknown", "parseError", "true").count()).isEqualTo(1.0);
@@ -130,7 +114,6 @@ class MessageIngestionPipelineTest {
     void ingestForInterface_whenArchiveSaveThrows_incrementsArchiveFailureCounter() {
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
         org.mockito.Mockito.doThrow(new RuntimeException("db down")).when(messageArchiveRepository).save(any());
 
         pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
@@ -139,49 +122,9 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingestForInterface_whenAutoReplyEligible_dispatchesWithDestinationConfig() {
-        StubDefinition definition = new StubDefinition();
-        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(true);
-        when(autoReplySettingsService.interfaceSettings("Stub Interface")).thenReturn(
-                Optional.of(new AutoReplySettingsService.InterfaceAutoReplySettings(true, "localhost", 7001, "UDP")));
-
-        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
-
-        verify(messageArrivedDispatcher).dispatch(
-                eq("Stub Interface"), eq("Stub"), any(), eq(new DestinationConfig("localhost", 7001, "UDP")));
-    }
-
-    @Test
-    void ingestForInterface_whenAutoReplyEligibleWithTcpDestination_dispatchesWithTcpDestinationConfig() {
-        StubDefinition definition = new StubDefinition();
-        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(true);
-        when(autoReplySettingsService.interfaceSettings("Stub Interface")).thenReturn(
-                Optional.of(new AutoReplySettingsService.InterfaceAutoReplySettings(true, "localhost", 7001, "TCP")));
-
-        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
-
-        verify(messageArrivedDispatcher).dispatch(
-                eq("Stub Interface"), eq("Stub"), any(), eq(new DestinationConfig("localhost", 7001, "TCP")));
-    }
-
-    @Test
-    void ingestForInterface_whenAutoReplyIneligible_doesNotDispatch() {
-        StubDefinition definition = new StubDefinition();
-        when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
-
-        pipeline.ingestForInterface(stubPayload(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
-
-        verifyNoInteractions(messageArrivedDispatcher);
-    }
-
-    @Test
     void ingestForInterface_withMessageNotOwningHeader_decodesUsingInterfaceScopedHeaderAndRegistry() {
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
 
@@ -205,7 +148,6 @@ class MessageIngestionPipelineTest {
         interfaceConfig.setMessageOwnsHeader(true);
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         byte[] payload = ProtocolHeaderCodec.encodeMessage(STUB_OPCODE, System.currentTimeMillis(), new byte[] {1, 2, 3});
 
@@ -245,7 +187,6 @@ class MessageIngestionPipelineTest {
 
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         ByteBuffer buffer = ByteBuffer.allocate(8 + 3);
         buffer.putInt(1); // msgCounter
@@ -283,7 +224,6 @@ class MessageIngestionPipelineTest {
         interfaceConfig.setByteOrder("LITTLE_ENDIAN");
         StubDefinition definition = new StubDefinition();
         when(scopedRegistry.findByOpcode(STUB_OPCODE)).thenReturn(Optional.of(definition));
-        when(autoReplySettingsService.shouldAutoReply("Stub Interface")).thenReturn(false);
 
         byte[] payload = littleEndianStubPayload();
 
@@ -334,7 +274,7 @@ class MessageIngestionPipelineTest {
     }
 
     @Test
-    void ingestRestOperation_storesArchivesAndReturnsPopulatedMessage_withoutDispatching() {
+    void ingestRestOperation_storesArchivesAndReturnsPopulatedMessage() {
         Map<String, Object> header = Map.of("petId", "42");
         Map<String, Object> body = Map.of("name", "Rex");
         byte[] rawPayload = "{\"name\":\"Rex\"}".getBytes();
@@ -351,7 +291,6 @@ class MessageIngestionPipelineTest {
 
         verify(recentMessageStore).add(message);
         verify(messageArchiveRepository).save(message);
-        verifyNoInteractions(messageArrivedDispatcher);
 
         assertThat(meterRegistry.counter("network_monitor.messages.received",
                 "transport", "REST", "interfaceName", "Pets REST Interface", "parseError", "false").count()).isEqualTo(1.0);

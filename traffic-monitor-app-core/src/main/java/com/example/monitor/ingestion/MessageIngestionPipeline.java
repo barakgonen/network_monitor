@@ -1,21 +1,18 @@
 package com.example.monitor.ingestion;
 
-import com.example.handlercore.DestinationConfig;
-import com.example.handlercore.MessageArrivedDispatcher;
-import com.example.monitor.autoreply.AutoReplySettingsService;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.RecordType;
+import com.example.binaryserdes.Type;
+import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.monitor.model.ObservedMessage;
 import com.example.monitor.persistence.MessageArchiveRepository;
-import com.example.monitor.schema.InterfaceConfig;
+import com.example.monitor.schema.SerdesHeaderDecoder;
 import com.example.monitor.store.RecentMessageStore;
 import com.example.schemacore.HeaderDecoder;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.RecordType;
-import com.example.schemacore.binaryserdes.SerdesHeaderDecoder;
-import com.example.schemacore.binaryserdes.Type;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.reflect.ReflectiveHeaderDecoder;
+import com.example.trafficconfig.InterfaceConfig;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -44,8 +41,6 @@ public class MessageIngestionPipeline {
     private static final Logger log = LoggerFactory.getLogger(MessageIngestionPipeline.class);
 
     private final RecentMessageStore recentMessageStore;
-    private final MessageArrivedDispatcher messageArrivedDispatcher;
-    private final AutoReplySettingsService autoReplySettingsService;
     private final MessageArchiveRepository messageArchiveRepository;
     private final MeterRegistry meterRegistry;
     private final ExecutorService executor;
@@ -58,26 +53,19 @@ public class MessageIngestionPipeline {
     @Autowired
     public MessageIngestionPipeline(
             RecentMessageStore recentMessageStore,
-            MessageArrivedDispatcher messageArrivedDispatcher,
-            AutoReplySettingsService autoReplySettingsService,
             MessageArchiveRepository messageArchiveRepository,
             MeterRegistry meterRegistry
     ) {
-        this(recentMessageStore, messageArrivedDispatcher, autoReplySettingsService,
-                messageArchiveRepository, meterRegistry, Executors.newCachedThreadPool());
+        this(recentMessageStore, messageArchiveRepository, meterRegistry, Executors.newCachedThreadPool());
     }
 
     MessageIngestionPipeline(
             RecentMessageStore recentMessageStore,
-            MessageArrivedDispatcher messageArrivedDispatcher,
-            AutoReplySettingsService autoReplySettingsService,
             MessageArchiveRepository messageArchiveRepository,
             MeterRegistry meterRegistry,
             ExecutorService executor
     ) {
         this.recentMessageStore = recentMessageStore;
-        this.messageArrivedDispatcher = messageArrivedDispatcher;
-        this.autoReplySettingsService = autoReplySettingsService;
         this.messageArchiveRepository = messageArchiveRepository;
         this.meterRegistry = meterRegistry;
         this.executor = executor;
@@ -102,10 +90,8 @@ public class MessageIngestionPipeline {
     /**
      * REST analogue of {@link #ingestForInterface} - skips {@link #decodeForInterface} entirely
      * (there's no opcode/byte-decode step: the JSON body is already a {@code Map<String,Object>}
-     * via Jackson) and, unlike {@link #finishIngest}, does not dispatch to a {@link
-     * com.example.handlercore.MessageArrivedHandler} - REST operations have no backing
-     * {@code Class<?>} to key handler dispatch on. "Auto-reply" for REST is instead the
-     * synchronous HTTP response {@code RestIngestionRunner} writes back on the same exchange.
+     * via Jackson). "Auto-reply" for REST is the synchronous HTTP response
+     * {@code RestIngestionRunner} writes back on the same exchange.
      */
     public ObservedMessage ingestRestOperation(
             String transportProtocol,
@@ -142,7 +128,6 @@ public class MessageIngestionPipeline {
             byte[] payload, String transportProtocol, String remoteAddress, int localPort, DecodedPacket decoded) {
         ObservedMessage message = toObservedMessage(transportProtocol, remoteAddress, localPort, payload, decoded);
         storeAndArchive(message);
-        dispatchIfEligible(decoded);
         return message;
     }
 
@@ -295,39 +280,6 @@ public class MessageIngestionPipeline {
     private void incrementArchiveFailureCounter(ObservedMessage message) {
         Counter.builder("network_monitor.archive.failures")
                 .tag("transport", message.transportProtocol())
-                .register(meterRegistry)
-                .increment();
-    }
-
-    private void dispatchIfEligible(DecodedPacket decoded) {
-        if (decoded.parseError() != null) {
-            return;
-        }
-
-        String interfaceName = decoded.definition().interfaceName();
-        String messageType = decoded.definition().messageType();
-
-        if (!autoReplySettingsService.shouldAutoReply(interfaceName)) {
-            return;
-        }
-
-        DestinationConfig destinationConfig = autoReplySettingsService.interfaceSettings(interfaceName)
-                .map(settings -> new DestinationConfig(settings.host(), settings.port(), settings.transport()))
-                .orElse(null);
-
-        executor.submit(() -> {
-            try {
-                messageArrivedDispatcher.dispatch(interfaceName, messageType, decoded.typedMessage(), destinationConfig);
-            } catch (Exception e) {
-                log.warn("onMessageArrived handler failed for {}/{}: {}", interfaceName, messageType, e.getMessage(), e);
-                incrementDispatchFailureCounter(interfaceName);
-            }
-        });
-    }
-
-    private void incrementDispatchFailureCounter(String interfaceName) {
-        Counter.builder("network_monitor.dispatch.failures")
-                .tag("interfaceName", interfaceName)
                 .register(meterRegistry)
                 .increment();
     }

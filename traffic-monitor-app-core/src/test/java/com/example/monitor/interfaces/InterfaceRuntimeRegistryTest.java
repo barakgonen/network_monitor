@@ -1,7 +1,7 @@
 package com.example.monitor.interfaces;
 
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -1,7 +1,11 @@
 package com.example.monitor.rest;
 
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.restschema.RestApiDefinition;
+import com.example.restschema.RestApiDefinitionBuilder;
+import com.example.restschema.RestSchemaConverter;
+import com.example.restschema.RestSwaggerLoader;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import io.swagger.v3.oas.models.OpenAPI;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,9 +22,29 @@ import java.util.Map;
  * here too (see CLAUDE.md's Spring {@code Map<String,X>} bean-injection note): any class injecting
  * this map alongside other {@link RestApiDefinition} beans in the context needs the qualifier, or
  * Spring's implicit "collect all beans of this type by bean name" behavior silently replaces it.
+ *
+ * <p>Also explicitly wires {@link RestSchemaConverter}/{@link RestSwaggerLoader}/{@link
+ * RestApiDefinitionBuilder} as beans - they moved to the standalone {@code rest-schema} module
+ * (no Spring dependency there), so they lost their own {@code @Component} annotations and can no
+ * longer be picked up by component scanning.
  */
 @Configuration
 public class RestSchemaWiringConfig {
+
+    @Bean
+    public RestSchemaConverter restSchemaConverter() {
+        return new RestSchemaConverter();
+    }
+
+    @Bean
+    public RestSwaggerLoader restSwaggerLoader() {
+        return new RestSwaggerLoader();
+    }
+
+    @Bean
+    public RestApiDefinitionBuilder restApiDefinitionBuilder(RestSchemaConverter restSchemaConverter) {
+        return new RestApiDefinitionBuilder(restSchemaConverter);
+    }
 
     @Bean
     public Map<String, RestApiDefinition> restApiDefinitions(

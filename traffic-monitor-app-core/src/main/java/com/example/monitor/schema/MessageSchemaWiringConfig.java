@@ -1,15 +1,18 @@
 package com.example.monitor.schema;
 
+import com.example.binaryserdes.MessageType;
+import com.example.binaryserdes.Protocol;
+import com.example.binaryserdes.ProtocolIn;
+import com.example.binaryserdes.ProtocolOut;
+import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.MessageDefinition;
 import com.example.schemacore.MessageDefinitionRegistry;
-import com.example.schemacore.binaryserdes.MessageType;
-import com.example.schemacore.binaryserdes.Protocol;
-import com.example.schemacore.binaryserdes.ProtocolIn;
-import com.example.schemacore.binaryserdes.ProtocolOut;
-import com.example.schemacore.binaryserdes.SerdesMessageDefinition;
-import com.example.schemacore.binaryserdes.config.ProtocolConfig;
 import com.example.schemacore.reflect.ReflectiveMessageDefinition;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.MessageConfig;
+import com.example.trafficconfig.TrafficToolConfig;
+import com.example.trafficconfig.TrafficToolConfigLoader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,9 +48,12 @@ public class MessageSchemaWiringConfig {
     /**
      * Every message from every interface in one flat registry, keyed by opcode/name rather than by
      * interface. Not used for ingestion routing (each interface decodes against its own scoped
-     * registry below) - this one backs cross-interface name/class lookups, namely
-     * {@code MonitorPayloadFactory}'s "encode by interfaceName+messageType" and "encode by message
-     * class" API.
+     * registry below) - this one backs cross-interface name/class lookups. Its only consumers
+     * (the encode-by-class/encode-by-name "Sample Publisher" flow) were removed along with the
+     * rest of publishing (see CLAUDE.md's "Publishing lives in sample-publisher-app, not here");
+     * kept here (unused today) since {@link MessageDefinitionRegistry}'s duplicate-detection
+     * invariant below is still independently useful/tested and a future consumer may want the
+     * same flat cross-interface view again.
      *
      * <p>Two interfaces may legitimately reuse the same opcode and message class - e.g. the same
      * protocol wired up twice with a different {@code byteOrder} (see the {@code rada}/{@code

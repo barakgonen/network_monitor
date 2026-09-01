@@ -7,9 +7,8 @@ import java.util.Optional;
 
 /**
  * Looks up a declared field's {@link FixedArrayLength} annotation by name, walking up the
- * class hierarchy. Shared by {@link com.example.monitor.publisher.PublisherFieldMetadataService}
- * (to report the array's capacity to the generic publisher UI) and {@link ReflectiveFieldApplier}
- * (to pad a partially-populated array up to its wire-mandated length).
+ * class hierarchy. Used by {@link ReflectiveFieldApplier} to pad a partially-populated array up
+ * to its wire-mandated length.
  */
 public final class FixedArrayLengths {
     private FixedArrayLengths() {

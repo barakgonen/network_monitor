@@ -4,8 +4,8 @@ import com.example.monitor.config.TrafficMonitorProperties;
 import com.example.monitor.ingestion.MessageIngestionPipeline;
 import com.example.monitor.interfaces.InterfaceRuntimeRegistry;
 import com.example.monitor.model.ObservedMessage;
-import com.example.monitor.schema.InterfaceConfig;
-import com.example.monitor.schema.TrafficToolConfig;
+import com.example.trafficconfig.InterfaceConfig;
+import com.example.trafficconfig.TrafficToolConfig;
 import com.example.schemacore.MessageDefinitionRegistry;
 import com.example.schemacore.reflect.ReflectiveFieldExtractor;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
@@ -256,7 +256,8 @@ public class TcpIngestionRunner {
         String key = interfaceConfig.getKey();
         MessageDefinitionRegistry scopedRegistry = interfaceMessageDefinitionRegistries.get(key);
 
-        try (connection; DataInputStream in = new DataInputStream(new BufferedInputStream(connection.getInputStream()))) {
+        try {
+            DataInputStream in = new DataInputStream(new BufferedInputStream(connection.getInputStream()));
             String remoteAddress = connection.getInetAddress().getHostAddress() + ":" + connection.getPort();
 
             while (!connection.isClosed()) {
@@ -281,6 +282,14 @@ public class TcpIngestionRunner {
                         message.parseError());
             }
         } catch (Exception e) {
+            // `connection` is deliberately *not* managed via try-with-resources here: resources
+            // in a try-with-resources are closed before any catch attached to the same try runs,
+            // which would make `connection.isClosed()` always true by the time we get here -
+            // permanently dead code, unable to tell a genuine processing error (bodyLength
+            // framing/decode failure - worth logging) apart from a socket stopInterface()/stop()
+            // already closed out from under this thread's blocked read (expected during
+            // shutdown - stay quiet). Closing manually below, in `finally`, preserves the
+            // distinction.
             if (!connection.isClosed()) {
                 log.warn("TCP connection handling failed on port {} for interface {}", port, interfaceConfig.getName(), e);
                 incrementConnectionErrorCounter(port);
@@ -290,6 +299,13 @@ public class TcpIngestionRunner {
             List<Socket> connections = dedicatedConnections.get(key);
             if (connections != null) {
                 connections.remove(connection);
+            }
+            if (!connection.isClosed()) {
+                try {
+                    connection.close();
+                } catch (IOException e) {
+                    log.warn("Failed to close TCP connection for interface {}", key, e);
+                }
             }
         }
     }

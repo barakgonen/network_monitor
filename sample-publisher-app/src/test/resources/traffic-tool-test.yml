@@ -1,0 +1,53 @@
+interfaces:
+  - key: fruit
+    name: Fruit Interface
+    protocol: UDP
+    port: 35001
+    serdesFile: ../serdes/fruit.protocol.json
+
+  - key: weather
+    name: Weather Interface
+    protocol: UDP
+    port: 35003
+    serdesFile: ../serdes/weather.protocol.json
+
+  - key: ping
+    name: Ping Interface
+    protocol: UDP
+    port: 35002
+    serdesFile: ../serdes/ping.protocol.json
+
+  - key: candy
+    name: Candy Interface
+    protocol: TCP
+    port: 35004
+    serdesFile: ../serdes/candy.protocol.json
+
+  - key: rada
+    name: Rada Interface
+    enabled: false
+    protocol: UDP
+    port: 35050
+    byteOrder: BIG_ENDIAN
+    serdesFile: ../serdes/rada.protocol.json
+    serdesHeaderType: RadaHeader
+    opcodeFieldName: msgType
+    messageOwnsHeader: true
+
+  - key: rada-le
+    name: Rada Interface (Little Endian Extended Status)
+    enabled: false
+    protocol: UDP
+    port: 35051
+    byteOrder: LITTLE_ENDIAN
+    serdesFile: ../serdes/rada.protocol.json
+    serdesHeaderType: RadaHeader
+    opcodeFieldName: msgType
+    messageOwnsHeader: true
+
+  - key: pets
+    name: Pets REST Interface
+    enabled: false
+    protocol: REST
+    port: 35060
+    swaggerFile: ../swagger/pets-demo.yml

@@ -1,6 +1,6 @@
 package com.example.monitor.interfaces;
 
-import com.example.monitor.schema.InterfaceConfig;
+import com.example.trafficconfig.InterfaceConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

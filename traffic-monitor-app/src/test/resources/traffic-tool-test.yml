@@ -1,46 +1,27 @@
-autoReply:
-  enabled: false
-
 interfaces:
   - key: fruit
     name: Fruit Interface
     protocol: UDP
     port: 25001
     serdesFile: ../serdes/fruit.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: weather
     name: Weather Interface
     protocol: UDP
     port: 25003
     serdesFile: ../serdes/weather.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: ping
     name: Ping Interface
     protocol: UDP
     port: 25002
     serdesFile: ../serdes/ping.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: candy
     name: Candy Interface
     protocol: TCP
     port: 25004
     serdesFile: ../serdes/candy.protocol.json
-    autoReply:
-      enabled: false
-      host: localhost
-      port: 7001
 
   - key: rada
     name: Rada Interface
@@ -52,8 +33,6 @@ interfaces:
     serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true
-    autoReply:
-      enabled: false
 
   - key: rada-le
     name: Rada Interface (Little Endian Extended Status)
@@ -65,8 +44,6 @@ interfaces:
     serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true
-    autoReply:
-      enabled: false
 
   - key: pets
     name: Pets REST Interface

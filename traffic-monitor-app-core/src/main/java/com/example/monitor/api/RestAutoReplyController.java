@@ -1,7 +1,7 @@
 package com.example.monitor.api;
 
-import com.example.monitor.rest.RestApiDefinition;
 import com.example.monitor.rest.RestAutoReplySettingsService;
+import com.example.restschema.RestApiDefinition;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;

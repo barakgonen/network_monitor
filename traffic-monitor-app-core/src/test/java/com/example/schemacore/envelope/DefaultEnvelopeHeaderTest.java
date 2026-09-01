@@ -1,5 +1,7 @@
 package com.example.schemacore.envelope;
 
+import com.example.binaryserdes.envelope.ProtocolHeader;
+import com.example.binaryserdes.envelope.ProtocolHeaderCodec;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
 
 import org.junit.jupiter.api.Test;

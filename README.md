@@ -6,15 +6,21 @@ traffic over **UDP, TCP, and REST**. Two runnable apps talk to each other:
 - **traffic-monitor-app** — a Spring Boot service that listens for traffic on a set of
   configurable interfaces, decodes it, stores recent messages in memory (plus a durable
   H2-backed history with search/analytics endpoints), exposes a REST API, and serves a
-  dark-themed live-monitoring web UI. It can also *publish* messages (once or on a repeating
-  schedule), auto-reply to specific inbound message types via pluggable handlers, and exposes
-  Micrometer/Actuator metrics (including a Prometheus scrape endpoint). Beyond the binary
-  UDP/TCP protocols, it can also host or call REST APIs described entirely by an OpenAPI/Swagger
-  YAML file — no Java code required per API (see [REST interfaces](#rest-interfaces-dynamic-no-codegen)).
+  dark-themed live-monitoring web UI. It exposes Micrometer/Actuator metrics (including a
+  Prometheus scrape endpoint). Beyond the binary UDP/TCP protocols, it can also host REST APIs
+  described entirely by an OpenAPI/Swagger YAML file — no Java code required per API (see
+  [REST interfaces](#rest-interfaces-dynamic-no-codegen)). It is a pure viewer: publishing test
+  traffic and auto-replying to it are handled by other apps in this repo (see below), not by
+  traffic-monitor-app itself.
 - **traffic-tester-app** — a standalone CLI app that sends synthetic traffic (defined in a YAML
   scenario file) at the monitor, and can optionally listen for messages sent back.
+- **sample-publisher-app** — a standalone Spring Boot app with its own web UI for sending UDP/TCP
+  messages (described from `serdes/*.protocol.json` files) and REST requests (described from
+  `swagger/*.yml` files), one-shot or on a repeating schedule.
+- **traffic-proxy-app** / **traffic-destination-app** — a MITM relay + echo/reply sink pair used to
+  prove out mirrored-traffic and auto-reply scenarios without a real backend.
 
-## Module layout (3 modules)
+## Module layout (6 modules)
 
 ```
 traffic-monitor-app-core   The generic engine: ingestion, persistence, analytics, auto-reply,
@@ -262,9 +268,6 @@ Field reference (`InterfaceConfig`/`MessageConfig`):
 | `messages[].messageClass` | yes* | — | fully-qualified class name, reflective style (recommended) |
 | `messages[].definitionClass` | yes* | — | fully-qualified hand-written `MessageDefinition` class (legacy style — mutually exclusive with `messageClass`) |
 | `messages[].opcode` | yes, if using `messageClass` | — | must be unique **within this interface's own messages** (each interface has its own scoped opcode table — opcodes don't need to be globally unique across interfaces) |
-| `autoReply.enabled` | no | `false` | see [Auto-reply message handlers](#auto-reply-message-handlers) |
-| `autoReply.host`/`port`/`transport` | no | `localhost`/`7001`/`UDP` | default auto-reply destination |
-| `shouldBroadcast`/`broadcastTargets` | no | `false`/`[]` | fan a publish out to a fixed list of `host:port` targets — see `PublisherService` |
 
 `TrafficToolConfigLoader` validates all of this at startup and fails fast (a clear exception, not
 a silent misconfiguration) on: a missing interface `port`, zero messages on an interface, a
@@ -424,12 +427,10 @@ A REST interface can run in either direction, same as TCP:
   of a `messages[].type:`. Every request also gets a response written back synchronously (see
   [REST auto-reply](#rest-auto-reply) below) — HTTP requires *some* response, so there's no
   "auto-reply disabled" state the way there is for UDP/TCP.
-- **`mode: CLIENT`** — the monitor **calls out** to an external REST API at `host:port` instead.
-  There's no persistent connection to maintain (unlike TCP client mode) — client mode is purely
-  on-demand, driven by the same Generic Publisher UI/API used for UDP/TCP (see
-  [REST Publisher](#rest-publisher) below). The HTTP response comes back and is itself captured
-  as a newly-observed message (`messageType` suffixed `" (response)"`), so calling an external API
-  and inspecting what it returned both happen in the same place as everything else in this tool.
+- **`mode: CLIENT`** — a `protocol: REST` interface entry describes the API either way, but
+  traffic-monitor-app itself no longer calls out anywhere (it's a pure viewer - see
+  [sample-publisher-app](#sample-publisher-app) below for triggering an on-demand REST call and
+  seeing its response).
 
 Because REST messages have no backing Java class, they're handled by an entirely separate code
 path (`com.example.monitor.rest` + `com.example.monitor.ingestion.rest`) keyed by `operationId`
@@ -480,14 +481,13 @@ do for UDP/TCP — see [Known gaps](#known-gaps).
 4. **(Optional) Configure the auto-reply** for server mode — see
    [REST auto-reply](#rest-auto-reply) below; if you skip this, requests still get a response,
    just a placeholder synthesized from the OpenAPI response schema rather than one you chose.
-5. **For client mode**, trigger a call via the **REST Publisher** card in the web UI's Sample
-   Publisher tab (or `POST /api/publisher/send` directly — see [REST Publisher](#rest-publisher)),
-   and confirm the response lands in Live/History as `<operationId> (response)`.
+5. **For client mode**, trigger a call via [sample-publisher-app](#sample-publisher-app)'s own UI
+   (it describes operations from the same swagger file), and confirm the response shows up there.
 6. **Add to the test config and write tests** — same idea as
    [Step 6](#step-6--add-to-the-test-config-and-write-tests) for UDP/TCP, except REST's own
    integration tests live in `traffic-monitor-app-core` (not `traffic-monitor-app`), specifically
-   because REST needs no concrete schema/handler class at all — see `RestServerIngestionIT`/
-   `RestClientPublishingIT` and `src/test/resources/rest/sample-openapi.yml` for the pattern
+   because REST needs no concrete schema/handler class at all — see `RestServerIngestionIT`
+   and `src/test/resources/rest/sample-openapi.yml` for the pattern
    (a `@DynamicPropertySource`-generated temp config with a fresh free port, same technique
    `AbstractIntegrationTestBase` uses for UDP/TCP).
 
@@ -509,16 +509,10 @@ strings, `0` for numbers, `false` for booleans, recursively for nested objects/a
 bodies are **fully static** — no variable interpolation (e.g. echoing a path parameter back into
 the reply) — see [Known gaps](#known-gaps).
 
-### REST Publisher
+### Sending REST requests
 
-The Sample Publisher tab's **REST Publisher** card lists every REST interface + operation
-(`/api/rest/interfaces`), builds a form from the operation's path/query parameters and request
-body (`/api/rest/fields`, using the exact same field-rendering UI as the Generic Publisher,
-including boxed nested objects and add/remove-able array-of-struct rows), and sends via the same
-`POST /api/publisher/send` endpoint UDP/TCP's Generic Publisher already uses — `messageType` is
-the `operationId`. The external API's HTTP response is captured as a newly-observed message,
-which is the entire point of REST client mode (unlike UDP/TCP's fire-and-forget publish).
-**Periodic** REST publish isn't wired up yet — see [Known gaps](#known-gaps).
+Triggering REST calls (and UDP/TCP messages) is [sample-publisher-app](#sample-publisher-app)'s
+job now — see that section below.
 
 ## Interface runtime control
 
@@ -610,34 +604,13 @@ API the monitor app itself exposes, always present regardless of which interface
 | GET | `/api/analytics/timeseries` | — (query params) | Message counts bucketed by time (`minute`/`hour`/`day`) |
 | GET | `/api/analytics/breakdown` | — (query params) | Message counts grouped by `interfaceName` or `messageType` |
 | GET / POST / POST | `/api/interfaces*` | see above | [Interface runtime control](#interface-runtime-control) |
-| GET | `/api/publisher/interfaces` | — | Every configured UDP/TCP interface + its message types (backs the Generic Publisher UI and the left sidebar) |
-| GET | `/api/publisher/fields` | — (query params) | Field metadata (name/type/enum options, incl. nested/array-of-struct) for one message class, via reflection |
-| POST | `/api/publisher/send` | `PublisherSendRequest` | Sends one message for any UDP/TCP/REST interface (`interfaceKey`+`messageType`+`fields`) — the endpoint behind both the Generic Publisher and the REST Publisher |
-| GET | `/api/rest/interfaces` | — | Every configured `protocol: REST` interface + its operations, auto-discovered from `swaggerFile` |
-| GET | `/api/rest/fields` | `interfaceKey`, `operationId` (query params) | Field metadata for one REST operation's request body, walking the OpenAPI schema instead of reflecting a class |
+| GET | `/api/interfaces/catalog` | — | Every configured interface + its message/operation types (backs the left sidebar filter chips and the History tab's interface dropdown) |
+| GET | `/api/rest/interfaces` | — | Every configured `protocol: REST` interface + its operations, auto-discovered from `swaggerFile` (also backs the REST Auto-Reply panel's dropdowns) |
 | GET | `/api/rest/{key}/autoreply` | — | Resolved (configured-or-fallback) auto-reply for every operation on one REST interface |
 | POST | `/api/rest/{key}/autoreply/{operationId}` | `{ statusCode, bodyTemplate }` | Configures the static response for one REST operation |
-| POST | `/api/publish/udp` | `PublishRequest` | Sends one message over UDP or TCP (`transport` in the body selects the transport, default UDP) — the legacy/Sample Publisher endpoint, fruit/weather/ping/candy only |
-| POST | `/api/publish/udp/periodic/start` | `PeriodicPublishRequest` | Starts repeating publish (legacy `PublishRequest`-based — UDP/TCP only, no REST support yet) |
-| POST | `/api/publish/udp/periodic/stop` | — | Stops the periodic publisher |
-| GET | `/api/publish/udp/periodic/status` | — | Current `PeriodicPublishStatus` |
-| GET | `/api/autoreply/settings` | — | Global + per-interface UDP/TCP auto-reply settings |
-| POST | `/api/autoreply/global` | `{ enabled }` | Sets the global auto-reply switch |
-| POST | `/api/autoreply/interface` | `{ interfaceName, enabled, host, port, transport }` | Sets one UDP/TCP interface's switch + destination + reply transport |
 
-`PublishRequest`: `interfaceName`, `messageType`, `host`, `port`, `transport`
-(`"UDP"` \| `"TCP"`, optional, defaults to `"UDP"`), `fields` (`Map<String,Object>`).
-
-```json
-POST /api/publish/udp
-{
-  "interfaceName": "Fruit Interface",
-  "messageType": "Banana",
-  "host": "localhost",
-  "port": 7001,
-  "fields": { "color": "yellow", "weight": 142.75 }
-}
-```
+Sending traffic (UDP/TCP/REST, one-shot or periodic) is [sample-publisher-app](#sample-publisher-app)'s
+own API now, not traffic-monitor-app's — see that section below.
 
 ## Web UI
 
@@ -646,49 +619,39 @@ configured interface as a clickable chip with its message types listed below it.
 interface to deactivate all of its messages in the Live Messages table (click again to
 reactivate); click a single message to toggle just that one independently.
 
-Five tabs:
+Four tabs:
 
 - **Live Messages** — table of observed messages, polling `/api/messages/recent` every ~2s, with
   a click-to-inspect JSON detail panel. Filtered by whatever's currently active in the sidebar.
 - **Interfaces** — one row per configured interface: editable port input + protocol dropdown +
   Save, plus Start/Stop, listening state, received/parse-error counts, last-observed time — see
   [Interface runtime control](#interface-runtime-control).
-- **Sample Publisher** — three cards: the original hand-coded Sample Publisher (Fruit/Weather
-  only, host:port:transport + per-field inputs, enum fields as dropdowns, "Send Once" plus
-  periodic controls); the **Generic Publisher**, which works for any UDP/TCP interface via
-  reflection (no hardcoded per-message forms, including nested/array-of-struct field rendering);
-  and the **REST Publisher** (see [REST Publisher](#rest-publisher)), which reuses the Generic
-  Publisher's field-rendering for any `protocol: REST` interface's operations.
-- **Auto-Reply** — master toggle + one row per UDP/TCP interface (host/port/transport), built
-  entirely from the API response so new interfaces show up automatically, plus a separate
-  **REST Auto-Reply** card (see [REST auto-reply](#rest-auto-reply)) since REST's response model
-  is different enough (mandatory, per-operation, status+body) not to fit the same UI.
+- **REST Auto-Reply** — configures the static response for one REST operation (see
+  [REST auto-reply](#rest-auto-reply)). traffic-monitor-app has no other reply/publish UI —
+  sending traffic and auto-replying to it both live in other apps now (see
+  [sample-publisher-app](#sample-publisher-app) and `traffic-destination-app`).
 - **History** — search/filter the durable H2-backed history plus time-series/breakdown analytics
   charts.
 
-## Auto-reply message handlers
+## sample-publisher-app
 
-See [Step 4](#step-4--optional-react-to-it-with-a-handler) above for the mechanics of writing a
-handler. Two independent gates control whether it actually fires and where the reply goes, both
-defaulting from `config/traffic-tool.yml` and both live-editable via the UI/API without a
-restart:
+A standalone Spring Boot app (module `sample-publisher-app`, package root `com.example.publisher`)
+with its own web UI (default port `8090`) for sending test traffic — everything the old "Sample
+Publisher"/"Generic Publisher"/"REST Publisher" cards used to do in traffic-monitor-app's own UI,
+before that reflection-based approach broke once every UDP/TCP interface moved to the schema-driven
+serdes engine (messages there have no backing Java class to reflect on).
 
-- **Global switch** — a single master on/off for the whole mechanism.
-- **Per-interface switch + destination** — each interface has its own `enabled` flag plus a
-  `host`/`port`/`transport`.
+- Reads the same `config/traffic-tool.yml` as traffic-monitor-app (`TRAFFIC_TOOL_CONFIG` env var
+  override works the same way) — no separate config file.
+- Describes UDP/TCP messages straight from each interface's `serdes/*.protocol.json` file, and
+  REST operations from `swagger/*.yml`, no reflection involved either way.
+- One-shot ("Send Once") or periodic sending, for any UDP/TCP message or REST operation — multiple
+  concurrent periodic jobs are supported, each independently startable/stoppable.
+- No ingestion or storage of its own: a REST response is shown directly to whoever sent the
+  request, not captured anywhere.
 
-`MessageIngestionPipeline` checks both switches right after the parse-error check; if either is
-off, the handler never runs. If it passes, it resolves the interface's destination into a
-`DestinationConfig` (`null` if unconfigured) and passes it as `onMessageArrived`'s third argument
-— the handler explicitly uses `destinationConfig.host()/port()/transport()` when calling
-`replySender.reply(...)`. The reply transport is independent of the transport the triggering
-message arrived on. `ReplySender` resolves which `MessageDefinition` to encode with via
-`MessageDefinitionRegistry.findByMessageClass(message.getClass())` — no string-based dispatch.
-
-Worked example — `OrangeMessageHandler` replies with a Banana when an Orange arrives with
-`freshness == not_fresh`; `PingMessageHandler` always replies with a Pong echoing the same
-sequence. `BananaMessageHandler`/`TemperatureReadingMessageHandler`/`CandyMessageHandler` are
-no-op stubs demonstrating the "decode and store, but don't react" case.
+Run it the same way as traffic-monitor-app: `mvn -pl sample-publisher-app spring-boot:run` from
+the repo root, or via its `-exec.jar`.
 
 ## Persistence and history
 
@@ -715,12 +678,11 @@ idempotently via `spring.sql.init.mode: always` on every startup).
 | `network_monitor.messages.received` | Counter | `transport`, `interfaceName`, `parseError` | `MessageIngestionPipeline` — once per inbound message |
 | `network_monitor.messages.payload_size_bytes` | DistributionSummary | `transport` | `MessageIngestionPipeline` |
 | `network_monitor.archive.failures` | Counter | `transport` | H2 archive write failed |
-| `network_monitor.dispatch.failures` | Counter | `interfaceName` | an `onMessageArrived` handler threw |
 | `network_monitor.tcp.connections.accepted` | Counter | `port` | once per accepted TCP connection |
 | `network_monitor.tcp.connections.active` | Gauge | — | current open TCP connection count, across all TCP interfaces |
 | `network_monitor.tcp.connections.errors` | Counter | `port` | genuine connection-handling errors |
 | `network_monitor.udp.listener.errors` | Counter | `port` | genuine socket errors while listening |
-| `network_monitor.messages.sent` | Counter | `transport` | successful outbound send (publish or auto-reply) |
+| `network_monitor.messages.sent` | Counter | `transport` | successful outbound send (publish) |
 | `network_monitor.messages.send_errors` | Counter | `transport` | outbound send failed |
 
 Deliberately **not** tagged with `messageType` — with several interfaces × several message types
@@ -845,14 +807,12 @@ fat jar is the separate `-exec.jar`.) Run the tester locally: see
   so there's nothing for a `MessageArrivedHandler<T>`-style handler to type against; REST server
   mode's response is always the static configured/fallback body (see
   [REST auto-reply](#rest-auto-reply)), never programmable logic.
-- **No periodic REST publish** — `PeriodicPublisherService` is hard-wired to the legacy flat
-  `PublishRequest`/`MonitorPayloadFactory` path, which can't represent a REST operation. On-demand
-  REST publish (REST Publisher UI / `POST /api/publisher/send`) works fully.
 - **REST auto-reply bodies are fully static** — no variable interpolation/templating (e.g. can't
   echo a path parameter back into the configured response).
-- **No HTTPS for REST** — REST client-mode calls are `http://` only, no TLS config surface.
+- **No HTTPS for REST** — sample-publisher-app's REST client calls are `http://` only, no TLS
+  config surface.
 - **`oneOf`/`anyOf` OpenAPI schemas collapse to their first alternative** rather than fully
-  modeling a polymorphic request/response body in the REST Publisher's generated form.
+  modeling a polymorphic request/response body in sample-publisher-app's generated form.
 - **Switching a UDP/TCP interface to `protocol: REST` at runtime doesn't work** (see
   [Interface runtime control](#interface-runtime-control)) — only interfaces already declared
   `protocol: REST` in config at startup are functional.

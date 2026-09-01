@@ -13,6 +13,25 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-config</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>binary-serdes</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Also the transitive source of io.swagger.v3.oas.models.OpenAPI, which
+         RestSchemaWiringConfig imports directly - don't add a scope/exclusion to this dependency
+         without checking that consumer first. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>rest-schema</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
@@ -51,14 +70,6 @@
       <version>2.2</version>
     </dependency>
 
-    <!-- Parses OpenAPI/Swagger YAML for REST interfaces (com.example.monitor.rest), resolving
-         $ref/allOf/oneOf so message shapes never need hand-written Java classes. -->
-    <dependency>
-      <groupId>io.swagger.parser.v3</groupId>
-      <artifactId>swagger-parser</artifactId>
-      <version>2.1.22</version>
-    </dependency>
-
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -82,6 +93,10 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
       </plugin>
     </plugins>
   </build>
