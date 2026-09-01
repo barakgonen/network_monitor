@@ -186,14 +186,19 @@ class TcpIngestionRunnerTest {
         int port = findFreePort();
         interfaceConfig.setPort(port);
         interfaceConfig.setMode("CLIENT");
-        interfaceConfig.setHost("localhost");
+        interfaceConfig.setHost("127.0.0.1");
         when(pipeline.ingestForInterface(any(), any(), any(), any(Integer.class), any(), any()))
                 .thenReturn(observedMessage());
 
         runner.startInterface(interfaceConfig);
 
-        await().until(() -> meterRegistry.counter("network_monitor.tcp.client.reconnect.attempts",
-                "port", String.valueOf(port)).count() >= 1.0);
+        // Generous bound (not just Awaitility's 10s default): a busy/shared CI runner can add
+        // enough scheduling/JIT jitter that even one fast local TCP connect-refuse-retry cycle
+        // occasionally doesn't land inside 10s - seen flake in CI even though the analogous
+        // reconnect assertion below always passed quickly locally.
+        await().atMost(java.time.Duration.ofSeconds(30)).until(() ->
+                meterRegistry.counter("network_monitor.tcp.client.reconnect.attempts",
+                        "port", String.valueOf(port)).count() >= 1.0);
 
         try (ServerSocket server = new ServerSocket(port)) {
             try (Socket accepted = server.accept()) {
@@ -212,12 +217,13 @@ class TcpIngestionRunnerTest {
     void stopInterface_duringClientReconnectLoop_stopsRetrying() throws Exception {
         interfaceConfig.setPort(findFreePort());
         interfaceConfig.setMode("CLIENT");
-        interfaceConfig.setHost("localhost");
+        interfaceConfig.setHost("127.0.0.1");
 
         runner.startInterface(interfaceConfig);
 
-        await().until(() -> meterRegistry.counter("network_monitor.tcp.client.reconnect.attempts",
-                "port", String.valueOf(interfaceConfig.getPort())).count() >= 1.0);
+        await().atMost(java.time.Duration.ofSeconds(30)).until(() ->
+                meterRegistry.counter("network_monitor.tcp.client.reconnect.attempts",
+                        "port", String.valueOf(interfaceConfig.getPort())).count() >= 1.0);
 
         runner.stopInterface(KEY);
 
