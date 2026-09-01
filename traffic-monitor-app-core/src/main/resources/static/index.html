@@ -55,7 +55,6 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" id="liveTab" onclick="showTab('live')">Live Messages</button>
       <button class="tab" id="interfacesTab" onclick="showTab('interfaces')">Interfaces</button>
-      <button class="tab" id="autoReplyTab" onclick="showTab('autoreply')">REST Auto-Reply</button>
       <button class="tab" id="historyTab" onclick="showTab('history')">History</button>
     </nav>
 
@@ -125,49 +124,6 @@
         </table>
         <div id="interfacesEmptyState" class="empty-state" style="display:none;">
           No interfaces are configured.
-        </div>
-      </div>
-    </section>
-
-    <section id="autoReplyPanel" class="panel table-panel" style="display:none;">
-      <div class="panel-header">
-        <h2>REST Auto-Reply</h2>
-      </div>
-
-      <div class="publisher-layout">
-        <div class="publisher-card">
-          <div class="publisher-card-header">
-            <h3>REST Auto-Reply</h3>
-          </div>
-
-          <div class="publisher-form">
-            <div class="form-row">
-              <label for="restAutoReplyInterface">Interface</label>
-              <select id="restAutoReplyInterface" onchange="onRestAutoReplyInterfaceChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="restAutoReplyOperation">Operation</label>
-              <select id="restAutoReplyOperation" onchange="onRestAutoReplyOperationChanged()"></select>
-            </div>
-
-            <div class="form-row">
-              <label for="restAutoReplyStatus">Status Code</label>
-              <input id="restAutoReplyStatus" type="number" min="100" max="599">
-            </div>
-
-            <div class="form-row">
-              <label for="restAutoReplyBody">Response Body (JSON)</label>
-              <textarea id="restAutoReplyBody" rows="6"></textarea>
-            </div>
-
-            <button class="primary-btn" onclick="saveRestAutoReply()">Save</button>
-          </div>
-
-          <div id="restAutoReplyResult" class="publisher-result">
-            Every REST server-mode request gets some response, by necessity of HTTP - configure
-            one here, or leave it as-is to fall back to the operation's OpenAPI response example.
-          </div>
         </div>
       </div>
     </section>
@@ -307,20 +263,14 @@
   function showTab(tab) {
     document.getElementById('livePanel').style.display = tab === 'live' ? '' : 'none';
     document.getElementById('interfacesPanel').style.display = tab === 'interfaces' ? '' : 'none';
-    document.getElementById('autoReplyPanel').style.display = tab === 'autoreply' ? '' : 'none';
     document.getElementById('historyPanel').style.display = tab === 'history' ? '' : 'none';
 
     document.getElementById('liveTab').classList.toggle('active', tab === 'live');
     document.getElementById('interfacesTab').classList.toggle('active', tab === 'interfaces');
-    document.getElementById('autoReplyTab').classList.toggle('active', tab === 'autoreply');
     document.getElementById('historyTab').classList.toggle('active', tab === 'history');
 
     if (tab === 'interfaces') {
       loadInterfaceStatuses();
-    }
-
-    if (tab === 'autoreply') {
-      loadRestAutoReplyInterfaces();
     }
 
     if (tab === 'history') {
@@ -667,89 +617,6 @@
     }
 
     renderInterfaceStatuses(await response.json());
-  }
-
-  // --- REST auto-reply: configures the static response a REST server-mode interface writes back
-  // per operation - every request gets some response by necessity of HTTP, so this always shows
-  // the resolved (configured-or-fallback) value, not just what's explicitly been set.
-
-  async function loadRestAutoReplyInterfaces() {
-    const response = await fetch('/api/rest/interfaces');
-    const interfaces = await response.json();
-
-    const select = document.getElementById('restAutoReplyInterface');
-    select.innerHTML = '';
-
-    for (const iface of interfaces) {
-      const option = document.createElement('option');
-      option.value = iface.key;
-      option.innerText = iface.name;
-      option.dataset.operations = JSON.stringify(iface.operations);
-      select.appendChild(option);
-    }
-
-    await onRestAutoReplyInterfaceChanged();
-  }
-
-  async function onRestAutoReplyInterfaceChanged() {
-    const select = document.getElementById('restAutoReplyInterface');
-    const selectedOption = select.options[select.selectedIndex];
-    const operations = selectedOption ? JSON.parse(selectedOption.dataset.operations || '[]') : [];
-
-    const operationSelect = document.getElementById('restAutoReplyOperation');
-    operationSelect.innerHTML = '';
-
-    for (const operation of operations) {
-      const option = document.createElement('option');
-      option.value = operation.operationId;
-      option.innerText = `${operation.httpMethod} ${operation.pathTemplate} (${operation.operationId})`;
-      operationSelect.appendChild(option);
-    }
-
-    await onRestAutoReplyOperationChanged();
-  }
-
-  async function onRestAutoReplyOperationChanged() {
-    const interfaceKey = document.getElementById('restAutoReplyInterface').value;
-    const operationId = document.getElementById('restAutoReplyOperation').value;
-
-    if (!interfaceKey || !operationId) {
-      return;
-    }
-
-    const response = await fetch(`/api/rest/${encodeURIComponent(interfaceKey)}/autoreply`);
-    const settings = await response.json();
-    const resolved = settings[operationId];
-
-    document.getElementById('restAutoReplyStatus').value = resolved ? resolved.statusCode : 200;
-    document.getElementById('restAutoReplyBody').value = resolved ? resolved.body : '{}';
-  }
-
-  async function saveRestAutoReply() {
-    const interfaceKey = document.getElementById('restAutoReplyInterface').value;
-    const operationId = document.getElementById('restAutoReplyOperation').value;
-    const statusCode = Number(document.getElementById('restAutoReplyStatus').value);
-    const bodyTemplate = document.getElementById('restAutoReplyBody').value;
-
-    const result = document.getElementById('restAutoReplyResult');
-    result.className = 'publisher-result';
-    result.innerText = 'Saving...';
-
-    const response = await fetch(
-      `/api/rest/${encodeURIComponent(interfaceKey)}/autoreply/${encodeURIComponent(operationId)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ statusCode, bodyTemplate })
-      });
-
-    if (response.ok) {
-      result.className = 'publisher-result ok';
-      result.innerText = 'Saved.';
-    } else {
-      result.className = 'publisher-result error';
-      result.innerText = `Failed: ${await response.text()}`;
-    }
   }
 
   loadMessages();
