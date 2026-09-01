@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-public class InterfaceControlController {
+public class InterfaceControlController extends AbstractBadRequestController {
     private final InterfaceControlService interfaceControlService;
 
     public InterfaceControlController(InterfaceControlService interfaceControlService) {
