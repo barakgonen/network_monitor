@@ -1,0 +1,19 @@
+# Manifest for serdes-generator: regenerates serdes/rada.protocol.json from the fixed-layout
+# rada message classes in traffic-tester-app. See serdes-generator's package-info for scope.
+#
+# Usage (from repo root, after `mvn -pl traffic-tester-app,serdes-generator -am package`):
+#
+#   java -cp "serdes-generator/target/serdes-generator-0.2.0-SNAPSHOT.jar:serdes-generator/target/lib/*:\
+#traffic-tester-app/target/traffic-tester-app-0.2.0-SNAPSHOT.jar:traffic-tester-app/target/lib/*" \
+#     com.example.serdesgenerator.GeneratorMain \
+#     --manifest generator/rada.manifest.yml \
+#     --output serdes/rada.protocol.json
+messages:
+  - className: com.example.tester.schemas.rada.messages.RadaStatus
+    opcode: 3
+  - className: com.example.tester.schemas.rada.messages.RadaExtendedStatus
+    opcode: 1
+  - className: com.example.tester.schemas.rada.messages.RadaExtendedStatusMrs
+    opcode: 2
+  - className: com.example.tester.schemas.rada.messages.RadaTracksExtended
+    opcode: 4
