@@ -65,7 +65,7 @@
 
       <div class="live-events-layout">
         <div class="table-wrapper">
-          <table>
+          <table class="messages-table">
             <thead>
             <tr>
               <th>Observed At</th>
@@ -73,7 +73,6 @@
               <th>Port</th>
               <th>Interface</th>
               <th>Message Name</th>
-              <th>Message Body</th>
               <th>Parse Error</th>
             </tr>
             </thead>
@@ -85,6 +84,12 @@
         <aside class="event-details-side">
           <div class="event-details-header">
             <h3>Message Inspector</h3>
+            <button class="secondary-btn inspector-copy-btn" id="inspectorCopyBtn" style="display:none;">Copy JSON</button>
+          </div>
+          <div class="inspector-summary" id="inspectorSummary" style="display:none;">
+            <span class="message-name" id="inspectorMessageName"></span>
+            <span class="protocol-pill" id="inspectorProtocol"></span>
+            <span class="inspector-meta" id="inspectorMeta"></span>
           </div>
           <pre id="eventDetails">Select a message to inspect details.</pre>
         </aside>
@@ -169,7 +174,7 @@
       </div>
 
       <div class="table-wrapper">
-        <table>
+        <table class="messages-table">
           <thead>
           <tr>
             <th>Observed At</th>
@@ -177,7 +182,6 @@
             <th>Port</th>
             <th>Interface</th>
             <th>Message Name</th>
-            <th>Message Body</th>
             <th>Parse Error</th>
           </tr>
           </thead>
@@ -235,7 +239,6 @@
         <td>${escapeHtml(msg.localPort)}</td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
-        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.payload || {}))}</div></td>
         <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
       `;
 
@@ -244,9 +247,12 @@
     }
   }
 
+  let selectedMessageJson = '';
+
   function selectMessage(msg) {
     selectedMessageId = msg.id;
-    document.getElementById('eventDetails').innerText = JSON.stringify({
+
+    const details = {
       id: msg.id,
       observedAt: msg.observedAt,
       protocol: msg.protocol,
@@ -255,9 +261,39 @@
       messageName: msg.messageType,
       payload: msg.payload,
       parseError: msg.parseError
-    }, null, 2);
+    };
+    selectedMessageJson = JSON.stringify(details, null, 2);
+
+    document.getElementById('inspectorSummary').style.display = '';
+    document.getElementById('inspectorCopyBtn').style.display = '';
+    document.getElementById('inspectorMessageName').innerText = msg.messageType || '(unknown)';
+    document.getElementById('inspectorProtocol').innerText = msg.protocol || msg.transportProtocol || '';
+    document.getElementById('inspectorMeta').innerText =
+      `${formatTime(msg.observedAt)}  ·  ${msg.interfaceName || ''}  ·  port ${msg.localPort}`;
+
+    document.getElementById('eventDetails').innerHTML = syntaxHighlightJson(selectedMessageJson);
 
     renderMessages();
+  }
+
+  function syntaxHighlightJson(json) {
+    // Only &/</> need escaping for safe innerHTML text content - unlike escapeHtml(), quotes
+    // are left intact so the regex below can still match JSON string/key tokens by their quotes.
+    const escaped = json.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    return escaped.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+      (match) => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string';
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
   }
 
   function showTab(tab) {
@@ -330,7 +366,6 @@
         <td>${escapeHtml(msg.localPort)}</td>
         <td>${escapeHtml(msg.interfaceName || '')}</td>
         <td class="message-name">${escapeHtml(msg.messageType || '')}</td>
-        <td><div class="body-preview">${escapeHtml(JSON.stringify(msg.body || {}))}</div></td>
         <td class="${msg.parseError ? 'error-text' : ''}">${escapeHtml(msg.parseError || '')}</td>
       `;
       tbody.appendChild(row);
@@ -415,7 +450,9 @@
     }
 
     try {
-      return new Date(value).toLocaleTimeString();
+      const date = new Date(value);
+      const millis = String(date.getMilliseconds()).padStart(3, '0');
+      return `${date.toLocaleTimeString()}.${millis}`;
     } catch {
       return value;
     }
@@ -618,6 +655,14 @@
 
     renderInterfaceStatuses(await response.json());
   }
+
+  document.getElementById('inspectorCopyBtn').addEventListener('click', async () => {
+    await navigator.clipboard.writeText(selectedMessageJson);
+    const btn = document.getElementById('inspectorCopyBtn');
+    const original = btn.innerText;
+    btn.innerText = 'Copied!';
+    setTimeout(() => { btn.innerText = original; }, 1200);
+  });
 
   loadMessages();
   loadSidebarInterfaces();
