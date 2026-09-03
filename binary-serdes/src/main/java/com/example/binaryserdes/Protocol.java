@@ -4,6 +4,7 @@ import com.example.binaryserdes.config.FieldConfig;
 import com.example.binaryserdes.config.MessageConfig;
 import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.binaryserdes.config.TypeConfig;
+import com.example.binaryserdes.translators.ByteTranslator;
 import com.example.binaryserdes.translators.Double64Translator;
 import com.example.binaryserdes.translators.DynamicStringTranslator;
 import com.example.binaryserdes.translators.FixedStringTranslator;
@@ -227,7 +228,16 @@ public abstract class Protocol<P extends Protocol<P>> {
         );
         map.put("uint8", u8);
         map.put("u8", u8);
-        map.put("byte", u8);
+
+        // byte - Java's signed 8-bit type, distinct from uint8's unsigned Integer interpretation
+        // of the same one wire byte.
+        Type<Byte> b = new Type<>(
+                "byte",
+                1,
+                Byte.class,
+                new ByteTranslator()
+        );
+        map.put("byte", b);
 
         // float32
         Type<Float> f32 = new Type<>(
@@ -305,6 +315,12 @@ public abstract class Protocol<P extends Protocol<P>> {
                     1,
                     Integer.class,
                     new UInt8Translator()
+            );
+            case "byte" -> new Type<>(
+                    tc.name,
+                    1,
+                    Byte.class,
+                    new ByteTranslator()
             );
             case "float32" -> new Type<>(
                     tc.name,
