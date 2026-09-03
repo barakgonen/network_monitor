@@ -5,6 +5,12 @@
       "kind": "enum",
       "underlyingType": "uint8",
       "values": { "CELSIUS": 0, "FAHRENHEIT": 1 }
+    },
+    {
+      "name": "icd",
+      "kind": "array",
+      "elementType": "byte",
+      "length": 16
     }
   ],
   "messages": [
