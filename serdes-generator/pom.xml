@@ -1,0 +1,108 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>traffic-interface-tool</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>serdes-generator</artifactId>
+
+  <dependencies>
+    <!-- StructSizeCalculator/ReflectiveStructCodec/FixedArrayLengths + the
+         @FixedArrayLength/@EnumWireSize annotations this generator mirrors. This is a dev-time
+         CLI tool, never deployed as a service, so the transitive Spring weight pulled in by this
+         module is a non-issue - the point is reusing tested reflection/sizing logic rather than
+         reimplementing it. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-monitor-app-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- Output model (ProtocolConfig/MessageConfig/TypeConfig/FieldConfig) plus ProtocolIn/
+         ProtocolOut/Protocol.loadConfig used for the post-generation self-check - reusing these
+         directly guarantees the generator's output can never drift from what the loader accepts. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>binary-serdes</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <version>2.2</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.instancio</groupId>
+      <artifactId>instancio-junit</artifactId>
+      <version>2.9.0</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Test-only: gives the strongest correctness test (RadaRoundTripTest) real, compiled
+         access to traffic-tester-app's actual rada message classes rather than synthetic
+         fixtures, so it can encode via the project's own ReflectiveStructCodec and decode via a
+         generated protocol.json for a direct comparison. Main code never depends on this - it
+         resolves target classes purely via Class.forName at runtime (see GeneratorMain). -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>traffic-tester-app</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>com.example.serdesgenerator.GeneratorMain</mainClass>
+              <addClasspath>true</addClasspath>
+              <classpathPrefix>lib/</classpathPrefix>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.7.1</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/lib</outputDirectory>
+              <includeScope>runtime</includeScope>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

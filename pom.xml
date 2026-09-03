@@ -13,6 +13,7 @@
     <module>binary-serdes</module>
     <module>rest-schema</module>
     <module>traffic-monitor-app-core</module>
+    <module>serdes-generator</module>
     <module>traffic-monitor-app</module>
     <module>traffic-tester-app</module>
     <module>traffic-proxy-app</module>
