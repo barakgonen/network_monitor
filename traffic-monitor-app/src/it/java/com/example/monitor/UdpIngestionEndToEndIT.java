@@ -33,15 +33,29 @@ class UdpIngestionEndToEndIT extends AbstractIntegrationTestBase {
 
     @Test
     void sendingValidTemperatureReadingPayload_toWeatherPort_landsInStore() throws Exception {
-        sendUdp(weatherPort, TestProtocolPayloads.temperatureReading("station-1", 21.5, (byte) 1));
+        sendUdp(weatherPort, TestProtocolPayloads.temperatureReading("station-1", 21.5, (byte) 0, (byte) 1));
 
         ObservedMessage message = awaitStoreContains(m -> "TemperatureReading".equals(m.messageType()));
 
         assertThat(message.interfaceName()).isEqualTo("Weather Interface");
         assertThat(message.parseError()).isNull();
         assertThat(message.body().get("stationId")).isEqualTo("station-1");
-        assertThat(message.body().get("temperatureCelsius")).isEqualTo(21.5);
+        assertThat(message.body().get("temperature")).isEqualTo(21.5);
+        assertThat(message.body().get("unit")).isEqualTo("CELSIUS");
         assertThat(message.body().get("condition")).isEqualTo("sunny");
+    }
+
+    @Test
+    void sendingValidTemperatureReadingPayload_withFahrenheitUnit_landsInStoreWithUnitField() throws Exception {
+        sendUdp(weatherPort, TestProtocolPayloads.temperatureReading("station-2", 70.0, (byte) 1, (byte) 2));
+
+        ObservedMessage message = awaitStoreContains(
+                m -> "TemperatureReading".equals(m.messageType()) && "station-2".equals(m.body().get("stationId")));
+
+        assertThat(message.parseError()).isNull();
+        assertThat(message.body().get("temperature")).isEqualTo(70.0);
+        assertThat(message.body().get("unit")).isEqualTo("FAHRENHEIT");
+        assertThat(message.body().get("condition")).isEqualTo("cloudy");
     }
 
     @Test

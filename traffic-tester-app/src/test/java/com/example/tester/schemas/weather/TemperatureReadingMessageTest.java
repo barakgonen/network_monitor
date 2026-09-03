@@ -18,25 +18,38 @@ class TemperatureReadingMessageTest {
     @ParameterizedTest
     @EnumSource(WeatherCondition.class)
     void toByteArray_thenFromByteBuffer_roundTripsAllFieldsForEachCondition(WeatherCondition condition) {
-        TemperatureReadingMessage message = new TemperatureReadingMessage("station-1", 21.5, condition);
+        TemperatureReadingMessage message =
+                new TemperatureReadingMessage("station-1", 21.5, TemperatureUnit.CELSIUS, condition);
 
         TemperatureReadingMessage decoded = TemperatureReadingMessage.fromByteBuffer(ByteBuffer.wrap(message.toByteArray()));
 
         assertThat(decoded).isEqualTo(message);
     }
 
-    @Test
-    void roundTrips_negativeTemperature() {
-        TemperatureReadingMessage message = new TemperatureReadingMessage("station-2", -40.0, WeatherCondition.CLOUDY);
+    @ParameterizedTest
+    @EnumSource(TemperatureUnit.class)
+    void toByteArray_thenFromByteBuffer_roundTripsAllUnits(TemperatureUnit unit) {
+        TemperatureReadingMessage message = new TemperatureReadingMessage("station-1", 21.5, unit, WeatherCondition.SUNNY);
 
         TemperatureReadingMessage decoded = TemperatureReadingMessage.fromByteBuffer(ByteBuffer.wrap(message.toByteArray()));
 
-        assertThat(decoded.temperatureCelsius()).isEqualTo(-40.0);
+        assertThat(decoded.unit()).isEqualTo(unit);
+    }
+
+    @Test
+    void roundTrips_negativeTemperature() {
+        TemperatureReadingMessage message =
+                new TemperatureReadingMessage("station-2", -40.0, TemperatureUnit.CELSIUS, WeatherCondition.CLOUDY);
+
+        TemperatureReadingMessage decoded = TemperatureReadingMessage.fromByteBuffer(ByteBuffer.wrap(message.toByteArray()));
+
+        assertThat(decoded.temperature()).isEqualTo(-40.0);
     }
 
     @Test
     void roundTrips_unicodeStationId() {
-        TemperatureReadingMessage message = new TemperatureReadingMessage("站-Ω", 10.0, WeatherCondition.SUNNY);
+        TemperatureReadingMessage message =
+                new TemperatureReadingMessage("站-Ω", 10.0, TemperatureUnit.FAHRENHEIT, WeatherCondition.SUNNY);
 
         TemperatureReadingMessage decoded = TemperatureReadingMessage.fromByteBuffer(ByteBuffer.wrap(message.toByteArray()));
 
@@ -52,9 +65,10 @@ class TemperatureReadingMessageTest {
 
     @Test
     void fromByteBuffer_whenStationIdLengthNegative_throwsIllegalArgumentException() {
-        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Double.BYTES + Integer.BYTES);
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Double.BYTES + Byte.BYTES + Integer.BYTES);
         buffer.putInt(-1);
         buffer.putDouble(1.0);
+        buffer.put((byte) 0);
         buffer.putInt(0);
         buffer.flip();
 
@@ -65,9 +79,10 @@ class TemperatureReadingMessageTest {
 
     @Test
     void fromByteBuffer_whenStationIdLengthOverrunsBuffer_throwsIllegalArgumentException() {
-        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Double.BYTES + Integer.BYTES);
+        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + Double.BYTES + Byte.BYTES + Integer.BYTES);
         buffer.putInt(100);
         buffer.putDouble(1.0);
+        buffer.put((byte) 0);
         buffer.putInt(0);
         buffer.flip();
 
@@ -77,14 +92,32 @@ class TemperatureReadingMessageTest {
     }
 
     @Test
+    void fromByteBuffer_whenUnitCodeUnrecognized_throwsIllegalArgumentException() {
+        byte[] stationBytes = "s1".getBytes(StandardCharsets.UTF_8);
+        ByteBuffer buffer = ByteBuffer.allocate(
+                Integer.BYTES + stationBytes.length + Double.BYTES + Byte.BYTES + Integer.BYTES);
+        buffer.putInt(stationBytes.length);
+        buffer.put(stationBytes);
+        buffer.putDouble(5.0);
+        buffer.put((byte) 99);
+        buffer.putInt(0);
+        buffer.flip();
+
+        assertThatThrownBy(() -> TemperatureReadingMessage.fromByteBuffer(buffer))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("99");
+    }
+
+    @Test
     void fromByteBuffer_whenConditionWireNameUnrecognized_decodesAsUnknown() {
         byte[] stationBytes = "s1".getBytes(StandardCharsets.UTF_8);
         byte[] conditionBytes = "bogus".getBytes(StandardCharsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(
-                Integer.BYTES + stationBytes.length + Double.BYTES + Integer.BYTES + conditionBytes.length);
+                Integer.BYTES + stationBytes.length + Double.BYTES + Byte.BYTES + Integer.BYTES + conditionBytes.length);
         buffer.putInt(stationBytes.length);
         buffer.put(stationBytes);
         buffer.putDouble(5.0);
+        buffer.put(TemperatureUnit.CELSIUS.getCode());
         buffer.putInt(conditionBytes.length);
         buffer.put(conditionBytes);
         buffer.flip();
@@ -96,7 +129,7 @@ class TemperatureReadingMessageTest {
 
     @Test
     void toByteArray_exactByteLayout() {
-        byte[] body = new TemperatureReadingMessage("ab", 12.5, WeatherCondition.RAINY).toByteArray();
+        byte[] body = new TemperatureReadingMessage("ab", 12.5, TemperatureUnit.FAHRENHEIT, WeatherCondition.RAINY).toByteArray();
 
         ByteBuffer buffer = ByteBuffer.wrap(body);
         assertThat(buffer.getInt()).isEqualTo(2);
@@ -104,6 +137,7 @@ class TemperatureReadingMessageTest {
         buffer.get(stationBytes);
         assertThat(new String(stationBytes, StandardCharsets.UTF_8)).isEqualTo("ab");
         assertThat(buffer.getDouble()).isEqualTo(12.5);
+        assertThat(buffer.get()).isEqualTo(TemperatureUnit.FAHRENHEIT.getCode());
 
         int conditionLength = buffer.getInt();
         byte[] conditionBytes = new byte[conditionLength];
@@ -116,12 +150,13 @@ class TemperatureReadingMessageTest {
         ReflectiveMessageDefinition definition = new ReflectiveMessageDefinition(
                 "Weather Interface", "TemperatureReading", 2001, TemperatureReadingMessage.class);
 
-        byte[] body = new TemperatureReadingMessage("station-1", 21.5, WeatherCondition.RAINY).toByteArray();
+        byte[] body = new TemperatureReadingMessage("station-1", 21.5, TemperatureUnit.CELSIUS, WeatherCondition.RAINY).toByteArray();
 
         Map<String, Object> fields = definition.decodeBody(ByteBuffer.wrap(body));
 
         assertThat(fields.get("stationId")).isEqualTo("station-1");
-        assertThat(fields.get("temperatureCelsius")).isEqualTo(21.5);
+        assertThat(fields.get("temperature")).isEqualTo(21.5);
+        assertThat(fields.get("unit")).isEqualTo("CELSIUS");
         assertThat(fields.get("condition")).isEqualTo("rainy");
     }
 
@@ -132,13 +167,15 @@ class TemperatureReadingMessageTest {
 
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("stationId", "station-3");
-        fields.put("temperatureCelsius", 5.0);
+        fields.put("temperature", 5.0);
+        fields.put("unit", "FAHRENHEIT");
         fields.put("condition", "sunny");
 
         byte[] body = definition.encodeBody(fields);
         TemperatureReadingMessage decoded =
                 (TemperatureReadingMessage) definition.decodeMessage(ByteBuffer.wrap(body));
 
-        assertThat(decoded).isEqualTo(new TemperatureReadingMessage("station-3", 5.0, WeatherCondition.SUNNY));
+        assertThat(decoded).isEqualTo(new TemperatureReadingMessage(
+                "station-3", 5.0, TemperatureUnit.FAHRENHEIT, WeatherCondition.SUNNY));
     }
 }

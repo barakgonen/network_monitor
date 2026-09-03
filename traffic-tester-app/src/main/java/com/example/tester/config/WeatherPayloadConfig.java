@@ -2,7 +2,8 @@ package com.example.tester.config;
 
 public class WeatherPayloadConfig {
     private String stationId = "station-01";
-    private double temperatureCelsius = 24.5;
+    private double temperature = 24.5;
+    private String unit = "CELSIUS";
     private String condition = "sunny";
 
     public String getStationId() {
@@ -13,12 +14,20 @@ public class WeatherPayloadConfig {
         this.stationId = stationId;
     }
 
-    public double getTemperatureCelsius() {
-        return temperatureCelsius;
+    public double getTemperature() {
+        return temperature;
     }
 
-    public void setTemperatureCelsius(double temperatureCelsius) {
-        this.temperatureCelsius = temperatureCelsius;
+    public void setTemperature(double temperature) {
+        this.temperature = temperature;
+    }
+
+    public String getUnit() {
+        return unit;
+    }
+
+    public void setUnit(String unit) {
+        this.unit = unit;
     }
 
     public String getCondition() {

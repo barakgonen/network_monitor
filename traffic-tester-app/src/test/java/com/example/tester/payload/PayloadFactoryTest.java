@@ -12,6 +12,7 @@ import com.example.tester.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.tester.schemas.rada.messages.RadaStatus;
 import com.example.tester.schemas.rada.messages.RadaTracksExtended;
 import com.example.tester.schemas.weather.TemperatureReadingMessage;
+import com.example.tester.schemas.weather.TemperatureUnit;
 import com.example.tester.config.CandyPayloadConfig;
 import com.example.tester.config.FruitPayloadConfig;
 import com.example.tester.config.PayloadConfig;
@@ -107,7 +108,8 @@ class PayloadFactoryTest {
         config.setMode(PayloadMode.WEATHER_TEMPERATURE_READING);
         WeatherPayloadConfig weather = new WeatherPayloadConfig();
         weather.setStationId("station-z");
-        weather.setTemperatureCelsius(10.0);
+        weather.setTemperature(10.0);
+        weather.setUnit("FAHRENHEIT");
         weather.setCondition("rainy");
         config.setWeather(weather);
 
@@ -116,6 +118,7 @@ class PayloadFactoryTest {
         TemperatureReadingMessage decoded =
                 (TemperatureReadingMessage) decodeBody(payload, 2001, TemperatureReadingMessage.class);
         assertThat(decoded.stationId()).isEqualTo("station-z");
+        assertThat(decoded.unit()).isEqualTo(TemperatureUnit.FAHRENHEIT);
         assertThat(decoded.condition().getWireName()).isEqualTo("rainy");
     }
 

@@ -299,7 +299,7 @@
       if (dotIndex === -1) {
         currentGroup = null;
         currentGroupKey = null;
-        fieldsContainer.appendChild(buildFieldRow(field.name, field.type, field.name));
+        fieldsContainer.appendChild(buildFieldRow(field.name, field.type, field.name, field.enumValues));
         continue;
       }
 
@@ -319,17 +319,25 @@
         fieldsContainer.appendChild(currentGroup);
       }
 
-      currentGroup.appendChild(buildFieldRow(label, field.type, field.name));
+      currentGroup.appendChild(buildFieldRow(label, field.type, field.name, field.enumValues));
     }
   }
 
-  function buildFieldRow(label, type, fieldName) {
+  // enumValues (only populated for a binary-serdes EnumType field) renders a <select> of the
+  // declared symbolic names instead of a free-text input - collectFields() reads `.value` off
+  // either element the same way, so no other call site needs to know which one it got.
+  function buildFieldRow(label, type, fieldName, enumValues) {
     const row = document.createElement('div');
     row.className = 'form-row';
-    row.innerHTML = `
-      <label for="field-${fieldName}">${escapeHtml(label)} <span class="field-type">${escapeHtml(type)}</span></label>
-      <input id="field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">
-    `;
+    const labelHtml = `<label for="field-${fieldName}">${escapeHtml(label)} <span class="field-type">${escapeHtml(type)}</span></label>`;
+
+    if (enumValues && enumValues.length > 0) {
+      const optionsHtml = enumValues.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+      row.innerHTML = `${labelHtml}<select id="field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">${optionsHtml}</select>`;
+    } else {
+      row.innerHTML = `${labelHtml}<input id="field-${fieldName}" data-field-name="${escapeHtml(fieldName)}">`;
+    }
+
     return row;
   }
 
@@ -386,7 +394,7 @@
     itemBox.appendChild(removeButton);
 
     for (const itemField of field.itemFields) {
-      itemBox.appendChild(buildFieldRow(itemField.name, itemField.type, `${field.name}[${index}].${itemField.name}`));
+      itemBox.appendChild(buildFieldRow(itemField.name, itemField.type, `${field.name}[${index}].${itemField.name}`, itemField.enumValues));
     }
 
     itemsContainer.appendChild(itemBox);

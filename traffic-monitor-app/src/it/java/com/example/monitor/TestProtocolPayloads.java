@@ -59,14 +59,21 @@ final class TestProtocolPayloads {
             (byte) 3, "rainy",
             (byte) 4, "unknown");
 
-    static byte[] temperatureReading(String stationId, double temperatureCelsius, byte conditionCode) {
+    /**
+     * serdes/weather.protocol.json declares {@code unit} as a genuine {@code kind: "enum"} type
+     * (uint8-backed, CELSIUS: 0, FAHRENHEIT: 1) - the raw wire byte, unlike {@code condition}
+     * above which is still a plain wire string.
+     */
+    static byte[] temperatureReading(String stationId, double temperature, byte unitCode, byte conditionCode) {
         byte[] stationBytes = stationId.getBytes(StandardCharsets.UTF_8);
         byte[] conditionBytes = CONDITION_WIRE_NAMES.get(conditionCode).getBytes(StandardCharsets.UTF_8);
         ByteBuffer body = ByteBuffer.allocate(
-                Integer.BYTES + stationBytes.length + Double.BYTES + Integer.BYTES + conditionBytes.length);
+                Integer.BYTES + stationBytes.length + Double.BYTES + Byte.BYTES
+                        + Integer.BYTES + conditionBytes.length);
         body.putInt(stationBytes.length);
         body.put(stationBytes);
-        body.putDouble(temperatureCelsius);
+        body.putDouble(temperature);
+        body.put(unitCode);
         body.putInt(conditionBytes.length);
         body.put(conditionBytes);
         return ProtocolHeaderCodec.encodeMessage(TEMPERATURE_READING_OPCODE, System.currentTimeMillis(), body.array());

@@ -1,6 +1,7 @@
 package com.example.publisher.serdes;
 
 import com.example.binaryserdes.ArrayType;
+import com.example.binaryserdes.EnumType;
 import com.example.binaryserdes.MessageField;
 import com.example.binaryserdes.MessageType;
 import com.example.binaryserdes.RecordType;
@@ -46,6 +47,11 @@ public class SerdesFieldMetadataService {
             for (Map.Entry<String, Type<?>> nestedField : recordType.getFields().entrySet()) {
                 describeField(nestedField.getKey(), nestedField.getValue(), qualifiedName, depth + 1, out);
             }
+            return;
+        }
+
+        if (type instanceof EnumType enumType) {
+            out.add(new FieldDto(qualifiedName, type.getName(), List.copyOf(enumType.getValuesByName().keySet())));
             return;
         }
 
