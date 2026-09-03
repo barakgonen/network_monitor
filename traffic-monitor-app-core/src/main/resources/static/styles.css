@@ -439,6 +439,10 @@ td {
     font-size: 12px;
 }
 
+.messages-table td:first-child {
+    white-space: nowrap;
+}
+
 tbody tr {
     cursor: pointer;
 }

@@ -65,7 +65,7 @@
 
       <div class="live-events-layout">
         <div class="table-wrapper">
-          <table>
+          <table class="messages-table">
             <thead>
             <tr>
               <th>Observed At</th>
@@ -169,7 +169,7 @@
       </div>
 
       <div class="table-wrapper">
-        <table>
+        <table class="messages-table">
           <thead>
           <tr>
             <th>Observed At</th>
@@ -415,7 +415,9 @@
     }
 
     try {
-      return new Date(value).toLocaleTimeString();
+      const date = new Date(value);
+      const millis = String(date.getMilliseconds()).padStart(3, '0');
+      return `${date.toLocaleTimeString()}.${millis}`;
     } catch {
       return value;
     }
