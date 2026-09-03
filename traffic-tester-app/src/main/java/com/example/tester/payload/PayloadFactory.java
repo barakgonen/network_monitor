@@ -13,6 +13,7 @@ import com.example.tester.schemas.rada.messages.RadaExtendedStatusMrs;
 import com.example.tester.schemas.rada.messages.RadaStatus;
 import com.example.tester.schemas.rada.messages.RadaTracksExtended;
 import com.example.tester.schemas.weather.TemperatureReadingMessage;
+import com.example.tester.schemas.weather.TemperatureUnit;
 import com.example.tester.schemas.weather.WeatherCondition;
 import com.example.tester.config.PayloadConfig;
 import org.instancio.Instancio;
@@ -138,7 +139,8 @@ public class PayloadFactory {
     private byte[] createWeatherTemperatureReading(PayloadConfig config) {
         TemperatureReadingMessage message = new TemperatureReadingMessage(
                 config.getWeather().getStationId(),
-                config.getWeather().getTemperatureCelsius(),
+                config.getWeather().getTemperature(),
+                TemperatureUnit.fromWireName(config.getWeather().getUnit()),
                 WeatherCondition.fromWireName(config.getWeather().getCondition())
         );
 

@@ -76,4 +76,20 @@ class SerdesFieldMetadataServiceTest {
         assertThat(reserved.type()).isEqualTo("uint8[]");
         assertThat(reserved.itemFields()).isNull();
     }
+
+    @Test
+    void describeFields_forEnumField_populatesEnumValues() throws Exception {
+        MessageType temperatureReading = loadMessage("serdes/weather.protocol.json", "TemperatureReading");
+
+        List<FieldDto> fields = service.describeFields(temperatureReading);
+        Map<String, FieldDto> byName = fields.stream().collect(Collectors.toMap(FieldDto::name, f -> f));
+
+        FieldDto unit = byName.get("unit");
+        assertThat(unit).isNotNull();
+        assertThat(unit.type()).isEqualTo("TemperatureUnit");
+        assertThat(unit.enumValues()).containsExactly("CELSIUS", "FAHRENHEIT");
+
+        FieldDto temperature = byName.get("temperature");
+        assertThat(temperature.enumValues()).isNull();
+    }
 }

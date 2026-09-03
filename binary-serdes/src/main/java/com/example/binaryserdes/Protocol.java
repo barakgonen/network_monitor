@@ -320,6 +320,7 @@ public abstract class Protocol<P extends Protocol<P>> {
             );
             case "record" -> buildRecordType(tc, typesByName);
             case "array" -> buildArrayType(tc, typesByName);
+            case "enum" -> buildEnumType(tc, typesByName);
             default -> throw new IllegalArgumentException("Unknown type kind: " + tc.kind);
         };
     }
@@ -373,5 +374,29 @@ public abstract class Protocol<P extends Protocol<P>> {
         }
 
         return new ArrayType(tc.name, elementType, tc.length);
+    }
+
+    /**
+     * Build an EnumType from TypeConfig: {@code underlyingType} references an already-known
+     * numeric type name (same declaration-order rule as {@code array}'s {@code elementType}),
+     * {@code values} maps each symbolic name to its wire-level numeric code.
+     */
+    private static EnumType buildEnumType(TypeConfig tc, Map<String, Type<?>> typesByName) {
+        if (tc.values == null || tc.values.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "enum type '" + tc.name + "' must define non-empty 'values'");
+        }
+        if (tc.underlyingType == null || tc.underlyingType.isBlank()) {
+            throw new IllegalArgumentException(
+                    "enum type '" + tc.name + "' must define 'underlyingType'");
+        }
+
+        Type<?> underlyingType = typesByName.get(tc.underlyingType);
+        if (underlyingType == null) {
+            throw new IllegalStateException(
+                    "Unknown underlying type '" + tc.underlyingType + "' for enum type '" + tc.name + "'");
+        }
+
+        return new EnumType(tc.name, underlyingType, tc.values);
     }
 }

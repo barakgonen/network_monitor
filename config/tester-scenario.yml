@@ -31,7 +31,8 @@ messages:
       port: 6002
     weather:
       stationId: "station-tlv-01"
-      temperatureCelsius: 28.4
+      temperature: 28.4
+      unit: "CELSIUS"
       condition: "sunny"
 
   - mode: PING

@@ -3,6 +3,7 @@ package com.example.binaryserdes.config;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +19,18 @@ class ProtocolConfigTest {
         assertThat(tc.name).isEqualTo("u16");
         assertThat(tc.kind).isEqualTo("uint16");
         assertThat(tc.length).isNull();
+    }
+
+    @Test
+    void typeConfigShouldHoldEnumFields() {
+        TypeConfig tc = new TypeConfig();
+        tc.name = "TemperatureUnit";
+        tc.kind = "enum";
+        tc.underlyingType = "uint8";
+        tc.values = Map.of("CELSIUS", 0, "FAHRENHEIT", 1);
+
+        assertThat(tc.underlyingType).isEqualTo("uint8");
+        assertThat(tc.values).containsEntry("CELSIUS", 0).containsEntry("FAHRENHEIT", 1);
     }
 
     @Test

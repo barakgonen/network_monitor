@@ -1,11 +1,20 @@
 {
+  "types": [
+    {
+      "name": "TemperatureUnit",
+      "kind": "enum",
+      "underlyingType": "uint8",
+      "values": { "CELSIUS": 0, "FAHRENHEIT": 1 }
+    }
+  ],
   "messages": [
     {
       "name": "TemperatureReading",
       "opcode": 2001,
       "fields": [
         { "name": "stationId", "type": "string" },
-        { "name": "temperatureCelsius", "type": "double64" },
+        { "name": "temperature", "type": "double64" },
+        { "name": "unit", "type": "TemperatureUnit" },
         { "name": "condition", "type": "string" }
       ]
     }
