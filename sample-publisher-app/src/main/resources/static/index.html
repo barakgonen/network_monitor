@@ -49,6 +49,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" id="sendTab" onclick="showTab('send')">Send</button>
       <button class="tab" id="periodicTab" onclick="showTab('periodic')">Periodic Jobs</button>
+      <button class="tab" id="samplesTab" onclick="showTab('samples')">Saved Samples</button>
     </nav>
 
     <section id="sendPanel" class="panel table-panel">
@@ -111,6 +112,7 @@
               <div class="periodic-actions">
                 <button class="primary-btn" onclick="sendOnce()">Send Once</button>
                 <button class="secondary-btn" onclick="startPeriodic()">Start Periodic</button>
+                <button class="secondary-btn" onclick="saveAsSample()">Save as Sample</button>
               </div>
             </div>
           </div>
@@ -168,6 +170,41 @@
       </div>
     </section>
 
+    <section id="samplesPanel" class="panel table-panel" style="display:none;">
+      <div class="panel-header">
+        <h2>Saved Samples</h2>
+        <div class="periodic-actions">
+          <button class="secondary-btn" onclick="exportSamples()">Export</button>
+          <button class="secondary-btn" onclick="document.getElementById('importFileInput').click()">Import</button>
+          <input type="file" id="importFileInput" accept="application/json" style="display:none;" onchange="importSamplesFile(event)">
+        </div>
+      </div>
+
+      <p class="panel-note">
+        Saved from the Send tab's "Save as Sample" button - captures the interface, message,
+        target, and field values, plus the periodic rate if one was set. Loading a sample only
+        populates the Send tab's form; it doesn't send anything by itself.
+      </p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+          <tr>
+            <th>Name</th>
+            <th>Interface</th>
+            <th>Message</th>
+            <th>Rate</th>
+            <th>Actions</th>
+          </tr>
+          </thead>
+          <tbody id="samplesTableBody"></tbody>
+        </table>
+        <div id="samplesEmptyState" class="empty-state" style="display:none;">
+          No saved samples yet.
+        </div>
+      </div>
+    </section>
+
   </main>
 </div>
 
@@ -177,12 +214,17 @@
   function showTab(tab) {
     document.getElementById('sendPanel').style.display = tab === 'send' ? '' : 'none';
     document.getElementById('periodicPanel').style.display = tab === 'periodic' ? '' : 'none';
+    document.getElementById('samplesPanel').style.display = tab === 'samples' ? '' : 'none';
 
     document.getElementById('sendTab').classList.toggle('active', tab === 'send');
     document.getElementById('periodicTab').classList.toggle('active', tab === 'periodic');
+    document.getElementById('samplesTab').classList.toggle('active', tab === 'samples');
 
     if (tab === 'periodic') {
       loadJobs();
+    }
+    if (tab === 'samples') {
+      loadSamples();
     }
   }
 
@@ -358,12 +400,14 @@
     const itemsContainer = document.createElement('div');
     itemsContainer.className = 'generic-array-items';
     itemsContainer.dataset.nextIndex = '0';
+    itemsContainer.dataset.arrayField = field.name;
     container.appendChild(itemsContainer);
 
     const addButton = document.createElement('button');
     addButton.type = 'button';
     addButton.className = 'secondary-btn generic-array-add';
     addButton.textContent = `+ Add ${field.name}`;
+    addButton.dataset.arrayField = field.name;
     addButton.onclick = () => addArrayItem(itemsContainer, field, addButton);
     container.appendChild(addButton);
 
@@ -516,6 +560,156 @@
         <strong>${running}</strong><span>periodic job${running === 1 ? '' : 's'} running</span>
       </div>
     `;
+  }
+
+  let savedSamples = [];
+
+  async function saveAsSample() {
+    const name = prompt('Sample name:');
+    if (!name) {
+      return;
+    }
+
+    await fetch('/api/samples', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        sendRequest: buildSendRequest(),
+        eventsPerTimeUnit: Number(document.getElementById('eventsPerTimeUnit').value),
+        timeUnit: document.getElementById('timeUnitSelect').value
+      })
+    });
+  }
+
+  async function loadSamples() {
+    const response = await fetch('/api/samples');
+    savedSamples = await response.json();
+
+    const tbody = document.getElementById('samplesTableBody');
+    tbody.innerHTML = '';
+    document.getElementById('samplesEmptyState').style.display = savedSamples.length === 0 ? 'block' : 'none';
+
+    for (const sample of savedSamples) {
+      const row = document.createElement('tr');
+      const rate = sample.eventsPerTimeUnit
+        ? `${sample.eventsPerTimeUnit}/${sample.timeUnit.toLowerCase()}`
+        : 'one-shot';
+      row.innerHTML = `
+        <td>${escapeHtml(sample.name)}</td>
+        <td>${escapeHtml(sample.sendRequest.interfaceKey)}</td>
+        <td class="message-name">${escapeHtml(sample.sendRequest.messageId)}</td>
+        <td>${escapeHtml(rate)}</td>
+        <td></td>
+      `;
+
+      const actionsCell = row.lastElementChild;
+
+      const loadButton = document.createElement('button');
+      loadButton.className = 'secondary-btn';
+      loadButton.textContent = 'Load';
+      loadButton.onclick = () => loadSampleIntoForm(sample);
+      actionsCell.appendChild(loadButton);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'secondary-btn stop-btn';
+      deleteButton.textContent = 'Delete';
+      deleteButton.onclick = () => deleteSample(sample.name);
+      actionsCell.appendChild(deleteButton);
+
+      tbody.appendChild(row);
+    }
+  }
+
+  async function deleteSample(name) {
+    if (!confirm(`Delete saved sample "${name}"?`)) {
+      return;
+    }
+    await fetch(`/api/samples/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    await loadSamples();
+  }
+
+  function exportSamples() {
+    window.location.href = '/api/samples/export';
+  }
+
+  function importSamplesFile(event) {
+    const file = event.target.files[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const imported = JSON.parse(reader.result);
+      await fetch('/api/samples/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(imported)
+      });
+      await loadSamples();
+    };
+    reader.readAsText(file);
+  }
+
+  // Array-of-struct fields render with zero rows until "+ Add" is clicked, so a saved sample's
+  // array field values (paths like "trackData[0].id") can't be set until enough rows exist -
+  // this adds rows up to the highest index referenced in the sample's fields before setting any
+  // values, using the data-array-field tag on each array group's add button (buildArrayGroup).
+  function ensureArrayRowsForSample(fields) {
+    const maxIndexByField = {};
+    for (const key of Object.keys(fields)) {
+      const match = key.match(/^(.+)\[(\d+)]\./);
+      if (!match) {
+        continue;
+      }
+      const [, fieldName, indexStr] = match;
+      const index = Number(indexStr);
+      maxIndexByField[fieldName] = Math.max(maxIndexByField[fieldName] ?? -1, index);
+    }
+
+    for (const [fieldName, maxIndex] of Object.entries(maxIndexByField)) {
+      const addButton = document.querySelector(`#fieldsContainer .generic-array-add[data-array-field="${CSS.escape(fieldName)}"]`);
+      const itemsContainer = document.querySelector(`#fieldsContainer .generic-array-items[data-array-field="${CSS.escape(fieldName)}"]`);
+      if (!addButton || !itemsContainer) {
+        continue;
+      }
+      while (itemsContainer.children.length <= maxIndex && !addButton.disabled) {
+        addButton.click();
+      }
+    }
+  }
+
+  async function loadSampleIntoForm(sample) {
+    const request = sample.sendRequest;
+
+    document.getElementById('interfaceSelect').value = request.interfaceKey;
+    await onInterfaceChanged();
+
+    document.getElementById('messageSelect').value = request.messageId;
+    await onMessageChanged();
+
+    document.getElementById('hostInput').value = request.host ?? '';
+    document.getElementById('portInput').value = request.port ?? '';
+    document.getElementById('transportSelect').value = request.transport ?? '';
+
+    if (sample.eventsPerTimeUnit) {
+      document.getElementById('eventsPerTimeUnit').value = sample.eventsPerTimeUnit;
+      document.getElementById('timeUnitSelect').value = sample.timeUnit;
+    }
+
+    const fields = request.fields ?? {};
+    ensureArrayRowsForSample(fields);
+
+    for (const [key, value] of Object.entries(fields)) {
+      const input = document.querySelector(`#fieldsContainer [data-field-name="${CSS.escape(key)}"]`);
+      if (input) {
+        input.value = value;
+      }
+    }
+
+    showTab('send');
   }
 
   loadInterfaces();
