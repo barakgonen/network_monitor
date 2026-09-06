@@ -1,0 +1,138 @@
+# Docker Compose variant of ../tester-scenario-via-proxy.yml: every target host points at the
+# traffic-proxy-app service name instead of 127.0.0.1. See docker-compose.yml
+# (TRAFFIC_TESTER_CONFIG, profile "tester") and ../tester-scenario-via-proxy.yml for the
+# original per-message comments explaining each role-reversal case.
+#
+# Usage: `docker compose up` (brings up traffic-monitor-app, traffic-destination-app,
+# traffic-proxy-app, sample-publisher-app), then `docker compose --profile tester up
+# traffic-tester-app`.
+udp:
+  host: traffic-proxy-app
+  port: 6001
+
+listener:
+  enabled: true
+  port: 7001
+  durationSeconds: 120
+  bufferSizeBytes: 65507
+
+messages:
+  - mode: FRUIT_ORANGE
+    target:
+      host: traffic-proxy-app
+      port: 6001
+    fruit:
+      sourceFarm: "north-farm-17"
+      freshness: "very_fresh"
+
+  - mode: FRUIT_BANANA
+    target:
+      host: traffic-proxy-app
+      port: 6001
+    fruit:
+      color: "yellow"
+      weight: 142.75
+
+  - mode: WEATHER_TEMPERATURE_READING
+    target:
+      host: traffic-proxy-app
+      port: 6002
+    weather:
+      stationId: "station-tlv-01"
+      temperature: 28.4
+      unit: "CELSIUS"
+      condition: "sunny"
+
+  - mode: PING
+    target:
+      host: traffic-proxy-app
+      port: 6003
+    ping:
+      sequence: 1
+
+  - mode: BEACON
+    target:
+      host: traffic-proxy-app
+      port: 6005
+    beacon:
+      lat: 32.0853
+      lon: 34.7818
+
+  - mode: CANDY
+    target:
+      host: traffic-proxy-app
+      port: 6004
+      transport: TCP
+    candy:
+      name: "chocolate-bar"
+      calories: 250.5
+
+  # Case 1 (role reversal): tester-app is the TCP server here, traffic-proxy-app's candy-reverse
+  # relay dials in as a client, then relays through to traffic-destination-app's candy-reverse
+  # interface. transport: TCP_SERVER binds port 7004 locally - no host needed.
+  - mode: CANDY
+    target:
+      port: 7004
+      transport: TCP_SERVER
+    candy:
+      name: "gummy-bear"
+      calories: 180.0
+
+  - mode: RADA_STATUS
+    target:
+      host: traffic-proxy-app
+      port: 6050
+
+  - mode: RADA_EXTENDED_STATUS
+    target:
+      host: traffic-proxy-app
+      port: 6050
+
+  - mode: RADA_EXTENDED_STATUS_MRS
+    target:
+      host: traffic-proxy-app
+      port: 6050
+
+  - mode: RADA_TRACKS_EXTENDED
+    target:
+      host: traffic-proxy-app
+      port: 6050
+
+  - mode: RADA_EXTENDED_STATUS_LITTLE_ENDIAN
+    target:
+      host: traffic-proxy-app
+      port: 6051
+
+  - mode: PETS_CREATE
+    target:
+      host: traffic-proxy-app
+      port: 6060
+      transport: REST
+    pets:
+      name: "Fluffy"
+      species: "dog"
+      age: 3
+      ownerName: "Alice"
+      ownerEmail: "alice@example.com"
+      tags: ["good boy", "loyal"]
+
+  - mode: PETS_GET
+    target:
+      host: traffic-proxy-app
+      port: 6060
+      transport: REST
+    pets:
+      petId: "1"
+      includeVaccinations: true
+
+  # Case 1 (role reversal): traffic-destination-app periodically POSTs to traffic-proxy-app's
+  # pets-reverse relay, which forwards to tester-app's own REST server (RestListener, echoes the
+  # body back). transport: REST_SERVER binds port 7060 locally - no host needed.
+  - mode: TEXT
+    text: ""
+    target:
+      port: 7060
+      transport: REST_SERVER
+
+repeat: 3
+intervalMillis: 1000

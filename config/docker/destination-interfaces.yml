@@ -1,0 +1,61 @@
+# Docker Compose variant of ../destination-interfaces.yml: CLIENT-mode hosts point at the
+# traffic-proxy-app service name instead of 127.0.0.1. See docker-compose.yml
+# (TRAFFIC_DESTINATION_CONFIG) and ../destination-interfaces.yml for the original comments.
+interfaces:
+  - key: fruit
+    protocol: UDP
+    port: 8001
+    replyMode: NONE
+
+  - key: weather
+    protocol: UDP
+    port: 8002
+    replyMode: NONE
+
+  - key: ping
+    protocol: UDP
+    port: 8003
+    replyMode: PONG
+    replyPort: 6103
+
+  - key: greeting
+    protocol: UDP
+    port: 8005
+    replyMode: GREETING
+    replyPort: 6105
+
+  - key: candy
+    protocol: TCP
+    port: 8004
+    replyMode: ECHO
+
+  - key: candy-reverse
+    protocol: TCP
+    port: 8104
+    replyMode: ECHO
+    mode: CLIENT
+    host: traffic-proxy-app
+
+  - key: rada
+    protocol: UDP
+    port: 8050
+    replyMode: NONE
+
+  - key: rada-le
+    protocol: UDP
+    port: 8051
+    replyMode: NONE
+
+  - key: pets
+    protocol: REST
+    port: 8060
+    replyMode: ECHO
+
+  - key: pets-reverse
+    protocol: REST
+    port: 6160
+    mode: CLIENT
+    host: traffic-proxy-app
+    path: /pets
+    requestBody: '{"name":"Whiskers","species":"cat","age":2,"owner":{"name":"Bob","email":"bob@example.com"},"tags":["cat"]}'
+    intervalMillis: 3000

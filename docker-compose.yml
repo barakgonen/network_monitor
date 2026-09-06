@@ -10,6 +10,7 @@ services:
       - "5002:5002/udp"
       - "5003:5003/udp"
       - "5004:5004/tcp"
+      - "5005:5005/udp"
       - "5050:5050/udp"
       - "5051:5051/udp"
       - "5060:5060/tcp"
@@ -23,6 +24,60 @@ services:
     networks:
       - traffic-tool-net
 
+  traffic-destination-app:
+    build:
+      context: .
+      dockerfile: traffic-destination-app/Dockerfile
+    container_name: traffic-destination-app
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      TRAFFIC_DESTINATION_CONFIG: /app/config/docker/destination-interfaces.yml
+    networks:
+      - traffic-tool-net
+
+  traffic-proxy-app:
+    build:
+      context: .
+      dockerfile: traffic-proxy-app/Dockerfile
+    container_name: traffic-proxy-app
+    ports:
+      - "6001:6001/udp"
+      - "6002:6002/udp"
+      - "6003:6003/udp"
+      - "6004:6004/tcp"
+      - "6005:6005/udp"
+      - "6050:6050/udp"
+      - "6051:6051/udp"
+      - "6060:6060/tcp"
+      - "6160:6160/tcp"
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      TRAFFIC_PROXY_CONFIG: /app/config/docker/proxy-relays.yml
+    depends_on:
+      - traffic-destination-app
+      - traffic-monitor-app
+    networks:
+      - traffic-tool-net
+
+  sample-publisher-app:
+    build:
+      context: .
+      dockerfile: sample-publisher-app/Dockerfile
+    container_name: sample-publisher-app
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./config:/app/config:ro
+      - ./swagger:/app/swagger:ro
+    environment:
+      TRAFFIC_TOOL_CONFIG: /app/config/traffic-tool.yml
+    depends_on:
+      - traffic-monitor-app
+    networks:
+      - traffic-tool-net
+
   traffic-tester-app:
     ports:
       - "7001:7001/udp"
@@ -31,11 +86,11 @@ services:
       dockerfile: traffic-tester-app/Dockerfile
     container_name: traffic-tester-app
     depends_on:
-      - traffic-monitor-app
+      - traffic-proxy-app
     volumes:
       - ./config:/app/config:ro
     environment:
-      TRAFFIC_TESTER_CONFIG: /app/config/tester-scenario.yml
+      TRAFFIC_TESTER_CONFIG: /app/config/docker/tester-scenario.yml
     networks:
       - traffic-tool-net
     profiles:

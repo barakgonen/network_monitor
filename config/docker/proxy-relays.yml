@@ -1,0 +1,132 @@
+# Docker Compose variant of ../proxy-relays.yml: destination/mirror/listen hosts point at
+# Compose service names instead of 127.0.0.1, since each app is a separate container here.
+# See docker-compose.yml (TRAFFIC_PROXY_CONFIG) and ../proxy-relays.yml for the original
+# comments explaining each relay's role - unchanged below except for host values.
+relays:
+  - key: fruit
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6001
+    destination:
+      host: traffic-destination-app
+      port: 8001
+    mirror:
+      host: traffic-monitor-app
+      port: 5001
+
+  - key: weather
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6002
+    destination:
+      host: traffic-destination-app
+      port: 8002
+    mirror:
+      host: traffic-monitor-app
+      port: 5002
+
+  - key: ping
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6003
+    destination:
+      host: traffic-destination-app
+      port: 8003
+    mirror:
+      host: traffic-monitor-app
+      port: 5003
+    replyPort: 6103
+
+  - key: greeting
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6005
+    destination:
+      host: traffic-destination-app
+      port: 8005
+    mirror:
+      host: traffic-monitor-app
+      port: 5005
+    replyPort: 6105
+
+  - key: candy
+    protocol: TCP
+    listen:
+      host: 0.0.0.0
+      port: 6004
+    destination:
+      host: traffic-destination-app
+      port: 8004
+    mirror:
+      host: traffic-monitor-app
+      port: 5004
+
+  - key: candy-reverse
+    protocol: TCP
+    # listenMode: CLIENT - `listen` is traffic-tester-app's own TCP server address, which this
+    # relay dials out to (background reconnect loop), not a local bind.
+    listen:
+      host: traffic-tester-app
+      port: 7004
+    destination:
+      host: 0.0.0.0
+      port: 8104
+    mirror:
+      host: traffic-monitor-app
+      port: 5004
+    listenMode: CLIENT
+    destinationMode: SERVER
+
+  - key: rada
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6050
+    destination:
+      host: traffic-destination-app
+      port: 8050
+    mirror:
+      host: traffic-monitor-app
+      port: 5050
+
+  - key: rada-le
+    protocol: UDP
+    listen:
+      host: 0.0.0.0
+      port: 6051
+    destination:
+      host: traffic-destination-app
+      port: 8051
+    mirror:
+      host: traffic-monitor-app
+      port: 5051
+
+  - key: pets
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6060
+    destination:
+      host: traffic-destination-app
+      port: 8060
+    mirror:
+      host: traffic-monitor-app
+      port: 5060
+
+  - key: pets-reverse
+    protocol: REST
+    listen:
+      host: 0.0.0.0
+      port: 6160
+    # destination is traffic-tester-app's own REST_SERVER bind (RestListener), not
+    # traffic-destination-app - see ../proxy-relays.yml's comment on this entry.
+    destination:
+      host: traffic-tester-app
+      port: 7060
+    mirror:
+      host: traffic-monitor-app
+      port: 5060
