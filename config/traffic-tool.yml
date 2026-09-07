@@ -34,7 +34,7 @@ interfaces:
     protocol: UDP
     port: 5050
     byteOrder: BIG_ENDIAN
-    serdesFile: serdes/rada.protocol.json
+    serdesFile: serdes/radaa.protocol.json
     serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true
@@ -49,7 +49,7 @@ interfaces:
     protocol: UDP
     port: 5051
     byteOrder: LITTLE_ENDIAN
-    serdesFile: serdes/rada.protocol.json
+    serdesFile: serdes/radaa.protocol.json
     serdesHeaderType: RadaHeader
     opcodeFieldName: msgType
     messageOwnsHeader: true

@@ -10,6 +10,7 @@
         <module name="traffic-monitor-app-core" />
         <module name="sample-publisher-app" />
         <module name="traffic-destination-app" />
+        <module name="serdes-generator" />
         <module name="traffic-tester-app" />
         <module name="traffic-monitor-app" />
         <module name="traffic-config" />

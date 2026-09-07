@@ -3,6 +3,8 @@ package com.example.schemacore.reflect;
 import com.example.schemacore.annotation.EnumWireSize;
 import com.example.schemacore.annotation.FixedArrayLength;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
@@ -119,13 +121,7 @@ public final class StructSizeCalculator {
     }
 
     private static int calculateArrayFieldSize(Field field, Set<Class<?>> visiting) {
-        FixedArrayLength fixedArrayLength = field.getAnnotation(FixedArrayLength.class);
-
-        if (fixedArrayLength == null) {
-            throw new IllegalArgumentException("Array field missing @FixedArrayLength: " + fieldDescription(field));
-        }
-
-        int length = fixedArrayLength.value();
+        int length = resolveArrayLength(field);
 
         if (length < 0) {
             throw new IllegalArgumentException("@FixedArrayLength must be >= 0: " + fieldDescription(field));
@@ -150,6 +146,53 @@ public final class StructSizeCalculator {
         }
 
         return length * componentSize;
+    }
+
+    /**
+     * Prefers the declared {@link FixedArrayLength}; when absent (e.g. a class whose array
+     * fields are sized only by their inline initializer, like {@code RadaTracksExtended}), falls
+     * back to instantiating the field's declaring class via its no-arg constructor and reading
+     * the actual length of the array that constructor already built. Public so callers outside
+     * this package (e.g. {@code serdes-generator}'s {@code ProtocolJsonGenerator}) resolve array
+     * length the exact same way this class does, rather than duplicating the fallback.
+     */
+    public static int resolveArrayLength(Field field) {
+        FixedArrayLength fixedArrayLength = field.getAnnotation(FixedArrayLength.class);
+        if (fixedArrayLength != null) {
+            return fixedArrayLength.value();
+        }
+        return inferArrayLengthFromDefaultInstance(field);
+    }
+
+    private static int inferArrayLengthFromDefaultInstance(Field field) {
+        Class<?> owner = field.getDeclaringClass();
+        Object instance;
+        try {
+            Constructor<?> constructor = owner.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            instance = constructor.newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalArgumentException(
+                    "Array field missing @FixedArrayLength and " + owner.getName()
+                            + " has no accessible no-arg constructor to infer its length from: "
+                            + fieldDescription(field), e);
+        }
+
+        Object value;
+        try {
+            field.setAccessible(true);
+            value = field.get(instance);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Unexpected reflection failure reading " + fieldDescription(field), e);
+        }
+
+        if (value == null) {
+            throw new IllegalArgumentException(
+                    "Array field missing @FixedArrayLength and was not initialized by "
+                            + owner.getName() + "'s no-arg constructor: " + fieldDescription(field));
+        }
+
+        return Array.getLength(value);
     }
 
     private static int enumWireSize(Field field) {

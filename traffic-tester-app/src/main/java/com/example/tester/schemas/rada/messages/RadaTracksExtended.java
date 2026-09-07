@@ -1,6 +1,5 @@
 package com.example.tester.schemas.rada.messages;
 
-import com.example.schemacore.annotation.FixedArrayLength;
 import com.example.tester.schemas.rada.struct.RadaHeader;
 import com.example.tester.schemas.rada.struct.RadaPlotData;
 import com.example.tester.schemas.rada.struct.RadaTrackData;
@@ -24,9 +23,7 @@ public class RadaTracksExtended {
     private short tracksTagSecond;
     private short tracksTagMillisecond;
     private short reserved1;
-    @FixedArrayLength(10)
     private RadaTrackData[] trackData = new RadaTrackData[10];
-    @FixedArrayLength(10)
     private RadaPlotData[] plotData = new RadaPlotData[10];
 
     public RadaTracksExtended() {
