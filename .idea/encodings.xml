@@ -15,6 +15,8 @@
     <file url="file://$PROJECT_DIR$/schema-annotations/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/schema-core/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/schema-core/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/serdes-generator/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/serdes-generator/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/shared-schemas/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/shared-schemas/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />

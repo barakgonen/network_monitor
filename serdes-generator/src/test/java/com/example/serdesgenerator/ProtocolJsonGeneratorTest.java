@@ -4,6 +4,7 @@ import com.example.binaryserdes.config.MessageConfig;
 import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.binaryserdes.config.TypeConfig;
 import com.example.serdesgenerator.fixtures.AllScalarTypesMessage;
+import com.example.serdesgenerator.fixtures.ArrayLengthInferredMessage;
 import com.example.serdesgenerator.fixtures.ArrayMissingAnnotationMessage;
 import com.example.serdesgenerator.fixtures.ArrayOfEnumsMessage;
 import com.example.serdesgenerator.fixtures.ArrayOfScalarsMessage;
@@ -88,6 +89,16 @@ class ProtocolJsonGeneratorTest {
         assertThatThrownBy(() -> generateOne(ArrayMissingAnnotationMessage.class))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("@FixedArrayLength");
+    }
+
+    @Test
+    void arrayMissingFixedArrayLengthInfersFromDefaultConstructor() {
+        ProtocolConfig config = generateOne(ArrayLengthInferredMessage.class);
+
+        TypeConfig arrayType = typeNamed(config, "uint8Array5");
+        assertThat(arrayType.kind).isEqualTo("array");
+        assertThat(arrayType.elementType).isEqualTo("uint8");
+        assertThat(arrayType.length).isEqualTo(5);
     }
 
     @Test

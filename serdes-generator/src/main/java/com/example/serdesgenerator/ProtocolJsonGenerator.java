@@ -5,7 +5,6 @@ import com.example.binaryserdes.config.MessageConfig;
 import com.example.binaryserdes.config.ProtocolConfig;
 import com.example.binaryserdes.config.TypeConfig;
 import com.example.schemacore.annotation.EnumWireSize;
-import com.example.schemacore.annotation.FixedArrayLength;
 import com.example.schemacore.reflect.ReflectiveStructCodec;
 import com.example.schemacore.reflect.StructSizeCalculator;
 
@@ -197,12 +196,7 @@ public final class ProtocolJsonGenerator {
     }
 
     private String resolveArrayType(Field field, TypeRegistry registry, Set<Class<?>> visiting) {
-        FixedArrayLength annotation = field.getAnnotation(FixedArrayLength.class);
-        if (annotation == null) {
-            throw new IllegalArgumentException("Array field missing @FixedArrayLength: " + describeField(field));
-        }
-
-        int length = annotation.value();
+        int length = StructSizeCalculator.resolveArrayLength(field);
         if (length <= 0) {
             throw new IllegalArgumentException("@FixedArrayLength must be positive: " + describeField(field));
         }

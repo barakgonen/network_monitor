@@ -55,16 +55,24 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- Test-only: gives the strongest correctness test (RadaRoundTripTest) real, compiled
-         access to traffic-tester-app's actual rada message classes rather than synthetic
-         fixtures, so it can encode via the project's own ReflectiveStructCodec and decode via a
-         generated protocol.json for a direct comparison. Main code never depends on this - it
-         resolves target classes purely via Class.forName at runtime (see GeneratorMain). -->
+    <!-- Gives the strongest correctness test (RadaRoundTripTest) real, compiled access to
+         traffic-tester-app's actual rada message classes rather than synthetic fixtures, so it
+         can encode via the project's own ReflectiveStructCodec and decode via a generated
+         protocol.json for a direct comparison. Main code never *statically* references these
+         classes - it resolves them purely via Class.forName at runtime (see GeneratorMain) - but
+         this is deliberately plain `compile` scope (not `test`/`provided`): it's what makes the
+         packaged CLI jar (maven-jar-plugin's addClasspath/classpathPrefix below +
+         copy-dependencies' target/lib) and IDE "Run" configurations both self-sufficient -
+         `java -jar serdes-generator-<version>.jar` with manifest/output flags works standalone,
+         with target/lib supplying every class GeneratorMain's Class.forName might need for this
+         project's manifests, no manually-assembled multi-module -cp required. The trade-off:
+         target/lib now also carries traffic-monitor-app's full (Spring Boot) transitive tree,
+         same "non-issue for a dev-time CLI tool" trade-off already accepted above for
+         traffic-monitor-app-core. -->
     <dependency>
       <groupId>com.example</groupId>
       <artifactId>traffic-tester-app</artifactId>
       <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 
