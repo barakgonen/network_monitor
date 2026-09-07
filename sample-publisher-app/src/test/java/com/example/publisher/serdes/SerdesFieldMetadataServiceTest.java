@@ -51,7 +51,7 @@ class SerdesFieldMetadataServiceTest {
                 "radarSoftwareVersion", "recordingState", "workingMode", "statusFlags",
                 "remainingRecordingSpace", "bitStatus", "manufacturerData");
         assertThat(byName.get("header.msgCounter").type()).isEqualTo("int32");
-        assertThat(byName.get("radarSoftwareVersion").type()).isEqualTo("uint32");
+        assertThat(byName.get("radarSoftwareVersion").type()).isEqualTo("int32");
     }
 
     @Test

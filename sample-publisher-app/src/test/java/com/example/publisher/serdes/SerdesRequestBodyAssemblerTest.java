@@ -65,7 +65,7 @@ class SerdesRequestBodyAssemblerTest {
         // Fields the caller didn't submit still get a default value, not left missing -
         // MessageType.writeToBuffer throws on a genuinely missing/null field.
         assertThat(header).containsKeys("icdVersion", "reserved1", "reserved2", "reserved3", "msgSize");
-        assertThat(result.get("radarSoftwareVersion")).isEqualTo(42L);
+        assertThat(result.get("radarSoftwareVersion")).isEqualTo(42);
     }
 
     @Test

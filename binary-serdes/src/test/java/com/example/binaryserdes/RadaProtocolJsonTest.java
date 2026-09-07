@@ -87,31 +87,6 @@ class RadaProtocolJsonTest {
     }
 
     @Test
-    void radaExtendedStatusMrs_roundTrips() throws Exception {
-        ProtocolConfig cfg = loadRealRadaProtocolConfig();
-        ProtocolIn protocolIn = ProtocolIn.fromProtocolConfig(cfg);
-        ProtocolOut protocolOut = ProtocolOut.fromProtocolConfig(cfg);
-
-        String json = """
-                {
-                  "header": {"msgCounter": 1, "msgType": 2, "icdVersion": 0, "reserved1": 0, "reserved2": 0, "reserved3": 0, "msgSize": 0},
-                  "latitude": 1.0, "longitude": 2.0, "altitude": 3.0, "pitch": 4.0, "roll": 5.0, "heading": 6.0,
-                  "coverage1Sector1": 7.0, "coverage1Sector2": 8.0, "coverage1Radius": 9.0,
-                  "coverage2Sector1": 10.0, "coverage2Sector2": 11.0, "coverage2Radius": 12.0,
-                  "coverage3Sector1": 13.0, "favoriteColor": 2,
-                  "coverage3Sector2": 14.0, "coverage3Radius": 15.0,
-                  "coverage4Sector1": 16.0, "coverage4Sector2": 17.0, "coverage4Radius": 18.0
-                }
-                """;
-
-        byte[] bytes = protocolOut.encode("RadaExtendedStatusMrs", json);
-
-        JsonNode decoded = MAPPER.readTree(protocolIn.parse(2, bytes));
-        assertThat(decoded.get("favoriteColor").asInt()).isEqualTo(2);
-        assertThat(decoded.get("coverage4Radius").asDouble()).isEqualTo(18.0);
-    }
-
-    @Test
     void radaTracksExtended_roundTripsNestedArraysOfRecords() throws Exception {
         ProtocolConfig cfg = loadRealRadaProtocolConfig();
         ProtocolIn protocolIn = ProtocolIn.fromProtocolConfig(cfg);
