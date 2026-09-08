@@ -16,7 +16,7 @@ public interface MessageDefinition {
 
     String messageType();
 
-    int opcode();
+    long opcode();
 
     Class<?> messageClass();
 

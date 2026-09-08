@@ -26,12 +26,12 @@ import java.util.List;
 public final class MessageType {
 
     private final String name;
-    private final int opcode;
+    private final Long opcode;
     private final List<MessageField<?>> fields;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private MessageType(String name, int opcode, List<MessageField<?>> fields) {
+    private MessageType(String name, Long opcode, List<MessageField<?>> fields) {
         this.name = name;
         this.opcode = opcode;
         this.fields = Collections.unmodifiableList(fields);
@@ -41,8 +41,13 @@ public final class MessageType {
         return name;
     }
 
-    public int getOpcode() {
+    public long getOpcode() {
         return opcode;
+    }
+
+    /** {@code false} means this message was declared with no opcode - not routable by opcode. */
+    public boolean hasOpcode() {
+        return opcode != null;
     }
 
     public List<MessageField<?>> getFields() {
@@ -129,7 +134,7 @@ public final class MessageType {
 
     public static final class MessageTypeBuilder {
         private String name;
-        private int opcode;
+        private Long opcode;
         private final List<MessageField<?>> fields = new ArrayList<>();
 
         private MessageTypeBuilder() {
@@ -140,7 +145,7 @@ public final class MessageType {
             return this;
         }
 
-        public MessageTypeBuilder opcode(int opcode) {
+        public MessageTypeBuilder opcode(long opcode) {
             this.opcode = opcode;
             return this;
         }

@@ -35,8 +35,8 @@ public abstract class Protocol<P extends Protocol<P>> {
     /** Message types indexed by logical name (e.g. "PositionReport"). */
     protected final Map<String, MessageType> byName = new HashMap<>();
 
-    /** Message types indexed by opcode (wire-level ID). */
-    protected final Map<Integer, MessageType> byOpcode = new HashMap<>();
+    /** Message types indexed by opcode (wire-level ID, raw 64-bit bit pattern). */
+    protected final Map<Long, MessageType> byOpcode = new HashMap<>();
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -53,7 +53,7 @@ public abstract class Protocol<P extends Protocol<P>> {
         return byName;
     }
 
-    public Map<Integer, MessageType> getByOpcode() {
+    public Map<Long, MessageType> getByOpcode() {
         return byOpcode;
     }
 
@@ -70,8 +70,10 @@ public abstract class Protocol<P extends Protocol<P>> {
         if (cfg.messages != null) {
             for (MessageConfig mc : cfg.messages) {
                 MessageType.MessageTypeBuilder builder = MessageType.builder()
-                        .name(mc.name)
-                        .opcode(mc.opcode);
+                        .name(mc.name);
+                if (mc.opcode != null) {
+                    builder.opcode(mc.opcode);
+                }
 
                 for (FieldConfig fc : mc.fields) {
                     Type<?> fieldType = typesByName.get(fc.type);
@@ -97,12 +99,12 @@ public abstract class Protocol<P extends Protocol<P>> {
     /**
      * Register a MessageType:
      *  - always by name
-     *  - by opcode as well if opcode >= 0
+     *  - by opcode as well if an opcode was configured ({@link MessageType#hasOpcode()})
      */
     @SuppressWarnings("unchecked")
     public P registerMessage(MessageType messageType) {
         byName.put(messageType.getName(), messageType);
-        if (messageType.getOpcode() >= 0) {
+        if (messageType.hasOpcode()) {
             byOpcode.put(messageType.getOpcode(), messageType);
         }
         return (P) this;
@@ -112,7 +114,7 @@ public abstract class Protocol<P extends Protocol<P>> {
         return byName.get(name);
     }
 
-    public MessageType getMessageTypeByOpcode(int opcode) {
+    public MessageType getMessageTypeByOpcode(long opcode) {
         return byOpcode.get(opcode);
     }
 

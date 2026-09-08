@@ -2,7 +2,7 @@ package com.example.serdesgenerator;
 
 public class GeneratorManifestEntry {
     private String className;
-    private int opcode;
+    private long opcode;
 
     public String getClassName() {
         return className;
@@ -12,11 +12,11 @@ public class GeneratorManifestEntry {
         this.className = className;
     }
 
-    public int getOpcode() {
+    public long getOpcode() {
         return opcode;
     }
 
-    public void setOpcode(int opcode) {
+    public void setOpcode(long opcode) {
         this.opcode = opcode;
     }
 }

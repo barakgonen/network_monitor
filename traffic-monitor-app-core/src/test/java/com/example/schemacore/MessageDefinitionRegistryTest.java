@@ -76,6 +76,18 @@ class MessageDefinitionRegistryTest {
     }
 
     @Test
+    void constructor_withSignBitSetOpcode_isRoutablePresentAndDistinctFromZero() {
+        StubDefinition signBit = new StubDefinition("Wide Interface", "SignBit", 0x8000000000000000L, StubMessage.class);
+        StubDefinition zero = new StubDefinition("Wide Interface", "Zero", 0L, OtherStubMessage.class);
+
+        MessageDefinitionRegistry registry = new MessageDefinitionRegistry(List.of(signBit, zero));
+
+        assertThat(registry.findByOpcode(0x8000000000000000L)).contains(signBit);
+        assertThat(registry.findByOpcode(0L)).contains(zero);
+        assertThat(registry.findByOpcode(Long.MIN_VALUE)).contains(signBit);
+    }
+
+    @Test
     void findByOpcode_whenNotFound_returnsEmptyOptional() {
         MessageDefinitionRegistry registry = new MessageDefinitionRegistry(
                 List.of(new StubDefinition("Fruit Interface", "Orange", 1, StubMessage.class)));
@@ -150,7 +162,7 @@ class MessageDefinitionRegistryTest {
     private record StubDefinition(
             String interfaceName,
             String messageType,
-            int opcode,
+            long opcode,
             Class<?> messageClass
     ) implements MessageDefinition {
         @Override
@@ -189,7 +201,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public int opcode() {
+        public long opcode() {
             return 12345;
         }
 
@@ -237,7 +249,7 @@ class MessageDefinitionRegistryTest {
         }
 
         @Override
-        public int opcode() {
+        public long opcode() {
             return 54321;
         }
 

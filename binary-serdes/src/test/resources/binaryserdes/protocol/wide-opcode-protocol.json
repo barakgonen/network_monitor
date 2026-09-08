@@ -1,0 +1,25 @@
+{
+  "messages": [
+    {
+      "name": "MaxUnsignedOpcodeMessage",
+      "opcode": "18446744073709551615",
+      "fields": [
+        { "name": "value", "type": "int32" }
+      ]
+    },
+    {
+      "name": "SignBitOpcodeMessage",
+      "opcode": "9223372036854775808",
+      "fields": [
+        { "name": "value", "type": "int32" }
+      ]
+    },
+    {
+      "name": "PlainLongOpcodeMessage",
+      "opcode": 4611686018427387903,
+      "fields": [
+        { "name": "value", "type": "int32" }
+      ]
+    }
+  ]
+}

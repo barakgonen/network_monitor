@@ -69,7 +69,7 @@ public class MessageSchemaWiringConfig {
     @Bean
     public MessageDefinitionRegistry messageDefinitionRegistry(TrafficToolConfig config) throws ReflectiveOperationException {
         List<MessageDefinition> definitions = new ArrayList<>();
-        Set<Integer> seenOpcodes = new HashSet<>();
+        Set<Long> seenOpcodes = new HashSet<>();
         Set<Class<?>> seenMessageClasses = new HashSet<>();
 
         for (InterfaceConfig interfaceConfig : config.getInterfaces()) {

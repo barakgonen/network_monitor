@@ -16,13 +16,13 @@ import java.util.Optional;
  */
 public final class MessageDefinitionRegistry {
     private final List<MessageDefinition> all;
-    private final Map<Integer, MessageDefinition> byOpcode;
+    private final Map<Long, MessageDefinition> byOpcode;
     private final Map<String, MessageDefinition> byInterfaceAndType;
     private final Map<Class<?>, MessageDefinition> byMessageClass;
 
     public MessageDefinitionRegistry(List<MessageDefinition> definitions) {
         this.all = List.copyOf(definitions);
-        Map<Integer, MessageDefinition> opcodeMap = new HashMap<>();
+        Map<Long, MessageDefinition> opcodeMap = new HashMap<>();
         Map<String, MessageDefinition> typeMap = new HashMap<>();
         Map<Class<?>, MessageDefinition> classMap = new HashMap<>();
 
@@ -63,7 +63,7 @@ public final class MessageDefinitionRegistry {
         return all;
     }
 
-    public Optional<MessageDefinition> findByOpcode(int opcode) {
+    public Optional<MessageDefinition> findByOpcode(long opcode) {
         return Optional.ofNullable(byOpcode.get(opcode));
     }
 
