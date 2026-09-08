@@ -60,22 +60,22 @@ public final class ProtocolOut extends Protocol<ProtocolOut> {
 
     /* --------- opcode-based API --------- */
 
-    public byte[] encode(int opcode, String json) throws IOException {
+    public byte[] encode(long opcode, String json) throws IOException {
         return encode(opcode, json, ByteOrder.BIG_ENDIAN);
     }
 
-    public byte[] encode(int opcode, String json, ByteOrder byteOrder) throws IOException {
+    public byte[] encode(long opcode, String json, ByteOrder byteOrder) throws IOException {
         MessageType messageType = byOpcode.get(opcode);
         if (messageType == null) {
-            throw new IllegalArgumentException("Unknown outbound opcode: " + opcode);
+            throw new IllegalArgumentException("Unknown outbound opcode: " + Long.toUnsignedString(opcode));
         }
         return messageType.toBytes(json, byteOrder);
     }
 
-    public void encodeInto(int opcode, String json, ByteBuffer buffer) throws IOException {
+    public void encodeInto(long opcode, String json, ByteBuffer buffer) throws IOException {
         MessageType messageType = byOpcode.get(opcode);
         if (messageType == null) {
-            throw new IllegalArgumentException("Unknown outbound opcode: " + opcode);
+            throw new IllegalArgumentException("Unknown outbound opcode: " + Long.toUnsignedString(opcode));
         }
         messageType.writeToBuffer(json, buffer);
     }

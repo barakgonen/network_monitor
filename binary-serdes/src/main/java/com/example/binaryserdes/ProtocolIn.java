@@ -66,23 +66,23 @@ public final class ProtocolIn extends Protocol<ProtocolIn> {
 
     /* --------- opcode-based API --------- */
 
-    public String parse(int opcode, byte[] bytes) {
+    public String parse(long opcode, byte[] bytes) {
         return parse(opcode, bytes, ByteOrder.BIG_ENDIAN);
     }
 
-    public String parse(int opcode, byte[] bytes, ByteOrder byteOrder) {
+    public String parse(long opcode, byte[] bytes, ByteOrder byteOrder) {
         MessageType messageType = byOpcode.get(opcode);
         if (messageType == null) {
-            throw new IllegalArgumentException("Unknown inbound opcode: " + opcode);
+            throw new IllegalArgumentException("Unknown inbound opcode: " + Long.toUnsignedString(opcode));
         }
         return messageType.parseToJson(bytes, byteOrder);
     }
 
-    public String parse(int opcode, ByteBuffer buffer) {
+    public String parse(long opcode, ByteBuffer buffer) {
         return parse(opcode, buffer, ByteOrder.BIG_ENDIAN);
     }
 
-    public String parse(int opcode, ByteBuffer buffer, ByteOrder byteOrder) {
+    public String parse(long opcode, ByteBuffer buffer, ByteOrder byteOrder) {
         byte[] arr = new byte[buffer.remaining()];
         buffer.get(arr);
         return parse(opcode, arr, byteOrder);

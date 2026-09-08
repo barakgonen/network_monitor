@@ -31,7 +31,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
 
     private final String interfaceName;
     private final String messageType;
-    private final int opcode;
+    private final long opcode;
     private final ProtocolIn protocolIn;
     private final ProtocolOut protocolOut;
     private final ByteOrder byteOrder;
@@ -39,7 +39,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     public SerdesMessageDefinition(
             String interfaceName,
             String messageType,
-            int opcode,
+            long opcode,
             ProtocolIn protocolIn,
             ProtocolOut protocolOut
     ) {
@@ -50,7 +50,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     public SerdesMessageDefinition(
             String interfaceName,
             String messageType,
-            int opcode,
+            long opcode,
             ProtocolIn protocolIn,
             ProtocolOut protocolOut,
             ByteOrder byteOrder
@@ -74,7 +74,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     }
 
     @Override
-    public int opcode() {
+    public long opcode() {
         return opcode;
     }
 
@@ -113,7 +113,7 @@ public final class SerdesMessageDefinition implements MessageDefinition {
     }
 
     /**
-     * {@link ProtocolOut#encode(int, String)} pre-sizes its buffer by summing every field's fixed
+     * {@link ProtocolOut#encode(long, String)} pre-sizes its buffer by summing every field's fixed
      * {@code sizeInBytes} and throws if any field is variable-length (e.g. a {@code string}) - it
      * has no way to know the encoded size of a variable field before writing it. Every legacy
      * envelope protocol this class backs (fruit/weather/candy/greeting) has at least one string

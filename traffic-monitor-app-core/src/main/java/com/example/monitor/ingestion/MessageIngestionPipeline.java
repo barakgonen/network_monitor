@@ -179,11 +179,11 @@ public class MessageIngestionPipeline {
             }
 
             Object opcodeValue = headerFields.get(interfaceConfig.getOpcodeFieldName());
-            int opcode = Integer.parseInt(String.valueOf(opcodeValue));
+            long opcode = coerceOpcode(opcodeValue);
 
             MessageDefinition definition = scopedRegistry.findByOpcode(opcode)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Unknown opcode " + opcode + " for interface " + interfaceConfig.getName()));
+                            "Unknown opcode " + Long.toUnsignedString(opcode) + " for interface " + interfaceConfig.getName()));
 
             Map<String, Object> bodyFields = definition.decodeBody(bodyBuffer(payload, headerSize, interfaceConfig));
             Object typedMessage = definition.decodeMessage(bodyBuffer(payload, headerSize, interfaceConfig));
@@ -191,6 +191,28 @@ public class MessageIngestionPipeline {
             return new DecodedPacket(definition, headerFields, bodyFields, typedMessage, null);
         } catch (Exception e) {
             return new DecodedPacket(null, null, null, null, e.getMessage());
+        }
+    }
+
+    /**
+     * The decoded header field's value is already a boxed {@link Number} whose actual type
+     * (Integer/Long) is entirely determined by the header struct's own field declaration (see
+     * {@code ReflectiveFieldExtractor}/{@code SerdesHeaderDecoder}) - so this widens via {@code
+     * longValue()} rather than round-tripping through a string, which would silently break for any
+     * opcode outside {@code int} range. The string-parsing fallback exists only for defense in
+     * depth (a header decoder producing something other than a {@code Number} would be a bug
+     * elsewhere), trying signed parsing first and falling back to unsigned for literals in the
+     * upper half of the 64-bit range.
+     */
+    private long coerceOpcode(Object opcodeValue) {
+        if (opcodeValue instanceof Number number) {
+            return number.longValue();
+        }
+        String text = String.valueOf(opcodeValue);
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            return Long.parseUnsignedLong(text);
         }
     }
 

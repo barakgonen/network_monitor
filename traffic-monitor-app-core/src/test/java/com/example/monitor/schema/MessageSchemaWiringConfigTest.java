@@ -90,7 +90,7 @@ class MessageSchemaWiringConfigTest {
         MessageConfig message = new MessageConfig();
         message.setType(messageClass.getSimpleName());
         message.setMessageClass(messageClass.getName());
-        message.setOpcode(1);
+        message.setOpcode(1L);
         message.setByteOrder(byteOrder);
         return message;
     }

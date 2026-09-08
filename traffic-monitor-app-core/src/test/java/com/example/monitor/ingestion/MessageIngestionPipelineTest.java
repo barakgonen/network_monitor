@@ -203,6 +203,49 @@ class MessageIngestionPipelineTest {
         assertThat(message.body()).containsEntry("raw", 11);
     }
 
+    /**
+     * Regression test for the {@code MessageIngestionPipeline.coerceOpcode} fix: a header field
+     * declared {@code int64} decodes to a boxed {@code Long} outside {@code int} range - the old
+     * {@code Integer.parseInt(String.valueOf(opcodeValue))} would throw
+     * {@code NumberFormatException} for exactly this case.
+     */
+    @Test
+    void ingestForInterface_withWideLongOpcodeHeaderField_routesUsingFullLongValue() throws Exception {
+        long wideOpcode = 5_000_000_000L; // outside int range, would overflow Integer.parseInt
+
+        Path serdesFile = tempDir.resolve("wide-opcode-header.protocol.json");
+        Files.writeString(serdesFile, """
+                {
+                  "types": [
+                    { "name": "WideHeader", "kind": "record", "fields": [
+                      { "name": "msgCounter", "type": "int32" },
+                      { "name": "msgType", "type": "int64" }
+                    ] }
+                  ],
+                  "messages": []
+                }
+                """);
+
+        interfaceConfig.setMessageOwnsHeader(true);
+        interfaceConfig.setSerdesFile(serdesFile.toString());
+        interfaceConfig.setSerdesHeaderType("WideHeader");
+        interfaceConfig.setOpcodeFieldName("msgType");
+
+        StubDefinition definition = new StubDefinition();
+        when(scopedRegistry.findByOpcode(wideOpcode)).thenReturn(Optional.of(definition));
+
+        ByteBuffer buffer = ByteBuffer.allocate(4 + 8 + 3);
+        buffer.putInt(1); // msgCounter
+        buffer.putLong(wideOpcode); // msgType
+        buffer.put(new byte[]{1, 2, 3});
+
+        ObservedMessage message = pipeline.ingestForInterface(
+                buffer.array(), "UDP", "127.0.0.1:9000", 5001, interfaceConfig, scopedRegistry);
+
+        assertThat(message.parseError()).isNull();
+        verify(scopedRegistry).findByOpcode(wideOpcode);
+    }
+
     @Test
     void ingestForInterface_withBodyLengthMismatch_setsParseError() {
         ByteBuffer buffer = ByteBuffer.allocate(ProtocolHeaderCodec.HEADER_SIZE_BYTES + 2);
@@ -323,7 +366,7 @@ class MessageIngestionPipelineTest {
         }
 
         @Override
-        public int opcode() {
+        public long opcode() {
             return STUB_OPCODE;
         }
 

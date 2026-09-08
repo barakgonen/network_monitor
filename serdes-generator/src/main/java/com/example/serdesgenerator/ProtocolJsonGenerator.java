@@ -33,7 +33,7 @@ public final class ProtocolJsonGenerator {
 
     private static final int DEFAULT_ENUM_WIRE_SIZE_BYTES = Integer.BYTES;
 
-    public record RootMessage(Class<?> messageClass, int opcode) {
+    public record RootMessage(Class<?> messageClass, long opcode) {
         public RootMessage {
             if (messageClass == null) {
                 throw new IllegalArgumentException("messageClass is required");

@@ -4,7 +4,7 @@ public class MessageConfig {
     private String type;
     private String definitionClass;
     private String messageClass;
-    private Integer opcode;
+    private Long opcode;
 
     /**
      * Per-message override of {@link InterfaceConfig#getByteOrder()}. {@code null} (default)
@@ -51,11 +51,11 @@ public class MessageConfig {
         this.messageClass = messageClass;
     }
 
-    public Integer getOpcode() {
+    public Long getOpcode() {
         return opcode;
     }
 
-    public void setOpcode(Integer opcode) {
+    public void setOpcode(Long opcode) {
         this.opcode = opcode;
     }
 }

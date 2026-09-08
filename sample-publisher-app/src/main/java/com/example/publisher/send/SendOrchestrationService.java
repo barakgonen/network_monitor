@@ -112,10 +112,12 @@ public class SendOrchestrationService {
 
         // messageOwnsHeader interfaces (e.g. rada) already include header fields in their own
         // field list - the body IS the full wire payload. Everything else needs the legacy
-        // opcode+timestamp+bodyLength envelope wrapped around it.
+        // opcode+timestamp+bodyLength envelope wrapped around it. The legacy envelope's opcode is
+        // intentionally still a 4-byte int (see CLAUDE.md), so this narrowing cast is safe: it's
+        // only reached for legacy-envelope interfaces, whose opcodes are always in int range.
         byte[] payload = interfaceConfig.isMessageOwnsHeader()
                 ? body
-                : ProtocolHeaderCodec.encodeMessage(messageType.getOpcode(), Instant.now().toEpochMilli(), body);
+                : ProtocolHeaderCodec.encodeMessage((int) messageType.getOpcode(), Instant.now().toEpochMilli(), body);
 
         String host = request.host() != null && !request.host().isBlank() ? request.host() : "localhost";
         Integer port = request.port() != null ? request.port() : interfaceConfig.getPort();

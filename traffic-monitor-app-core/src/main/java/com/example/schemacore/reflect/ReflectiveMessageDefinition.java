@@ -16,14 +16,14 @@ import java.util.Map;
 public final class ReflectiveMessageDefinition implements MessageDefinition {
     private final String interfaceName;
     private final String messageType;
-    private final int opcode;
+    private final long opcode;
     private final Class<?> messageClass;
     private final ByteOrder byteOrder;
 
     public ReflectiveMessageDefinition(
             String interfaceName,
             String messageType,
-            int opcode,
+            long opcode,
             Class<?> messageClass
     ) {
         this(interfaceName, messageType, opcode, messageClass, ByteOrder.BIG_ENDIAN);
@@ -32,7 +32,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     public ReflectiveMessageDefinition(
             String interfaceName,
             String messageType,
-            int opcode,
+            long opcode,
             Class<?> messageClass,
             ByteOrder byteOrder
     ) {
@@ -54,7 +54,7 @@ public final class ReflectiveMessageDefinition implements MessageDefinition {
     }
 
     @Override
-    public int opcode() {
+    public long opcode() {
         return opcode;
     }
 
