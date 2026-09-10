@@ -1,10 +1,17 @@
 # Manifest for serdes-generator: regenerates serdes/rada.protocol.json from the fixed-layout
 # rada message classes in traffic-tester-app. See serdes-generator's package-info for scope.
 #
+# serdes-generator has no dependency on traffic-tester-app (or any other schema module) - it
+# resolves each className: below purely via Class.forName at runtime, off whatever classpath it's
+# launched with. So the generator jar and the schema classes are supplied separately: the
+# generator's own "-standalone" classified jar (a single self-contained fat jar bundling all of
+# the generator's own dependencies - see serdes-generator/pom.xml) plus traffic-tester-app's own
+# packaged output, layered together on one classpath.
+#
 # Usage (from repo root, after `mvn -pl traffic-tester-app,serdes-generator -am package`):
 #
-#   java -cp "serdes-generator/target/serdes-generator-0.2.0-SNAPSHOT.jar:serdes-generator/target/lib/*:\
-#traffic-tester-app/target/traffic-tester-app-0.2.0-SNAPSHOT.jar:traffic-tester-app/target/lib/*" \
+#   java -cp "traffic-tester-app/target/traffic-tester-app-0.2.0-SNAPSHOT.jar:traffic-tester-app/target/lib/*:\
+#serdes-generator/target/serdes-generator-0.2.0-SNAPSHOT-standalone.jar" \
 #     com.example.serdesgenerator.GeneratorMain \
 #     --manifest generator/rada.manifest.yml \
 #     --output serdes/rada.protocol.json

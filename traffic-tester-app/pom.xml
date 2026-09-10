@@ -49,6 +49,18 @@
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!-- Test-only: RadaRoundTripTest cross-checks serdes-generator's ProtocolJsonGenerator against
+         this module's own rada message classes (encode via ReflectiveStructCodec, decode via a
+         generated protocol.json, assert every field survives). serdes-generator itself has no
+         dependency back on this module - see its pom for why - so this direction is the only one
+         that avoids a reactor cycle. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>serdes-generator</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

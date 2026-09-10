@@ -110,6 +110,37 @@ repackage replaces the main artifact in place with the fat jar, silently breakin
 module that depends on this one for its plain classes. Run the app via the `-exec` jar (or
 `mvn -pl traffic-monitor-app spring-boot:run`), not the plain one.
 
+## serdes-generator (not shown in the module graph above — pre-existing doc gap)
+
+A 10th module, `serdes-generator` (package `com.example.serdesgenerator`), is a dev-time CLI
+(`GeneratorMain --manifest <manifest.yml> --output <output.protocol.json>`) that reflects over
+fixed-layout Java message classes (the ones `StructSizeCalculator`/`ReflectiveStructCodec` can
+size/codec — see "The reflective codec convention" below) and generates the equivalent
+`binary-serdes` `*.protocol.json`, so a class's wire format doesn't need hand-authoring twice.
+It resolves each manifest entry's `className:` purely via `Class.forName` at runtime — no
+compile-time dependency on any schema module, deliberately: this generator is meant to be reused
+against schema classes it has never heard of (e.g. `generator/rada.manifest.yml` currently points
+at traffic-tester-app's rada classes, but nothing here is rada-specific).
+
+**Same classifier pattern as the exec-jar note above, via `maven-shade-plugin` instead of
+spring-boot-maven-plugin**: `mvn package` produces `serdes-generator-<version>.jar` (plain
+classes — the resolvable Maven dependency, e.g. for an external "offline-generator" project that
+depends on this jar plus its own separate schemas jar) and
+`serdes-generator-<version>-standalone.jar` (classifier `standalone`, a single self-contained
+uber jar bundling every runtime dependency — including traffic-monitor-app-core's full Spring
+Boot transitive tree, accepted as a non-issue for a dev-time CLI never deployed as a service).
+The standalone jar is the one meant for airgapped environments: `java -jar
+serdes-generator-<version>-standalone.jar --manifest ... --output ...` needs nothing else on
+disk except whatever jar(s) supply the manifest's schema classes, layered on top via `-cp`
+alongside it (see `generator/rada.manifest.yml`'s usage comment for a concrete example).
+
+`serdes-generator` has no dependency (compile or test) on traffic-tester-app or any other schema
+module. Its strongest correctness test, `RadaRoundTripTest` (encodes a real rada message via
+`ReflectiveStructCodec`, decodes the same bytes via a generator-produced `protocol.json`, asserts
+every field round-trips), needs traffic-tester-app's actual rada classes, so that test lives in
+`traffic-tester-app`'s own test tree instead — a test-scope-only dependency on `serdes-generator`
+in the other direction, avoiding a reactor cycle.
+
 ## Standalone-module extraction (traffic-config / binary-serdes / rest-schema)
 
 These three modules exist for one reason: `sample-publisher-app` needed to read `config/traffic-tool.yml`,
